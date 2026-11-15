@@ -369,6 +369,39 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     fun command(data: ByteArray, label: String) = ble.sendCommand(data, label)
 
+    // ---------- Alarm deneyi ----------
+
+    private val experimentCleanup = Runnable { clearExperiment() }
+
+    /** Boş (kapalı) bir yuvaya 2 dk sonrasına deneme alarmı kurar. Sonuç metni döner. */
+    fun alarmExperiment(p5: Int, p6: Int): String {
+        if (!ble.isReady) return "Saat bağlı değil."
+        if (Prefs.experimentSlot(this) != 0) return "Önceki deneme henüz silinmedi."
+        val slot = (1..com.che.ls05.protocol.UteAlarm.SLOTS).firstOrNull { slot ->
+            val a = com.che.ls05.protocol.AlarmSetting.decode(SettingsStore.entry(this, com.che.ls05.protocol.AlarmSetting.key(slot)).desired)
+            a == null || !a.enabled
+        } ?: return "Boş alarm yuvası yok. Denemek için bir alarmı kapat."
+        val t = java.time.LocalDateTime.now().plusMinutes(2)
+        val mask = 1 shl (t.dayOfWeek.value % 7)
+        Prefs.setExperimentSlot(this, slot)
+        ble.sendCommand(
+            com.che.ls05.protocol.UteAlarm.buildExperiment(slot, t.hour, t.minute, mask, p5, p6),
+            "alarm deneyi yuva $slot (5.=$p5, 6.=$p6)",
+        )
+        main.removeCallbacks(experimentCleanup)
+        main.postDelayed(experimentCleanup, 6 * 60_000L)
+        return "Deneme alarmı %02d:%02d için kuruldu (yuva $slot).".format(t.hour, t.minute)
+    }
+
+    /** Deneme yuvasını kapalı hâle döndürür; bağlantı yoksa bir sonraki bağlantıda yapılır. */
+    private fun clearExperiment() {
+        val slot = Prefs.experimentSlot(this)
+        if (slot == 0 || !ble.isReady) return
+        ble.sendCommand(com.che.ls05.protocol.UteAlarm.build(slot, 0, 0, 0, false), "alarm deneyi silindi (yuva $slot)")
+        Prefs.setExperimentSlot(this, 0)
+        SettingsStore.retry(this, com.che.ls05.protocol.AlarmSetting.key(slot))
+    }
+
     fun sendTime(label: String = "saat eşitleme (04)") {
         val now = ZonedDateTime.now()
         val offsetHours = now.offset.totalSeconds / 3600
@@ -646,6 +679,7 @@ class WatchService : Service(), Ls05Ble.Listener {
         if (System.currentTimeMillis() - Prefs.lastSync(this) > HISTORY_STALE_MS) requestHistory(true)
         WeatherSync.refresh(this, force = false)
         scheduleWeather()
+        if (Prefs.experimentSlot(this) != 0) main.postDelayed(experimentCleanup, 3_000)
         // Bağlantı başına bir kez, ilk trafik bittikten sonra (ayar açıksa).
         scheduleFaceQuery(FACE_QUERY_AFTER_READY_MS)
     }

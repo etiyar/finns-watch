@@ -1505,6 +1505,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         actionButtons += ui.secondary("Kadranı sor (1a 01)") {
             withWatch { act.toast(it.queryFace(manual = true) ?: "Sorgu gönderildi. Yanıt logda.") }
         }
+        actionButtons += ui.secondary("Alarm titreşim deneyi") { alarmExperiment() }
         var i = 0
         while (i < actionButtons.size) {
             val r = ui.horizontal()
@@ -1574,6 +1575,36 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             }
             ui.add(setup.content, ui.row(item.label, trailing = ui.pill(label, tone), onClick = item.fix))
         }
+    }
+
+    /** Alarmın belgelenmemiş 5. ve 6. baytlarını denemek için: boş bir yuvaya 2 dk sonrasına tek seferlik alarm. */
+    private fun alarmExperiment() {
+        val box = ui.vertical()
+        box.setPadding(ui.dp(20), ui.dp(12), ui.dp(20), 0)
+        ui.add(box, ui.caption("Boş bir alarm yuvasına 2 dakika sonrasına deneme alarmı kurulur; 6 dakika sonra kendiliğinden silinir. Alarm çalınca kaç saniye ve kaç kez titreştiğini not et."))
+        val f5 = ui.field("5. bayt (1-60), Haylou Fun 8")
+        f5.inputType = InputType.TYPE_CLASS_NUMBER
+        f5.setText("8")
+        ui.add(box, f5, topDp = 12)
+        val f6 = ui.field("6. bayt (1-30), Haylou Fun 6")
+        f6.inputType = InputType.TYPE_CLASS_NUMBER
+        f6.setText("6")
+        ui.add(box, f6, topDp = 8)
+        AlertDialog.Builder(act)
+            .setTitle("Alarm titreşim deneyi")
+            .setView(box)
+            .setPositiveButton("Kur") { _, _ ->
+                val p5 = f5.text.toString().toIntOrNull()
+                val p6 = f6.text.toString().toIntOrNull()
+                if (p5 == null || p5 !in 1..60 || p6 == null || p6 !in 1..30) {
+                    act.toast("Değerler aralık dışında.")
+                    return@setPositiveButton
+                }
+                val s = act.readyService() ?: return@setPositiveButton
+                act.toast(s.alarmExperiment(p5, p6))
+            }
+            .setNegativeButton("Vazgeç", null)
+            .show()
     }
 
     /** Şehir arama penceresi. */

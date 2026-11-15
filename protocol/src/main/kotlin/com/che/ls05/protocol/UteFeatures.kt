@@ -56,6 +56,15 @@ object UteAlarm {
         }
     }
 
+    /**
+     * Deney: 5. ve 6. baytlar (Haylou Fun 08 06, Hello Haylou 10 06) belgelenmemiş; büyük olasılıkla titreşim
+     * süresi ya da tekrar sayısı. Yalnızca Gelişmiş'teki elle deneme düğmesiyle gönderilir.
+     */
+    fun buildExperiment(slot: Int, hour: Int, minute: Int, repeatMask: Int, p5: Int, p6: Int): ByteArray {
+        require(slot in 1..SLOTS && p5 in 1..60 && p6 in 1..30)
+        return byteArrayOf(0x06, repeatMask.toByte(), hour.toByte(), minute.toByte(), 0x02, p5.toByte(), p6.toByte(), 0x00, slot.toByte())
+    }
+
     fun maskLabel(mask: Int): String = when (mask) {
         EVERY_DAY -> "Her gün"
         WEEKDAYS -> "Hafta içi"

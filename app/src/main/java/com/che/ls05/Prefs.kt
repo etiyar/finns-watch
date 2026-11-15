@@ -89,6 +89,10 @@ object Prefs {
     fun reminderSentDay(c: Context, slot: Int): String = p(c).getString("reminderDay$slot", "") ?: ""
     fun setReminderSentDay(c: Context, slot: Int, day: String) = p(c).edit().putString("reminderDay$slot", day).apply()
 
+    /** Silinmeyi bekleyen alarm deneyi yuvası (0: yok). */
+    fun experimentSlot(c: Context): Int = p(c).getInt("alarmExperimentSlot", 0)
+    fun setExperimentSlot(c: Context, slot: Int) = p(c).edit().putInt("alarmExperimentSlot", slot).apply()
+
     // Hava durumu: şehir yalnızca telefonda; loga yazılmaz.
     fun weatherEnabled(c: Context): Boolean = p(c).getBoolean("weatherOn", false)
     fun setWeatherEnabled(c: Context, on: Boolean) = p(c).edit().putBoolean("weatherOn", on).apply()
