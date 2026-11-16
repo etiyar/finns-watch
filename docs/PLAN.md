@@ -362,3 +362,9 @@ Saatteki kadran (`1a 01`):
 ### 16 Kasım: alarm baytları ve testler
 - Alarm komutu `06 [gün] [sa] [dk] 02 [N] [G] 00 [yuva]`: N = titreşim sayısı (8 → 8 kez ~10 sn, 16 → 16 kez ~20 sn, 30 → 30 kez ~45 sn; denendi). G büyük olasılıkla güç; 6'da kalıyor (iki uygulama da 6).
 - Saatten aramayı reddetme ve cevapsız arama (tip 4) cihazda doğrulandı. Telefonu bul doğrulandı.
+
+### 17 Kasım: kadran bulguları (saatte denenen 6 kadran + 3 topluluk kadranı)
+- Saat sayıları sabit genişlikli alanın ORTASINA yazıyor (sola yaslamıyor). Alan genişlikleri Hello Haylou örnek uzunluklarıyla aynı görünüyor: adım 5, mesafe 5, kalori 4, nabız 3, pil 3, sıcaklık 3, saat/dakika/saniye/gün/ay 2, yıl 4. Topluluk kadranları da işareti alanın hemen sağına koyuyor (sıcaklık x=60, hücre 10, ° x=89).
+- İbre kuyruk baytları: b0 = ibrenin toplam boyu (merkezin altına uzanan kısım dahil), b1 = uçtan merkeze uzaklık, b2 = genişlik. Örnek: saniye 8d 67 04 → toplam 141, uç-merkez 103, 38 px kuyruk. Saat ibre resminin yalnızca bu şeridini çiziyor; tam disk için (240, 120, 240) denenecek.
+- Yeni türler (topluluk kadranlarında çalışıyor): 7 sabit iki nokta (1 kare), 12 ay adı (12 kare, OCA…ARA yazılabilir), 18 yanıp sönen iki nokta (2 kare: açık/kapalı), 22 derece işareti, 34 yüzde işareti.
+- Nane yeşili (#7FE3C3) saatte mavimsi görünüyor; saat kadranlarında daha yeşil ton gerekli.
