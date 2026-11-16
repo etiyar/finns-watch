@@ -358,3 +358,7 @@ Saatteki kadran (`1a 01`):
 - Aşama A: Ayarlar > Gelişmiş > "Kadranı sor (1a 01)". Yalnızca `1a 01` gider, yanıt loga yazılır (kimlik onaltılık, en/boy). Tek başına gönderim cihazda denenmedi; sonucu buraya yazılacak.
 - Aşama B: "Saatteki kadranı otomatik sor", varsayılan kapalı. Açıksa bağlanınca bir kez (8 sn sonra) ve kadran yüklemesi bitince sorulur; yükleme sürerken hiç sorulmaz. Yanıt `WatchHub.faceOnWatchId`; galerideki işaret `FaceMatch` ile: tek aday o, birden çok aday varsa yalnızca en son yüklenen aralarındaysa o; `ff ff ff ff` "Saatte yerleşik kadran"; eşleşme yoksa "Saatteki kadran galeride yok".
 - `tools/face_builder.py --id` (varsayılan 0xF100): her FW kadranı ayrı kimlik alır.
+
+### 16 Kasım: alarm baytları ve testler
+- Alarm komutu `06 [gün] [sa] [dk] 02 [N] [G] 00 [yuva]`: N = titreşim sayısı (8 → 8 kez ~10 sn, 16 → 16 kez ~20 sn, 30 → 30 kez ~45 sn; denendi). G büyük olasılıkla güç; 6'da kalıyor (iki uygulama da 6).
+- Saatten aramayı reddetme ve cevapsız arama (tip 4) cihazda doğrulandı. Telefonu bul doğrulandı.
