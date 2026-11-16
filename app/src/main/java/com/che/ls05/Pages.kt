@@ -408,16 +408,25 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         val toggle: Toggle,
         val status: StatusLine,
         val retry: Button,
+        val card: View? = null,
     )
 
     private val alarms = ArrayList<SettingViews>()
     private val dnd: SettingViews
 
-    // Kadranlarım
+    // Alarm ekle: yalnızca kurulmuş yuvalar görünür (v0.11).
+    private val addAlarm: Button = ui.secondary("Alarm ekle") { addAlarm() }
+    private val noAlarm: TextView = ui.caption("Henüz alarm yok. Saatte en çok 3 alarm kurulabilir.")
+
+    // Saati bul
+    private val findCaption: TextView = ui.caption("")
+    private val findButton: Button = ui.tonal("Titret") { toggleFind() }
+
+    // Kadranlarım: en çok 4 döşeme; tümü galeride.
     private val faceRow = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL }
     private val faceStatus: TextView = ui.caption("")
-    private val faceNote: TextView = ui.caption("")
-    private val faceThumbs = HashMap<String, FaceThumbView>()
+    private val faceThumbs = ArrayList<Pair<String, FaceThumbView>>()
+    private var gallery: FaceGallery? = null
 
     // Alarm notu var ama tam zamanlı alarm izni yoksa uyarı.
     private val exactBanner: Banner = ui.banner(
@@ -437,17 +446,20 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
     private val profileRetry: Button = ui.tonal("Yeniden gönder") { SettingsStore.retry(act, ProfileSetting.KEY) }
 
     init {
-        // Alarmlar: üç sabit yuva. Yoğunluk kuralı: saat 28 sp, kart içi 14 dp, kart arası 10 dp.
+        // Alarmlar: saatte üç yuva; yalnızca kurulmuş olanlar görünür. Yoğunluk: saat 28 sp, kart içi 14 dp, kart arası 10 dp.
         ui.add(body, ui.section("Alarmlar"), topDp = 8)
         for (slot in 1..UteAlarm.SLOTS) {
             val key = AlarmSetting.key(slot)
             alarms += alarmCard(
                 top = if (slot == 1) 8 else 10,
-                onEdit = { editAlarm(slot) },
+                onEdit = { AlarmSheet(act, slot, isNew = false).show() },
                 onToggle = { on -> toggleAlarm(slot, on) },
                 onRetry = { SettingsStore.retry(act, key) },
             )
         }
+        noAlarm.setPadding(ui.dp(4), 0, ui.dp(4), 0)
+        ui.add(body, noAlarm, topDp = 8)
+        ui.add(body, addAlarm, topDp = 10, width = Ui.WRAP)
         exactBanner.view.visibility = View.GONE
         ui.add(body, exactBanner.view, topDp = 10)
 
@@ -479,29 +491,20 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         ui.icon(R.drawable.ic_vibrate, R.color.text2)?.let { findTop.addView(it, LinearLayout.LayoutParams(ui.dp(24), ui.dp(24))) }
         ui.add(find, findTop)
         ui.add(find, ui.cardTitle("Saati bul"), topDp = 6)
-        ui.add(find, ui.caption("Saat kısa bir süre titrer."), topDp = 2)
+        ui.add(find, findCaption, topDp = 2)
         ui.add(find, ui.space(), height = 0, weight = 1f)
-        ui.add(find, ui.tonal("Titret") {
-            act.readyService()?.command(UteCommand.VIBRATE_TEXT, "saati bul (06)")
-        }, topDp = 8)
+        ui.add(find, findButton, topDp = 8)
         ui.add(pair, find, width = 0, height = Ui.MATCH, weight = 1f, leftDp = 10)
         ui.add(body, pair, topDp = 10)
 
-        // Kadranlarım: yuvarlak önizlemeler, saatteki nane halkalı, sonda ekle.
+        // Kadranlarım: saatteki önce, sonra en son eklenen iki kadran, sonda Tümü (ya da Ekle).
         ui.add(body, ui.section("Kadranlarım"), topDp = 20)
         val faces = ui.card(padDp = 0, padVDp = 14)
-        val scroll = android.widget.HorizontalScrollView(act)
-        scroll.isHorizontalScrollBarEnabled = false
-        scroll.clipToPadding = false
-        scroll.setPadding(ui.dp(10), 0, ui.dp(10), 0)
-        scroll.addView(faceRow)
-        ui.add(faces, scroll)
+        faceRow.setPadding(ui.dp(8), 0, ui.dp(8), 0)
+        ui.add(faces, faceRow)
         faceStatus.visibility = View.GONE
         faceStatus.setPadding(ui.dp(16), 0, ui.dp(16), 0)
         ui.add(faces, faceStatus, topDp = 10)
-        faceNote.visibility = View.GONE
-        faceNote.setPadding(ui.dp(16), 0, ui.dp(16), 0)
-        ui.add(faces, faceNote, topDp = 10)
         ui.add(body, faces, topDp = 8)
 
         // Ekran ve profil
@@ -551,7 +554,24 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         retry.visibility = View.GONE
         ui.add(card, retry, topDp = 8, width = Ui.WRAP)
         ui.add(body, card, topDp = top)
-        return SettingViews(main, sub, tg, status, retry)
+        return SettingViews(main, sub, tg, status, retry, card)
+    }
+
+    /** İlk gizli yuva için boş alarm paneli. */
+    private fun addAlarm() {
+        val slot = (1..UteAlarm.SLOTS).firstOrNull { !Prefs.alarmVisible(act, it) } ?: return
+        AlarmSheet(act, slot, isNew = true).show()
+    }
+
+    /** Titret: sürekli titreşim (en çok 30 sn); Durdur: titreşimi keser. */
+    private fun toggleFind() {
+        val s = WatchHub.service
+        if (s != null && s.finding) {
+            s.stopFind("kullanıcı durdurdu")
+            return
+        }
+        val ready = act.readyService() ?: return
+        if (!ready.startFind()) act.toast("Saatte arama ekranı açık; şimdi titretilemez.")
     }
 
     private fun alarm(slot: Int): AlarmSetting =
@@ -569,14 +589,17 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
     }
 
     override fun refresh() {
+        val visible = SettingsStore.visibleAlarms(act)
         for (slot in 1..UteAlarm.SLOTS) {
             val e = SettingsStore.entry(act, AlarmSetting.key(slot))
             val a = AlarmSetting.decode(e.desired) ?: AlarmSetting.DEFAULT
             val v = alarms[slot - 1]
+            v.card?.visibility = if (slot in visible) View.VISIBLE else View.GONE
             v.main.text = Fmt.hm(a.hour, a.minute)
             v.main.setTextColor(ui.color(if (a.enabled) R.color.text else R.color.muted))
-            val note = Reminders.note(act, slot)
-            v.sub.text = if (note.isEmpty()) UteAlarm.maskLabel(a.mask) else "${UteAlarm.maskLabel(a.mask)} · $note"
+            // Ör. "Hafta içi · Sabah ilacı · 20 sn"
+            v.sub.text = listOf(UteAlarm.maskLabel(a.mask), Reminders.note(act, slot), UteAlarm.vibesLabel(a.vibes))
+                .filter { it.isNotEmpty() }.joinToString(" · ")
             v.toggle.set(a.enabled)
             v.toggle.sw.contentDescription = "Alarm $slot"
             showStatus(v, e)
@@ -588,64 +611,68 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         dnd.toggle.set(d.enabled)
         dnd.toggle.sw.contentDescription = "Rahatsız etme"
         showStatus(dnd, e)
+        noAlarm.visibility = if (visible.isEmpty()) View.VISIBLE else View.GONE
+        addAlarm.visibility = if (visible.size < UteAlarm.SLOTS) View.VISIBLE else View.GONE
         exactBanner.view.visibility =
             if (Reminders.anyActive(act) && !Reminders.canExact(act)) View.VISIBLE else View.GONE
+        refreshFind()
         refreshProfile()
         refreshFaces()
     }
 
+    private fun refreshFind() {
+        val finding = WatchHub.ready && WatchHub.service?.finding == true
+        findButton.text = if (finding) "Durdur" else "Titret"
+        findCaption.text = if (finding) "Saat titriyor. En çok 30 sn sürer." else "Saat 30 sn boyunca titrer."
+    }
+
     // ---------- Kadranlarım ----------
 
-    private fun faceTile(label: String, thumb: FaceThumbView, onClick: () -> Unit): LinearLayout {
-        val col = ui.vertical()
-        col.gravity = Gravity.CENTER_HORIZONTAL
-        col.background = ui.pressable(16)
-        col.setPadding(ui.dp(6), ui.dp(4), ui.dp(6), ui.dp(4))
-        col.setOnClickListener { onClick() }
-        col.addView(thumb, LinearLayout.LayoutParams(ui.dp(76), ui.dp(76)))
-        val t = ui.text(label, 12f, R.color.text2)
-        t.gravity = Gravity.CENTER
-        t.maxLines = 2
-        t.ellipsize = android.text.TextUtils.TruncateAt.END
-        val lp = LinearLayout.LayoutParams(ui.dp(80), LinearLayout.LayoutParams.WRAP_CONTENT)
-        lp.topMargin = ui.dp(6)
-        col.addView(t, lp)
-        col.contentDescription = label
-        return col
+    /** Saatteki kadran: uygulamanın kaydı (en son yüklenen). Galeride yoksa boş. Otomatik sorgu kullanılmaz. */
+    private fun currentFace(all: List<FaceLibrary.Entry>): String {
+        val id = Prefs.currentFace(act)
+        return if (all.any { it.id == id }) id else ""
     }
+
+    private fun faceOnWatch(): String = currentFace(FaceLibrary.list(act))
 
     /**
-     * Saatteki kadran. "Saatteki kadranı otomatik sor" açık ve saat yanıt verdiyse saatin cevabından,
-     * değilse uygulamanın kaydından (en son yüklenen). İkinci değer kartta gösterilecek not.
+     * Galeriyi yeniden kurar (ekleme, silme, yükleme sonrası). En çok 4 döşeme: saatteki kadran, en son eklenen
+     * iki kadran, sonda "Tümü (N)". 3'ten az kadran varsa hepsi görünür ve sonda "Ekle" durur.
      */
-    private fun faceOnWatch(): Pair<String, String> {
-        val last = Prefs.currentFace(act)
-        val id = WatchHub.faceOnWatchId
-        if (!Prefs.autoFaceQuery(act) || id == null) return last to ""
-        return when (val m = com.che.ls05.protocol.FaceMatch.match(id, FaceLibrary.headerIds(act), last)) {
-            is com.che.ls05.protocol.FaceMatch.Result.OnWatch -> m.entry to ""
-            com.che.ls05.protocol.FaceMatch.Result.Builtin -> "" to "Saatte yerleşik kadran"
-            com.che.ls05.protocol.FaceMatch.Result.NotInGallery -> "" to "Saatteki kadran galeride yok"
-        }
-    }
-
-    /** Galeriyi yeniden kurar (ekleme, silme, yükleme sonrası, saatin yanıtı gelince). */
     fun refreshFaces() {
         faceRow.removeAllViews()
         faceThumbs.clear()
-        val (current, note) = faceOnWatch()
-        faceNote.text = note
-        faceNote.visibility = if (note.isEmpty()) View.GONE else View.VISIBLE
-        for (e in FaceLibrary.list(act)) {
+        val all = FaceLibrary.list(act) // eski → yeni
+        val current = currentFace(all)
+        val shown = ArrayList<FaceLibrary.Entry>()
+        all.firstOrNull { it.id == current }?.let { shown += it }
+        shown += all.filter { it.id != current }.takeLast(2).reversed()
+        for (e in shown) {
             val th = FaceThumbView(act)
             th.set(FaceLibrary.preview(e), e.id == current)
-            faceThumbs[e.id] = th
+            faceThumbs += e.id to th
             val label = if (e.id == current) "${e.name}\nSaatte" else e.name
-            faceRow.addView(faceTile(label, th) { openFace(e) })
+            ui.add(faceRow, FaceTiles.tile(ui, label, th, 64) { openFace(e) }, width = 0, weight = 1f)
         }
-        val add = FaceThumbView(act)
-        add.set(null, false)
-        faceRow.addView(faceTile("Ekle", add) { act.pickFace() })
+        if (all.size < 3) {
+            val add = FaceThumbView(act)
+            add.set(null, false)
+            ui.add(faceRow, FaceTiles.tile(ui, "Ekle", add, 64) { act.pickFace() }, width = 0, weight = 1f)
+        } else {
+            ui.add(faceRow, FaceTiles.tile(ui, "Tümü (${all.size})", FaceTiles.countCircle(ui, all.size), 64) { openGallery() }, width = 0, weight = 1f)
+        }
+        // Döşemeler hep aynı genişlikte kalsın.
+        repeat(4 - faceRow.childCount) { ui.add(faceRow, ui.space(), width = 0, height = ui.dp(1), weight = 1f) }
+        gallery?.takeIf { it.isShowing }?.refresh(current)
+        refreshFaceProgress()
+    }
+
+    private fun openGallery() {
+        val g = FaceGallery(act, onOpen = { openFace(it) }, onClosed = { gallery = null })
+        gallery = g
+        g.refresh(faceOnWatch())
+        g.show()
         refreshFaceProgress()
     }
 
@@ -653,11 +680,14 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
     fun refreshFaceProgress() {
         val busy = WatchHub.faceBusy
         val id = WatchHub.faceId
-        faceThumbs.forEach { (k, v) -> v.setProgress(if (busy && k == id) WatchHub.facePercent else -1) }
+        val all = faceThumbs + (gallery?.thumbs ?: emptyList())
+        all.forEach { (k, v) -> v.setProgress(if (busy && k == id) WatchHub.facePercent else -1) }
         val text = WatchHub.faceText
+        val colorId = if (WatchHub.facePhase == FaceUpload.Phase.FAILED) R.color.warning else R.color.text2
         faceStatus.text = text
-        faceStatus.setTextColor(ui.color(if (WatchHub.facePhase == FaceUpload.Phase.FAILED) R.color.warning else R.color.text2))
+        faceStatus.setTextColor(ui.color(colorId))
         faceStatus.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
+        gallery?.setStatus(text, colorId)
     }
 
     private fun openFace(e: FaceLibrary.Entry) {
@@ -666,7 +696,7 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         box.gravity = Gravity.CENTER_HORIZONTAL
         box.setPadding(ui.dp(24), ui.dp(20), ui.dp(24), ui.dp(4))
         val big = FaceThumbView(act)
-        val onWatch = faceOnWatch().first == e.id
+        val onWatch = faceOnWatch() == e.id
         big.set(FaceLibrary.preview(e), onWatch)
         box.addView(big, LinearLayout.LayoutParams(ui.dp(200), ui.dp(200)))
         val name = ui.text(e.name, 18f, R.color.text, bold = true)
@@ -916,92 +946,6 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         SyncPhase.NO_ACK -> StatusKind.NO_ACK to "Onay gelmedi. Saatteki durum bilinmiyor."
         SyncPhase.UNKNOWN -> StatusKind.UNKNOWN to "Saat sıfırlanmış olabilir."
         SyncPhase.IDLE -> StatusKind.IDLE to "Henüz saate gönderilmedi"
-    }
-
-    private fun editAlarm(slot: Int) {
-        val key = AlarmSetting.key(slot)
-        val cur = alarm(slot)
-        var hour = cur.hour
-        var minute = cur.minute
-
-        val box = ui.dialogBox()
-        ui.add(box, ui.cardTitle("Saat"), topDp = 8)
-        val timeBtn = ui.secondary(Fmt.hm(hour, minute)) {}
-        timeBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
-        timeBtn.setOnClickListener {
-            act.pickTime(hour, minute) { h, m ->
-                hour = h
-                minute = m
-                timeBtn.text = Fmt.hm(h, m)
-            }
-        }
-        ui.add(box, timeBtn, topDp = 8)
-
-        ui.add(box, ui.cardTitle("Günler"), topDp = 16)
-        val names = arrayOf("Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz")
-        val row1 = ui.horizontal()
-        val row2 = ui.horizontal()
-        val boxes = ArrayList<CheckBox>()
-        for (i in UteAlarm.UI_ORDER.indices) {
-            val bit = UteAlarm.UI_ORDER[i]
-            val cb = ui.check(names[i], (cur.mask and bit) != 0)
-            boxes += cb
-            ui.add(if (i < 4) row1 else row2, cb, width = 0, weight = 1f)
-        }
-        ui.add(row2, View(act), width = 0, weight = 1f) // sütunlar hizalı kalsın
-        ui.add(box, row1, topDp = 8)
-        ui.add(box, row2)
-
-        val enabledBox = ui.check("Açık", cur.enabled)
-        ui.add(box, enabledBox, topDp = 16)
-
-        ui.add(box, ui.cardTitle("Hatırlatma notu"), topDp = 16)
-        val noteField = ui.field("İsteğe bağlı, ör. Sabah ilacı")
-        noteField.filters = arrayOf(android.text.InputFilter.LengthFilter(AlarmReminder.MAX_NOTE))
-        noteField.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        noteField.setText(Prefs.alarmNote(act, slot))
-        ui.add(box, noteField, topDp = 8)
-        val noteHelp = if (Reminders.canExact(act)) {
-            "Alarm çalınca not saate bildirim olarak gider. Yalnızca telefonda saklanır. Saat o an bağlı değilse 5 dakika beklenir."
-        } else {
-            "Tam zamanlı alarm izni yok: not gecikebilir veya gönderilemeyebilir. Yalnızca telefonda saklanır."
-        }
-        ui.add(box, ui.caption(noteHelp), topDp = 6)
-
-        val dialog = AlertDialog.Builder(act)
-            .setTitle("Alarm $slot")
-            .setView(ui.scroll(box))
-            .setPositiveButton("Kaydet", null)
-            .setNegativeButton("Vazgeç", null)
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                var mask = 0
-                for (i in boxes.indices) {
-                    if (boxes[i].isChecked) mask = mask or UteAlarm.UI_ORDER[i]
-                }
-                val on = enabledBox.isChecked
-                if (on && mask == 0) {
-                    act.toast("Açık alarm için en az bir gün seç.")
-                } else {
-                    // Kapalı alarmda gün seçilmediyse önceki günler korunur (boş maske geçersiz).
-                    val finalMask = if (mask == 0) cur.mask else mask
-                    // Not önce kaydedilir ki set() içindeki yeniden zamanlama yeni notu görsün.
-                    Prefs.setAlarmNote(act, slot, AlarmReminder.cleanNote(noteField.text.toString()))
-                    val value = AlarmSetting(on, hour, minute, finalMask).encode()
-                    if (value == SettingsStore.entry(act, key).desired) {
-                        // Yalnızca not değişti: saate komut gitmez.
-                        Reminders.reschedule(act)
-                        WatchHub.settingsChanged()
-                    } else {
-                        SettingsStore.set(act, key, value)
-                    }
-                    dialog.dismiss()
-                }
-            }
-        }
-        act.track(dialog)
-        dialog.show()
     }
 
     /** Android 12 ve sonrasında tam zamanlı alarm izni ekranını açar. */

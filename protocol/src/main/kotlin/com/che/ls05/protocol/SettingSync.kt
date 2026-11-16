@@ -171,19 +171,40 @@ class SettingSync {
     }
 }
 
-/** Alarm ayarı. Metin biçimi v0.3 kaydıyla aynı: açık|saat|dakika|gün maskesi. */
-data class AlarmSetting(val enabled: Boolean, val hour: Int, val minute: Int, val mask: Int) {
-    fun encode() = "${if (enabled) 1 else 0}|$hour|$minute|$mask"
-    fun command(slot: Int): ByteArray = UteAlarm.build(slot, hour, minute, mask, enabled)
+/**
+ * Alarm ayarı. Metin biçimi v0.3 kaydıyla aynı: açık|saat|dakika|gün maskesi.
+ * v0.11: isteğe bağlı 5. alan titreşim sayısı. 8 (eski değer) yazılmaz; böylece eski kayıtlar aynı metni korur
+ * ve gereksiz yeniden gönderim olmaz. 5. alanı olmayan kayıt 8 sayılır (o güne kadar gönderilen buydu).
+ */
+data class AlarmSetting(
+    val enabled: Boolean,
+    val hour: Int,
+    val minute: Int,
+    val mask: Int,
+    val vibes: Int = UteAlarm.VIBES_SHORT,
+) {
+    fun encode(): String {
+        val base = "${if (enabled) 1 else 0}|$hour|$minute|$mask"
+        return if (vibes == UteAlarm.VIBES_SHORT) base else "$base|$vibes"
+    }
+
+    fun command(slot: Int): ByteArray = UteAlarm.build(slot, hour, minute, mask, enabled, vibes)
 
     companion object {
         val DEFAULT = AlarmSetting(false, 7, 0, UteAlarm.WEEKDAYS)
+
+        /** Yeni eklenen alarmın başlangıç değeri: açık, Normal titreşim. */
+        val NEW = AlarmSetting(true, 7, 0, UteAlarm.WEEKDAYS, UteAlarm.VIBES_NORMAL)
+
         fun key(slot: Int) = "alarm$slot"
 
         fun decode(text: String?): AlarmSetting? {
             val p = text?.split('|')?.map { it.toIntOrNull() ?: return null } ?: return null
-            if (p.size != 4 || p[1] !in 0..23 || p[2] !in 0..59 || p[3] !in 1..0x7F) return null
-            return AlarmSetting(p[0] == 1, p[1], p[2], p[3])
+            if (p.size != 4 && p.size != 5) return null
+            if (p[1] !in 0..23 || p[2] !in 0..59 || p[3] !in 1..0x7F) return null
+            val vibes = if (p.size == 5) p[4] else UteAlarm.VIBES_SHORT
+            if (vibes !in UteAlarm.VIBES_RANGE) return null
+            return AlarmSetting(p[0] == 1, p[1], p[2], p[3], vibes)
         }
     }
 }

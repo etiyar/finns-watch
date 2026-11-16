@@ -35,7 +35,35 @@ object SettingsStore {
             migrated
         }
         cached = s
+        migrateV11(c, s)
         return s
+    }
+
+    /**
+     * v0.11 göçü. 1) Bir kez: istenen değeri olan alarm yuvaları görünür olur (kurulmuş sayılır).
+     * 2) v0.10.1 deneyinden kalan yuva varsa yuvanın kendi değeri yeniden gönderilir; hiç ayarlanmamışsa
+     * kapalı alarm gönderilir (deneyin temizliği böyleydi). Komut bağlanınca normal ayar yoluyla gider.
+     */
+    private fun migrateV11(c: Context, s: SettingSync) {
+        if (!Prefs.alarmSlotsMigrated(c)) {
+            for (slot in 1..UteAlarm.SLOTS) {
+                if (s.entry(AlarmSetting.key(slot)).desired != null) Prefs.setAlarmVisible(c, slot, true)
+            }
+            Prefs.setAlarmSlotsMigrated(c)
+        }
+        val exp = Prefs.takeLegacyExperimentSlot(c)
+        if (exp in 1..UteAlarm.SLOTS) {
+            val key = AlarmSetting.key(exp)
+            if (s.entry(key).desired != null) s.retry(key) else s.setDesired(key, AlarmSetting.DEFAULT.encode())
+            save(c)
+            WatchHub.log("Eski alarm deneyi yuvası $exp bağlanınca eski hâline döndürülecek.")
+        }
+    }
+
+    /** Kurulmuş (görünür) alarm yuvaları. */
+    fun visibleAlarms(c: Context): List<Int> {
+        sync(c)
+        return (1..UteAlarm.SLOTS).filter { Prefs.alarmVisible(c, it) }
     }
 
     fun save(c: Context) {
