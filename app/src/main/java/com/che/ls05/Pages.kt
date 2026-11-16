@@ -24,7 +24,6 @@ import com.che.ls05.protocol.AlarmSetting
 import com.che.ls05.protocol.DndSetting
 import com.che.ls05.protocol.HealthLog
 import com.che.ls05.protocol.HealthView
-import com.che.ls05.protocol.LengthTest
 import com.che.ls05.protocol.NotificationState
 import com.che.ls05.protocol.ProfileSetting
 import com.che.ls05.protocol.SyncEntry
@@ -44,6 +43,9 @@ abstract class Page(val act: MainActivity, val title: String) {
     protected val ui: Ui = act.ui
     val body: LinearLayout = ui.vertical()
     val root: ScrollView = ui.scroll(body)
+
+    /** Ekrana eklenen görünüm; bir sayfa kaydırma görünümünü sarabilir (ör. aşağı çekip yenileme). */
+    open val view: View get() = root
 
     init {
         body.setPadding(ui.dp(16), ui.dp(4), ui.dp(16), ui.dp(16))
@@ -85,9 +87,10 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
     private val lightText: TextView = ui.caption("")
     private val awakeText: TextView = ui.caption("")
 
+    // Son eşitleme: sayfanın en üstünde küçük açıklama. Yenileme aşağı çekerek yapılır.
     private val syncText: TextView = ui.caption("")
-    private val refreshButton: Button = ui.secondary("Verileri yenile") { requestData() }
-    private val refreshSpinner = ProgressBar(act, null, android.R.attr.progressBarStyleSmall)
+    private val pull = PullRefreshLayout(act, root)
+    override val view: View get() = pull
 
     // Geçmiş: 7 veya 30 günlük adım, uyku ve nabız.
     private var span = 7
@@ -99,7 +102,10 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
     private val heartAvg: TextView = ui.caption("")
 
     init {
-        ui.add(body, banner.view, topDp = 4)
+        syncText.setPadding(ui.dp(4), 0, ui.dp(4), 0)
+        ui.add(body, syncText, topDp = 0)
+        ui.add(body, banner.view, topDp = 8)
+        pull.onRefresh = { requestData() }
 
         // Büyük adım kartı: halka + toplam + hedef.
         val steps = ui.card(big = true, padDp = 20)
@@ -151,10 +157,19 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
         val trends = ui.card()
         val head = ui.horizontal()
         ui.add(head, ui.cardTitle("Geçmiş"), width = 0, weight = 1f)
-        ui.add(head, ui.segmented(listOf("7 gün", "30 gün"), 0) { i ->
+        val seg = ui.segmented(listOf("7 gün", "30 gün"), 0) { i ->
             span = if (i == 0) 7 else 30
             refresh()
-        }.view, width = Ui.WRAP)
+        }
+        // "30 gün" iki satıra bölünmesin: parçalar tek satır ve içerik genişliğinde.
+        for (k in 0 until seg.view.childCount) {
+            val t = seg.view.getChildAt(k) as? TextView ?: continue
+            t.isSingleLine = true
+            t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            t.setPadding(ui.dp(12), ui.dp(4), ui.dp(12), ui.dp(4))
+            t.layoutParams = LinearLayout.LayoutParams(Ui.WRAP, Ui.WRAP)
+        }
+        ui.add(head, seg.view, width = Ui.WRAP, leftDp = 8)
         ui.add(trends, head)
         trendBlock(trends, R.drawable.ic_today, R.color.accent, "Adım", stepAvg, stepTrend, 16)
         trendBlock(trends, R.drawable.ic_moon, R.color.sleep_light, "Uyku", sleepAvg, sleepTrend, 20)
@@ -162,17 +177,6 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
         ui.add(body, trends, topDp = 10)
 
         ui.add(body, ui.secondary("Verileri dışa aktar") { askExport() }, topDp = 10)
-
-        val sync = ui.card(padDp = 16, padVDp = 10)
-        val r = ui.horizontal()
-        ui.add(r, syncText, width = 0, weight = 1f)
-        refreshSpinner.isIndeterminate = true
-        refreshSpinner.indeterminateTintList = android.content.res.ColorStateList.valueOf(ui.color(R.color.text2))
-        refreshSpinner.visibility = View.GONE
-        r.addView(refreshSpinner, LinearLayout.LayoutParams(ui.dp(20), ui.dp(20)).also { it.leftMargin = ui.dp(12) })
-        ui.add(r, refreshButton, width = Ui.WRAP, leftDp = 12)
-        ui.add(sync, r)
-        ui.add(body, sync, topDp = 10)
     }
 
     private fun trendBlock(card: LinearLayout, icon: Int, colorId: Int, title: String, avg: TextView, chart: BarsView, topDp: Int) {
@@ -273,20 +277,21 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
         dialog.show()
     }
 
-    private fun requestData() {
-        val s = act.readyService() ?: return
-        if (s.requestHistory(true)) act.toast("Saatten veriler isteniyor.")
-        else if (s.historyBusy) act.toast("Veriler zaten okunuyor.")
-        else act.toast("Veriler az önce okundu.")
-        refreshButtonState()
+    /**
+     * Aşağı çekip bırakınca çağrılır. Okuma başladıysa ya da zaten sürüyorsa true (gösterge döner).
+     * Saat bağlı değilse ya da kadran yükleniyorsa readyService kısa uyarı gösterir.
+     */
+    private fun requestData(): Boolean {
+        val s = act.readyService() ?: return false
+        if (s.requestHistory(true)) return true
+        if (s.historyBusy) return true
+        act.toast("Veriler az önce okundu.")
+        return false
     }
 
-    /** Okuma sürerken düğme kapalı ve yanında dönen gösterge. */
-    private fun refreshButtonState() {
-        val busy = WatchHub.service?.historyBusy == true
-        refreshButton.text = if (busy) "Okunuyor…" else "Verileri yenile"
-        ui.enable(refreshButton, !busy)
-        refreshSpinner.visibility = if (busy) View.VISIBLE else View.GONE
+    /** Okuma sürerken (elle ya da bağlanınca otomatik) gösterge döner; bitince ya da kopunca gizlenir. */
+    private fun refreshPullState() {
+        pull.setRefreshing(WatchHub.service?.historyBusy == true)
     }
 
     override fun refresh() {
@@ -354,7 +359,7 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
         val sum = view.heartSummary
         val valid = HealthLog.VALID_BPM
         if (sum != null && sum.date == today && sum.min in valid && sum.avg in valid && sum.max in valid) {
-            heartRange.text = "Gün içi ${sum.min}-${sum.max} · ortalama ${sum.avg}"
+            heartRange.text = "Gün içi ${sum.min}-${sum.max}\nOrtalama ${sum.avg}"
             heartRange.visibility = View.VISIBLE
         } else {
             heartRange.visibility = View.GONE
@@ -387,7 +392,7 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
         refreshTrends(view, now.toLocalDate())
 
         syncText.text = if (last == 0L) "Son eşitleme: henüz yok" else "Son eşitleme: ${Fmt.dayMs(last)}"
-        refreshButtonState()
+        refreshPullState()
     }
 }
 
@@ -1104,7 +1109,10 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
         }
     }
 
-    private val testButton: Button = ui.tonal("Test bildirimi gönder") { sendTest("LS05TEST123", "LS05TEST123") }
+    // Küçük ikincil düğme: sayfanın asıl işi iletim ayarları, test yardımcı.
+    private val testButton: Button = ui.secondary("Test bildirimi gönder") { sendTest("LS05TEST123", "LS05TEST123") }.also {
+        it.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+    }
     private val testState: TextView = ui.text("", 14f, R.color.text)
     private val confirmRow: LinearLayout = ui.horizontal()
 
@@ -1152,7 +1160,7 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
         ui.add(body, appBox, topDp = 8)
 
         // Test: en altta. Sonuç kullanıcıya sorulur.
-        ui.add(body, testButton, topDp = 16)
+        ui.add(body, testButton, topDp = 16, width = Ui.WRAP)
         ui.add(
             body,
             ui.caption("Saate kısa bir deneme bildirimi gider. Sonra saatte görüp görmediğini işaretle."),
@@ -1392,32 +1400,17 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private val lastSeenBox: LinearLayout = ui.vertical()
     private var lastSeenAsked = false
     private var lastSeenDenied = false
-    private val autoFace: SwitchRow = ui.switchRow(
-        "Saatteki kadranı otomatik sor",
-        "Önce \"Kadranı sor\" ile elle dene. Saat sorunsuz yanıt verirse aç; galerideki işaret saatin cevabından gelir.",
-        Prefs.autoFaceQuery(act),
-    ) { on ->
-        Prefs.setAutoFaceQuery(act, on)
-        if (on) WatchHub.service?.queryFace(manual = false) else WatchHub.setFaceOnWatch(null)
-    }
     private val firmwareValue: TextView = ui.text("", 15f, R.color.text2)
-    private val profileRow: NavRow = ui.navRow(R.drawable.ic_user, "Profil", "", null) { act.watch.editProfile() }
     private val actionButtons = ArrayList<Button>()
     private val logView: TextView = ui.mono()
     private var setupOpened = false
 
     init {
-        // Kurulum özeti: dokununca ayrıntılı liste.
+        // Kurulum: yalnızca eksik adım varsa görünür; dokununca ayrıntılı liste.
         ui.add(body, setup.view, topDp = 4)
 
-        // Tema
-        val themeCard = ui.card()
-        ui.add(themeCard, ui.iconTitle(R.drawable.ic_theme, R.color.text2, "Tema"))
-        ui.add(themeCard, theme.view, topDp = 12)
-        ui.add(body, themeCard, topDp = 10)
-
-        // Saat
-        ui.add(body, ui.section("Saat"), topDp = 20)
+        // Saat bağlantısı
+        ui.add(body, ui.section("Saat bağlantısı"), topDp = 8)
         val w = ui.card(padDp = 16, padVDp = 6)
         ui.add(w, idRow.view)
         val btns = ui.horizontal()
@@ -1430,19 +1423,24 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(w, ui.divider(), height = ui.dp(1))
         ui.add(w, autoTime.view)
         ui.add(w, ui.divider(), height = ui.dp(1))
-        ui.add(w, remote.view)
-        ui.add(w, ui.divider(), height = ui.dp(1))
-        ui.add(w, lostAlert.view)
-        ui.add(w, ui.divider(), height = ui.dp(1))
-        ui.add(w, lostQuiet.view)
-        ui.add(w, ui.divider(), height = ui.dp(1))
-        ui.add(w, lastSeenSwitch.view)
-        ui.add(w, lastSeenBox)
-        ui.add(w, ui.divider(), height = ui.dp(1))
         ui.add(w, ui.row("Firmware", trailing = firmwareValue))
         ui.add(body, w, topDp = 8)
 
+        // Uyarılar
+        ui.add(body, ui.section("Uyarılar"), topDp = 20)
+        val alerts = ui.card(padDp = 16, padVDp = 6)
+        ui.add(alerts, lostAlert.view)
+        ui.add(alerts, ui.divider(), height = ui.dp(1))
+        ui.add(alerts, lostQuiet.view)
+        ui.add(alerts, ui.divider(), height = ui.dp(1))
+        ui.add(alerts, lastSeenSwitch.view)
+        ui.add(alerts, lastSeenBox)
+        ui.add(alerts, ui.divider(), height = ui.dp(1))
+        ui.add(alerts, remote.view)
+        ui.add(body, alerts, topDp = 8)
+
         // Hava durumu
+        ui.add(body, ui.section("Hava durumu"), topDp = 20)
         val wx = ui.card(padDp = 16, padVDp = 6)
         ui.add(wx, weatherSwitch.view)
         ui.add(wx, ui.divider(), height = ui.dp(1))
@@ -1461,71 +1459,27 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             }
         }, width = Ui.WRAP, leftDp = 8)
         ui.add(wx, wxBottom, topDp = 4)
-        ui.add(body, wx, topDp = 10)
+        ui.add(body, wx, topDp = 8)
 
-        // Profil
-        val profile = ui.card(padDp = 16, padVDp = 4)
-        ui.add(profile, profileRow.view)
-        ui.add(body, profile, topDp = 10)
+        // Görünüm
+        ui.add(body, ui.section("Görünüm"), topDp = 20)
+        val themeCard = ui.card()
+        ui.add(themeCard, ui.iconTitle(R.drawable.ic_theme, R.color.text2, "Tema"))
+        ui.add(themeCard, theme.view, topDp = 12)
+        ui.add(body, themeCard, topDp = 8)
 
         // Gelişmiş ve log: varsayılan kapalı.
-        val adv = ui.collapsible("Gelişmiş ve log", "Test komutları, son satırlar", R.drawable.ic_code, open = false)
-        actionButtons += ui.secondary("Firmware") {
-            withWatch { it.command(UteCommand.firmwareRequest(), "firmware sorgu") }
-        }
-        actionButtons += ui.secondary("Pil") {
-            withWatch { it.command(UteCommand.batteryRequest(), "pil sorgu") }
-        }
-        actionButtons += ui.secondary("Saati eşitle") {
-            withWatch { it.sendTime() }
-        }
-        actionButtons += ui.secondary("Türkçe test") {
-            if (act.notify.sendTest("Test", "şğıöüç ŞĞİÖÜÇ")) act.toast("Sonucu Bildirimler sekmesinde işaretle.")
-        }
-        actionButtons += ui.secondary("Titreşim") {
-            withWatch { it.command(UteCommand.VIBRATE_TEXT, "mesaj titreşimi (06), tek başına") }
-        }
-        actionButtons += ui.secondary("Uzunluk testi") {
-            withWatch {
-                if (it.ble.sendNotificationText(LengthTest.ruler(), Prefs.vibrate(act)) > 0) {
-                    WatchHub.log("Uzunluk testi gönderildi. Saatte görünen son sayıyı not et.")
-                }
-            }
-        }
-        actionButtons += ui.secondary("Uzunluk testi (Türkçe)") {
-            withWatch {
-                if (it.ble.sendNotificationText(LengthTest.turkishRuler(), Prefs.vibrate(act)) > 0) {
-                    WatchHub.log("Uzunluk testi (Türkçe) gönderildi. Saatte görünen son sayıyı not et.")
-                }
-            }
-        }
-        actionButtons += ui.secondary("Geçmişi oku") {
-            withWatch { it.requestHistory(true) }
-        }
-        actionButtons += ui.secondary("Kadranı sor (1a 01)") {
-            withWatch { act.toast(it.queryFace(manual = true) ?: "Sorgu gönderildi. Yanıt logda.") }
-        }
-        actionButtons += ui.secondary("Alarm titreşim deneyi") { alarmExperiment() }
-        var i = 0
-        while (i < actionButtons.size) {
-            val r = ui.horizontal()
-            ui.add(r, actionButtons[i], width = 0, weight = 1f)
-            if (i + 1 < actionButtons.size) {
-                ui.add(r, actionButtons[i + 1], width = 0, weight = 1f, leftDp = 8)
-            } else {
-                ui.add(r, ui.space(), width = 0, weight = 1f, leftDp = 8)
-            }
-            ui.add(adv.content, r, topDp = if (i == 0) 0 else 8)
-            i += 2
-        }
-        ui.add(adv.content, autoFace.view, topDp = 12)
+        val adv = ui.collapsible("Gelişmiş ve log", "Saati eşitle, son satırlar", R.drawable.ic_code, open = false)
+        val timeButton = ui.secondary("Saati eşitle") { withWatch { it.sendTime() } }
+        actionButtons += timeButton
+        ui.add(adv.content, timeButton)
         ui.add(adv.content, ui.cardTitle("Log"), topDp = 20)
         val lr = ui.horizontal()
         ui.add(lr, ui.secondary("Logu kopyala") { copyLog() }, width = 0, weight = 1f)
         ui.add(lr, ui.danger("Logu temizle") { clearLog() }, width = 0, weight = 1f, leftDp = 8)
         ui.add(adv.content, lr, topDp = 8)
         ui.add(adv.content, logView, topDp = 12)
-        ui.add(body, adv.view, topDp = 10)
+        ui.add(body, adv.view, topDp = 20)
 
         // Hakkında
         val footer = ui.caption("Finn's Watch ${versionName()}")
@@ -1552,15 +1506,15 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private fun refreshSetup() {
         val items = act.setupItems()
         val missing = items.count { it.ok == false }
+        // Her şey hazırsa satır hiç görünmez.
         if (missing == 0) {
-            setup.subtitle.text = "Her şey hazır"
-            setup.subtitle.setTextColor(ui.color(R.color.text2))
-            ui.setIcon(setup.icon, R.drawable.ic_check, R.color.text2)
-        } else {
-            setup.subtitle.text = "$missing adım eksik"
-            setup.subtitle.setTextColor(ui.color(R.color.warning))
-            ui.setIcon(setup.icon, R.drawable.ic_alert, R.color.warning)
+            setup.view.visibility = View.GONE
+            return
         }
+        setup.view.visibility = View.VISIBLE
+        setup.subtitle.text = "$missing adım eksik"
+        setup.subtitle.setTextColor(ui.color(R.color.warning))
+        ui.setIcon(setup.icon, R.drawable.ic_alert, R.color.warning)
         setup.subtitle.visibility = View.VISIBLE
         if (missing > 0 && !setupOpened) {
             setupOpened = true
@@ -1575,36 +1529,6 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             }
             ui.add(setup.content, ui.row(item.label, trailing = ui.pill(label, tone), onClick = item.fix))
         }
-    }
-
-    /** Alarmın belgelenmemiş 5. ve 6. baytlarını denemek için: boş bir yuvaya 2 dk sonrasına tek seferlik alarm. */
-    private fun alarmExperiment() {
-        val box = ui.vertical()
-        box.setPadding(ui.dp(20), ui.dp(12), ui.dp(20), 0)
-        ui.add(box, ui.caption("Boş bir alarm yuvasına 2 dakika sonrasına deneme alarmı kurulur; 6 dakika sonra kendiliğinden silinir. Alarm çalınca kaç saniye ve kaç kez titreştiğini not et."))
-        val f5 = ui.field("5. bayt (1-60), Haylou Fun 8")
-        f5.inputType = InputType.TYPE_CLASS_NUMBER
-        f5.setText("8")
-        ui.add(box, f5, topDp = 12)
-        val f6 = ui.field("6. bayt (1-30), Haylou Fun 6")
-        f6.inputType = InputType.TYPE_CLASS_NUMBER
-        f6.setText("6")
-        ui.add(box, f6, topDp = 8)
-        AlertDialog.Builder(act)
-            .setTitle("Alarm titreşim deneyi")
-            .setView(box)
-            .setPositiveButton("Kur") { _, _ ->
-                val p5 = f5.text.toString().toIntOrNull()
-                val p6 = f6.text.toString().toIntOrNull()
-                if (p5 == null || p5 !in 1..60 || p6 == null || p6 !in 1..30) {
-                    act.toast("Değerler aralık dışında.")
-                    return@setPositiveButton
-                }
-                val s = act.readyService() ?: return@setPositiveButton
-                act.toast(s.alarmExperiment(p5, p6))
-            }
-            .setNegativeButton("Vazgeç", null)
-            .show()
     }
 
     /** Şehir arama penceresi. */
@@ -1677,10 +1601,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         }
         lostQuiet.subtitle.visibility = View.VISIBLE
         refreshLastSeen()
-        autoFace.toggle.set(Prefs.autoFaceQuery(act))
         firmwareValue.text = WatchHub.firmware ?: "bilinmiyor"
-        profileRow.subtitle.text =
-            if (SettingsStore.profileDraft(act).personalComplete) "Boy, kilo, yaş ve cinsiyet girildi." else "Boy, kilo, yaş ve cinsiyet girilmedi."
     }
 
     fun onReady(ready: Boolean) {

@@ -67,8 +67,6 @@ class WatchService : Service(), Ls05Ble.Listener {
         private const val CALL_MAX_MS = 60_000L
         private const val NUDGE_MIN_INTERVAL_MS = 30_000L
         private const val MUSIC_STATE_DELAY_MS = 700L
-        private const val FACE_QUERY_AFTER_READY_MS = 8_000L
-        private const val FACE_QUERY_AFTER_UPLOAD_MS = 3_000L
 
         /** Başlatma isteği sisteme iletildiyse true. Arka plan kısıtı (Android 12+) gibi hatalarda false. */
         fun start(context: Context, action: String = ACTION_START, address: String? = null): Boolean {
@@ -116,7 +114,7 @@ class WatchService : Service(), Ls05Ble.Listener {
         }
     }
 
-    /** Geçmiş okuması sürüyor mu ("Verileri yenile" düğmesi için). */
+    /** Geçmiş okuması sürüyor mu (Bugün ekranındaki yenileme göstergesi için). */
     val historyBusy: Boolean get() = historyGate.running
 
     /** Saatte gelen arama ekranı açık (0D 04 henüz gönderilmedi). */
@@ -167,7 +165,6 @@ class WatchService : Service(), Ls05Ble.Listener {
         main.removeCallbacks(musicStateRunnable)
         main.removeCallbacks(weatherTick)
         main.removeCallbacks(historyTimeout)
-        cancelFaceQuery()
         historyGate.reset()
         LinkAlert.disarm(this, "servis kapandı")
         PhoneFinder.stop("servis kapandı")
@@ -232,8 +229,6 @@ class WatchService : Service(), Ls05Ble.Listener {
             if (face.phase == FaceUpload.Phase.DONE && WatchHub.faceId.isNotEmpty()) {
                 Prefs.setCurrentFace(this, WatchHub.faceId)
             }
-            // Yükleme bitti: saatteki kadran yeniden sorulur (ayar açıksa).
-            if (face.phase == FaceUpload.Phase.DONE) scheduleFaceQuery(FACE_QUERY_AFTER_UPLOAD_MS)
             // Yükleme bitti ya da durdu: bekleyen trafik şimdi gider.
             if (ble.isReady) {
                 flushPending()
@@ -245,60 +240,8 @@ class WatchService : Service(), Ls05Ble.Listener {
     /** Ayarlar ekranından çağrılır. Başlatılamazsa nedeni döner. */
     fun startFace(file: com.che.ls05.protocol.FaceFile, id: String): String? {
         if (face.active) return "Yükleme zaten sürüyor."
-        // Bekleyen kadran sorgusu varsa yanıtı yüklemenin kendi 1a 01 akışına bırakılır.
-        cancelFaceQuery()
         WatchHub.faceId = id
         return face.start(file)
-    }
-
-    // ---------- Saatteki kadran (1a 01) ----------
-
-    /** Bekleyen kadran sorgusu: 0 yok, 1 elle (yalnızca log), 2 otomatik (galeri işareti). */
-    private var faceQuery = 0
-    private val faceQueryTimeout = Runnable {
-        if (faceQuery != 0) WatchHub.log("Kadran sorgusuna ${FaceUpload.WAIT_MS / 1000} sn içinde yanıt gelmedi.")
-        faceQuery = 0
-    }
-    private val autoFaceQueryRunnable = Runnable { queryFace(manual = false) }
-
-    /**
-     * 1a 01 gönderir. Elle: Ayarlar > Gelişmiş düğmesi, yanıt yalnızca loga yazılır.
-     * Otomatik: "Saatteki kadranı otomatik sor" açıksa; yanıt galerideki "Saatte" işaretini belirler.
-     * Kadran yüklemesi sürerken hiç gönderilmez. Başlatılamazsa nedeni döner.
-     */
-    fun queryFace(manual: Boolean): String? {
-        if (!manual && !Prefs.autoFaceQuery(this)) return null
-        if (face.active) return "Kadran yükleniyor; sorgu gönderilmedi."
-        if (!ble.isReady) return "Saat hazır değil."
-        if (faceQuery != 0) return "Kadran sorgusu zaten bekliyor."
-        faceQuery = if (manual) 1 else 2
-        ble.sendCommand(com.che.ls05.protocol.FaceTransfer.QUERY, if (manual) "kadran sorgu (1a 01, elle)" else "kadran sorgu (1a 01)")
-        main.removeCallbacks(faceQueryTimeout)
-        main.postDelayed(faceQueryTimeout, FaceUpload.WAIT_MS)
-        return null
-    }
-
-    private fun cancelFaceQuery() {
-        faceQuery = 0
-        main.removeCallbacks(faceQueryTimeout)
-        main.removeCallbacks(autoFaceQueryRunnable)
-    }
-
-    /** Otomatik sorguyu biraz sonraya kurar (bağlanınca giden ilk trafik bitsin). */
-    private fun scheduleFaceQuery(delayMs: Long) {
-        main.removeCallbacks(autoFaceQueryRunnable)
-        if (Prefs.autoFaceQuery(this)) main.postDelayed(autoFaceQueryRunnable, delayMs)
-    }
-
-    /** Ham paket bekleyen kadran sorgusunun yanıtı mı. Yanıtsa işlenir. */
-    private fun handleFaceReply(v: ByteArray) {
-        if (faceQuery == 0 || face.active) return
-        val r = com.che.ls05.protocol.FaceConfig.parse(v) ?: return
-        val manual = faceQuery == 1
-        cancelFaceQuery()
-        val id = if (r.builtin) "ff ff ff ff (yerleşik)" else "0x%08X (%d)".format(r.id, r.id)
-        WatchHub.log("Kadran yanıtı: kimlik $id, ekran ${r.width}x${r.height}, ${v.size} bayt.")
-        if (!manual) WatchHub.setFaceOnWatch(r.id)
     }
 
     private fun resetAuth() {
@@ -611,7 +554,7 @@ class WatchService : Service(), Ls05Ble.Listener {
         }
     }
 
-    /** "Verileri yenile" düğmesinin durumu Bugün ekranında healthChanged ile yenilenir. */
+    /** Bugün ekranındaki yenileme göstergesi healthChanged ile güncellenir. */
     private fun historyChanged() = WatchHub.healthChanged()
 
     private fun flushPending() {
@@ -630,7 +573,6 @@ class WatchService : Service(), Ls05Ble.Listener {
         WatchHub.deviceFound(device, name, rssi)
 
     override fun onRawFrame(value: ByteArray) {
-        handleFaceReply(value)
         face.onRaw(value)
         if (HealthStore.add(this, value)) WatchHub.healthChanged()
     }
@@ -680,8 +622,6 @@ class WatchService : Service(), Ls05Ble.Listener {
         WeatherSync.refresh(this, force = false)
         scheduleWeather()
         if (Prefs.experimentSlot(this) != 0) main.postDelayed(experimentCleanup, 3_000)
-        // Bağlantı başına bir kez, ilk trafik bittikten sonra (ayar açıksa).
-        scheduleFaceQuery(FACE_QUERY_AFTER_READY_MS)
     }
 
     private val weatherTick = Runnable { WeatherSync.refresh(this, force = false); scheduleWeather() }
@@ -694,7 +634,6 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
         face.onDisconnected()
-        cancelFaceQuery()
         val hadLink = wasReady
         wasReady = false
         // Yarım kalan geçmiş okuması sayılmaz; yeniden bağlanınca hemen okunabilir.

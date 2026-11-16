@@ -293,7 +293,7 @@ class MainActivity : Activity(), WatchHub.Observer {
         settings = SettingsPage(this)
         pages = listOf(today, watch, notify, settings)
         val content = FrameLayout(this)
-        pages.forEach { content.addView(it.root, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH)) }
+        pages.forEach { content.addView(it.view, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH)) }
         ui.add(root, content, height = 0, weight = 1f)
 
         // Alt menü: tek yüzey. İçerik menünün üstünde biter; menü sistem gezinme alanına girmez.
@@ -345,7 +345,7 @@ class MainActivity : Activity(), WatchHub.Observer {
 
     fun selectTab(i: Int) {
         tab = i
-        pages.forEachIndexed { k, p -> p.root.visibility = if (k == i) View.VISIBLE else View.GONE }
+        pages.forEachIndexed { k, p -> p.view.visibility = if (k == i) View.VISIBLE else View.GONE }
         tabs.forEachIndexed { k, t -> ui.setTab(t, k == i) }
         titleView.text = pages[i].title
         pages[i].refresh()
