@@ -557,12 +557,6 @@ class Ls05Ble(private val context: Context, private val listener: Listener) {
         return sendPackets(NotificationPacketizer.build(title, body, type), vibrateAfter)
     }
 
-    /** Metni "başlık: gövde" birleştirmesi olmadan, olduğu gibi gönderir (uzunluk testleri için). */
-    fun sendNotificationText(text: String, vibrateAfter: Boolean): Int {
-        if (active == null) { log("Hazır değil, bildirim gönderilmedi."); return 0 }
-        return sendPackets(NotificationPacketizer.buildFromText(text, MSG_TYPE_GENERIC), vibrateAfter)
-    }
-
     private fun sendPackets(packets: List<ByteArray>, vibrateAfter: Boolean): Int {
         val c = active ?: run { log("Hazır değil, bildirim gönderilmedi."); return 0 }
         log("Bildirim: ${packets.size} paket (${packets.size - 1} veri + bitiş)${if (vibrateAfter) " + titreşim" else ", titreşimsiz"}. Metin loga yazılmaz.")

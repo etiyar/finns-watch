@@ -142,9 +142,12 @@ object Prefs {
     fun setLastSeen(c: Context, f: SeenFix?) =
         if (f == null) p(c).edit().remove("lastSeen").apply() else p(c).edit().putString("lastSeen", LastSeenRules.encode(f)).apply()
 
-    /** Bağlanınca saatteki kadranı 1a 01 ile sor (varsayılan kapalı; elle deneme başarılı olunca açılır). */
-    fun autoFaceQuery(c: Context): Boolean = p(c).getBoolean("autoFaceQuery", false)
-    fun setAutoFaceQuery(c: Context, value: Boolean) = p(c).edit().putBoolean("autoFaceQuery", value).apply()
+    /**
+     * Saatteki kadranı otomatik sorma v0.11'de kaldırıldı; her zaman false. Saat sayfası hâlâ okuduğu için
+     * geçici olarak duruyor; o kod temizlenince silinecek. Eski "autoFaceQuery" kaydı artık okunmaz.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun autoFaceQuery(c: Context): Boolean = false
 
     // Alarm ve rahatsız etme ayarları SettingsStore'a taşındı. Eski "alarm1".."alarm3" ve "dnd"
     // metinleri aynı dosyada kalır; SettingsStore ilk açılışta bunları okur.
