@@ -70,6 +70,9 @@ class WatchService : Service(), Ls05Ble.Listener {
         private const val FACE_QUERY_AFTER_READY_MS = 8_000L
         private const val FACE_QUERY_AFTER_UPLOAD_MS = 3_000L
 
+        /** Saati bul en çok bu kadar titretir. */
+        private const val FIND_MAX_MS = 30_000L
+
         /** Başlatma isteği sisteme iletildiyse true. Arka plan kısıtı (Android 12+) gibi hatalarda false. */
         fun start(context: Context, action: String = ACTION_START, address: String? = null): Boolean {
             val i = Intent(context, WatchService::class.java).setAction(action)
@@ -171,6 +174,7 @@ class WatchService : Service(), Ls05Ble.Listener {
         historyGate.reset()
         LinkAlert.disarm(this, "servis kapandı")
         PhoneFinder.stop("servis kapandı")
+        stopFind("servis kapandı")
         main.removeCallbacksAndMessages(delayedToken)
         try { unregisterReceiver(btReceiver) } catch (_: Exception) {}
         if (ble.isConnected) {
@@ -369,37 +373,57 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     fun command(data: ByteArray, label: String) = ble.sendCommand(data, label)
 
-    // ---------- Alarm deneyi ----------
+    /**
+     * v0.11'de kaldırıldı: alarm titreşimi artık her alarmın kendi ayarı (Kısa, Normal, Uzun).
+     * Yalnızca Gelişmiş'teki eski düğme derlensin diye duruyor; hiçbir komut göndermez.
+     * Düğme Gelişmiş bölümünden kalkınca bu yöntem de silinmeli.
+     */
+    @Deprecated("Alarm deneyi kaldırıldı; Gelişmiş'teki düğmeyle birlikte silinecek.")
+    @Suppress("UNUSED_PARAMETER")
+    fun alarmExperiment(p5: Int, p6: Int): String = "Alarm deneyi kaldırıldı. Titreşim süresini alarmın ayarından seç."
 
-    private val experimentCleanup = Runnable { clearExperiment() }
+    // ---------- Saati bul ----------
 
-    /** Boş (kapalı) bir yuvaya 2 dk sonrasına deneme alarmı kurar. Sonuç metni döner. */
-    fun alarmExperiment(p5: Int, p6: Int): String {
-        if (!ble.isReady) return "Saat bağlı değil."
-        if (Prefs.experimentSlot(this) != 0) return "Önceki deneme henüz silinmedi."
-        val slot = (1..com.che.ls05.protocol.UteAlarm.SLOTS).firstOrNull { slot ->
-            val a = com.che.ls05.protocol.AlarmSetting.decode(SettingsStore.entry(this, com.che.ls05.protocol.AlarmSetting.key(slot)).desired)
-            a == null || !a.enabled
-        } ?: return "Boş alarm yuvası yok. Denemek için bir alarmı kapat."
-        val t = java.time.LocalDateTime.now().plusMinutes(2)
-        val mask = 1 shl (t.dayOfWeek.value % 7)
-        Prefs.setExperimentSlot(this, slot)
-        ble.sendCommand(
-            com.che.ls05.protocol.UteAlarm.buildExperiment(slot, t.hour, t.minute, mask, p5, p6),
-            "alarm deneyi yuva $slot (5.=$p5, 6.=$p6)",
-        )
-        main.removeCallbacks(experimentCleanup)
-        main.postDelayed(experimentCleanup, 6 * 60_000L)
-        return "Deneme alarmı %02d:%02d için kuruldu (yuva $slot).".format(t.hour, t.minute)
+    /** Saati bul titreşimi sürüyor mu (Saat ekranındaki "Durdur" düğmesi için). */
+    var finding = false
+        private set
+
+    private val findTimeout = Runnable { stopFind("${FIND_MAX_MS / 1000} sn doldu") }
+
+    /**
+     * Saati sürekli titretir: gelen arama titreşimi (06 00 00 00 FF FF 00 00), durdurma 06 00 … 00.
+     * İkisi de aramada cihazda doğrulandı. En çok 30 sn sürer.
+     */
+    fun startFind(): Boolean {
+        if (!ble.isReady) return false
+        if (callOnWatch) {
+            WatchHub.log("Saati bul: saatte arama ekranı açık, titreşim gönderilmedi.")
+            return false
+        }
+        ble.sendCommand(UteCommand.VIBRATE_CALL, "saati bul: sürekli titreşim (06 FF FF)")
+        finding = true
+        main.removeCallbacks(findTimeout)
+        main.postDelayed(findTimeout, FIND_MAX_MS)
+        WatchHub.settingsChanged()
+        return true
     }
 
-    /** Deneme yuvasını kapalı hâle döndürür; bağlantı yoksa bir sonraki bağlantıda yapılır. */
-    private fun clearExperiment() {
-        val slot = Prefs.experimentSlot(this)
-        if (slot == 0 || !ble.isReady) return
-        ble.sendCommand(com.che.ls05.protocol.UteAlarm.build(slot, 0, 0, 0, false), "alarm deneyi silindi (yuva $slot)")
-        Prefs.setExperimentSlot(this, 0)
-        SettingsStore.retry(this, com.che.ls05.protocol.AlarmSetting.key(slot))
+    /** Titreşimi durdurur. Saatte arama ekranı açıksa durdurma gönderilmez (aramanın titreşimi sürer). */
+    fun stopFind(reason: String) {
+        if (!finding) return
+        finding = false
+        main.removeCallbacks(findTimeout)
+        if (ble.isReady && !callOnWatch) ble.sendCommand(UteCommand.VIBRATE_STOP, "saati bul durdu (06 00): $reason")
+        WatchHub.settingsChanged()
+    }
+
+    /** Bağlantı koptu ya da arama geldi: komut göndermeden durum temizlenir. */
+    private fun clearFind(reason: String) {
+        if (!finding) return
+        finding = false
+        main.removeCallbacks(findTimeout)
+        WatchHub.log("Saati bul bitti ($reason).")
+        WatchHub.settingsChanged()
     }
 
     fun sendTime(label: String = "saat eşitleme (04)") {
@@ -432,6 +456,8 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     private fun sendCallAlert(name: String) {
         if (!ble.isReady) return
+        // Arama titreşimi saati bul titreşiminin yerini alır; aramanın bitişi titreşimi durdurur.
+        clearFind("gelen arama")
         if (ble.sendIncomingCall(name) > 0) {
             callOnWatch = true
             main.removeCallbacks(callSafetyStop)
@@ -679,7 +705,6 @@ class WatchService : Service(), Ls05Ble.Listener {
         if (System.currentTimeMillis() - Prefs.lastSync(this) > HISTORY_STALE_MS) requestHistory(true)
         WeatherSync.refresh(this, force = false)
         scheduleWeather()
-        if (Prefs.experimentSlot(this) != 0) main.postDelayed(experimentCleanup, 3_000)
         // Bağlantı başına bir kez, ilk trafik bittikten sonra (ayar açıksa).
         scheduleFaceQuery(FACE_QUERY_AFTER_READY_MS)
     }
@@ -694,6 +719,7 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
         face.onDisconnected()
+        clearFind("bağlantı koptu")
         cancelFaceQuery()
         val hadLink = wasReady
         wasReady = false

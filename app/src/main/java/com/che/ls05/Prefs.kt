@@ -89,9 +89,23 @@ object Prefs {
     fun reminderSentDay(c: Context, slot: Int): String = p(c).getString("reminderDay$slot", "") ?: ""
     fun setReminderSentDay(c: Context, slot: Int, day: String) = p(c).edit().putString("reminderDay$slot", day).apply()
 
-    /** Silinmeyi bekleyen alarm deneyi yuvası (0: yok). */
-    fun experimentSlot(c: Context): Int = p(c).getInt("alarmExperimentSlot", 0)
-    fun setExperimentSlot(c: Context, slot: Int) = p(c).edit().putInt("alarmExperimentSlot", slot).apply()
+    /** Alarm yuvası Saat ekranında görünsün mü (v0.11: kurulan alarmlar görünür, silinen gizlenir). */
+    fun alarmVisible(c: Context, slot: Int): Boolean = p(c).getBoolean("alarmVisible$slot", false)
+    fun setAlarmVisible(c: Context, slot: Int, value: Boolean) = p(c).edit().putBoolean("alarmVisible$slot", value).apply()
+
+    /** v0.11 yuva göçü yapıldı mı (bir kez: ayarı olan yuvalar görünür yapılır). */
+    fun alarmSlotsMigrated(c: Context): Boolean = p(c).getBoolean("alarmSlotsV11", false)
+    fun setAlarmSlotsMigrated(c: Context) = p(c).edit().putBoolean("alarmSlotsV11", true).apply()
+
+    /**
+     * v0.10.1 alarm deneyinden silinmeden kalmış yuva (0: yok). Okununca kayıt silinir.
+     * Deney kaldırıldı; bu yalnızca güncelleme anında yarım kalan denemeyi temizlemek için.
+     */
+    fun takeLegacyExperimentSlot(c: Context): Int {
+        val slot = p(c).getInt("alarmExperimentSlot", 0)
+        if (slot != 0) p(c).edit().remove("alarmExperimentSlot").apply()
+        return slot
+    }
 
     // Hava durumu: şehir yalnızca telefonda; loga yazılmaz.
     fun weatherEnabled(c: Context): Boolean = p(c).getBoolean("weatherOn", false)

@@ -29,10 +29,4 @@ class WeatherTest {
         assertEquals(-2, UteWeather.decodeTemp(p[0][6]))
         assertEquals(2 + 4 * 4, p[1].size); assertEquals(2 + 2 * 4, p[2].size)
     }
-
-    @Test
-    fun alarmExperimentBytes() {
-        val b = UteAlarm.buildExperiment(3, 7, 5, 0x02, 16, 6)
-        assertEquals(listOf(6, 2, 7, 5, 2, 16, 6, 0, 3), b.map { it.toInt() })
-    }
 }

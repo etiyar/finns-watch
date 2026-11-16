@@ -20,7 +20,9 @@ data class UteDate(val year: Int, val month: Int, val day: Int) {
 
 /**
  * Alarm (komut 06). Güven: yüksek.
- * 06 [tekrar] [saat] [dakika] [02 08 06 | 00 00 00] 00 [yuva]
+ * 06 [tekrar] [saat] [dakika] 02 [N] 06 00 [yuva]
+ * N titreşim sayısı (cihazda ölçüldü: 8 ≈ 10 sn, 16 ≈ 20 sn, 30 ≈ 45 sn). Haylou Fun 8 gönderiyor.
+ * 7. bayt hep 6.
  * Kapalı alarmda tekrar baytı 0x60, üç bayt sıfır (Haylou Fun böyle gönderiyor).
  * Saat yanıtı: 06 [yuva].
  */
@@ -40,29 +42,36 @@ object UteAlarm {
     const val EVERY_DAY = 0x7F
     private const val DISABLED_MARK = 0x60
 
+    /** Titreşim sayısı. Kısa: v0.11 öncesi gönderilen değer. */
+    const val VIBES_SHORT = 8
+    const val VIBES_NORMAL = 16
+    const val VIBES_LONG = 30
+    val VIBES_RANGE = 1..60
+    private const val GROUP = 0x06
+
     /** Arayüz sırası: pazartesiden pazara. */
     val UI_ORDER = intArrayOf(MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY)
 
-    fun build(slot: Int, hour: Int, minute: Int, repeatMask: Int, enabled: Boolean): ByteArray {
+    fun build(slot: Int, hour: Int, minute: Int, repeatMask: Int, enabled: Boolean, vibes: Int = VIBES_SHORT): ByteArray {
         require(slot in 1..SLOTS) { "yuva 1..$SLOTS olmalı" }
         require(hour in 0..23 && minute in 0..59) { "geçersiz saat" }
         require(repeatMask in 0..0x7F) { "geçersiz gün maskesi" }
+        require(vibes in VIBES_RANGE) { "titreşim sayısı ${VIBES_RANGE.first}..${VIBES_RANGE.last} olmalı" }
         // Maskesi boş bir alarm tek seferlik değil, belirsiz. Açık alarmda en az bir gün iste.
         require(!enabled || repeatMask != 0) { "açık alarmda en az bir gün seçilmeli" }
         return if (enabled) {
-            byteArrayOf(0x06, repeatMask.toByte(), hour.toByte(), minute.toByte(), 0x02, 0x08, 0x06, 0x00, slot.toByte())
+            byteArrayOf(0x06, repeatMask.toByte(), hour.toByte(), minute.toByte(), 0x02, vibes.toByte(), GROUP.toByte(), 0x00, slot.toByte())
         } else {
             byteArrayOf(0x06, DISABLED_MARK.toByte(), hour.toByte(), minute.toByte(), 0, 0, 0, 0, slot.toByte())
         }
     }
 
-    /**
-     * Deney: 5. ve 6. baytlar (Haylou Fun 08 06, Hello Haylou 10 06) belgelenmemiş; büyük olasılıkla titreşim
-     * süresi ya da tekrar sayısı. Yalnızca Gelişmiş'teki elle deneme düğmesiyle gönderilir.
-     */
-    fun buildExperiment(slot: Int, hour: Int, minute: Int, repeatMask: Int, p5: Int, p6: Int): ByteArray {
-        require(slot in 1..SLOTS && p5 in 1..60 && p6 in 1..30)
-        return byteArrayOf(0x06, repeatMask.toByte(), hour.toByte(), minute.toByte(), 0x02, p5.toByte(), p6.toByte(), 0x00, slot.toByte())
+    /** Titreşim süresi etiketi (ölçülen süre). */
+    fun vibesLabel(vibes: Int): String = when (vibes) {
+        VIBES_SHORT -> "10 sn"
+        VIBES_NORMAL -> "20 sn"
+        VIBES_LONG -> "45 sn"
+        else -> "$vibes titreşim"
     }
 
     fun maskLabel(mask: Int): String = when (mask) {
