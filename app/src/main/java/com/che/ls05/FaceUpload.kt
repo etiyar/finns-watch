@@ -29,7 +29,7 @@ class FaceUpload(private val ble: Ls05Ble, private val onEnd: () -> Unit) {
 
     companion object {
         const val MTU = 247
-        const val MIN_BATTERY = 40
+        const val MIN_BATTERY = 25
         const val WAIT_MS = 10_000L
         /** Son blok onayı gelmezse Haylou Fun 1 sn sonra bitişi gönderiyor. */
         const val FINAL_GRACE_MS = 3_000L
