@@ -38,6 +38,8 @@ object FaceWriter {
         1 to 1, 2 to 1, 3 to 1, 10 to 1, 17 to 1,
         4 to 14, 5 to 14, 6 to 14, 11 to 14, 13 to 14, 19 to 14, 21 to 14, 25 to 14, 27 to 14, 30 to 14, 33 to 14, 47 to 14,
         15 to 7, 8 to 5, 9 to 2, 20 to 16, 32 to 11,
+        // Topluluk kadranlarında saatte çalışan türler: sabit iki nokta, ay adı, yanıp sönen iki nokta, °, %.
+        7 to 1, 12 to 12, 18 to 2, 22 to 1, 34 to 1,
     )
     private val FULL = setOf(1, 2, 3, 10, 17)
 
