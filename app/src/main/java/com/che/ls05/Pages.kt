@@ -192,10 +192,12 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
     private var olderHeartByDay: Map<java.time.LocalDate, List<com.che.ls05.protocol.HeartPoint>>? = null
     private var olderDate: java.time.LocalDate? = null
     private var olderLoading = false
+    private var olderGen = -1
 
     private fun loadOlder(today: java.time.LocalDate) {
-        if (olderLoading || (olderDate == today && olderView != null)) return
+        if (olderLoading || (olderDate == today && olderView != null && olderGen == HealthStore.generation)) return
         olderLoading = true
+        val gen = HealthStore.generation
         val read = HealthStore.reader(act, 31)
         Thread({
             val v = try { read() } catch (e: Exception) { null }
@@ -206,6 +208,7 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
                     olderView = v
                     olderHeartByDay = hb
                     olderDate = today
+                    olderGen = gen
                     refresh()
                 }
             }
@@ -414,6 +417,16 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
     private val alarms = ArrayList<SettingViews>()
     private val dnd: SettingViews
 
+    // Etkin saatin desteklemediği bölümler gizlenir (Capabilities). LS05'te hepsi görünür.
+    private val alarmViews = ArrayList<View>()
+    private val faceViews = ArrayList<View>()
+    private val profileViews = ArrayList<View>()
+    private var dndView: View? = null
+    private var findView: View? = null
+
+    // Saatlerim: kayıtlı saatler ve etkin saat.
+    private val watchList = WatchesCard(act)
+
     // Alarm ekle: yalnızca kurulmuş yuvalar görünür (v0.11).
     private val addAlarm: Button = ui.secondary("Alarm ekle") { addAlarm() }
     private val noAlarm: TextView = ui.caption("Henüz alarm yok. Saatte en çok 3 alarm kurulabilir.")
@@ -447,7 +460,10 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
 
     init {
         // Alarmlar: saatte üç yuva; yalnızca kurulmuş olanlar görünür. Yoğunluk: saat 28 sp, kart içi 14 dp, kart arası 10 dp.
-        ui.add(body, ui.section("Alarmlar"), topDp = 8)
+        ui.add(body, watchList.view)
+        val alarmSec = ui.section("Alarmlar")
+        alarmViews += alarmSec
+        ui.add(body, alarmSec, topDp = 20)
         for (slot in 1..UteAlarm.SLOTS) {
             val key = AlarmSetting.key(slot)
             alarms += alarmCard(
@@ -484,6 +500,7 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         ui.add(dndCard, dndRetry, topDp = 8)
         dnd = SettingViews(dndMain, ui.caption(""), dndToggle, dndStatus, dndRetry)
         ui.add(pair, dndCard, width = 0, height = Ui.MATCH, weight = 1f)
+        dndView = dndCard
 
         val find = ui.card(padDp = 14)
         val findTop = ui.horizontal()
@@ -495,11 +512,15 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         ui.add(find, ui.space(), height = 0, weight = 1f)
         ui.add(find, findButton, topDp = 8)
         ui.add(pair, find, width = 0, height = Ui.MATCH, weight = 1f, leftDp = 10)
+        findView = find
         ui.add(body, pair, topDp = 10)
 
         // Kadranlarım: saatteki önce, sonra en son eklenen iki kadran, sonda Tümü (ya da Ekle).
-        ui.add(body, ui.section("Kadranlarım"), topDp = 20)
+        val facesSec = ui.section("Kadranlarım")
+        ui.add(body, facesSec, topDp = 20)
         val faces = ui.card(padDp = 0, padVDp = 14)
+        faceViews += facesSec
+        faceViews += faces
         faceRow.setPadding(ui.dp(8), 0, ui.dp(8), 0)
         ui.add(faces, faceRow)
         faceStatus.visibility = View.GONE
@@ -508,8 +529,11 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         ui.add(body, faces, topDp = 8)
 
         // Ekran ve profil
-        ui.add(body, ui.section("Ekran ve profil"), topDp = 20)
+        val dispSec = ui.section("Ekran ve profil")
+        ui.add(body, dispSec, topDp = 20)
         val disp = ui.card(padDp = 16, padVDp = 6)
+        profileViews += dispSec
+        profileViews += disp
         ui.add(disp, screenRow.view)
         ui.add(disp, ui.divider(), height = ui.dp(1))
         ui.add(disp, wristRow.view)
@@ -559,7 +583,8 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
 
     /** İlk gizli yuva için boş alarm paneli. */
     private fun addAlarm() {
-        val slot = (1..UteAlarm.SLOTS).firstOrNull { !Prefs.alarmVisible(act, it) } ?: return
+        val slots = minOf(WatchManager.caps(act).alarmSlots, UteAlarm.SLOTS)
+        val slot = (1..slots).firstOrNull { !Prefs.alarmVisible(act, it) } ?: return
         AlarmSheet(act, slot, isNew = true).show()
     }
 
@@ -589,7 +614,16 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
     }
 
     override fun refresh() {
-        val visible = SettingsStore.visibleAlarms(act)
+        watchList.refresh()
+        val caps = WatchManager.caps(act)
+        val slots = minOf(caps.alarmSlots, UteAlarm.SLOTS)
+        fun show(v: View?, on: Boolean) { v?.visibility = if (on) View.VISIBLE else View.GONE }
+        alarmViews.forEach { show(it, slots > 0) }
+        faceViews.forEach { show(it, caps.faces) }
+        profileViews.forEach { show(it, caps.profile) }
+        show(dndView, caps.dnd)
+        show(findView, caps.findWatch)
+        val visible = SettingsStore.visibleAlarms(act).filter { it <= slots }
         for (slot in 1..UteAlarm.SLOTS) {
             val e = SettingsStore.entry(act, AlarmSetting.key(slot))
             val a = AlarmSetting.decode(e.desired) ?: AlarmSetting.DEFAULT
@@ -611,8 +645,8 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         dnd.toggle.set(d.enabled)
         dnd.toggle.sw.contentDescription = "Rahatsız etme"
         showStatus(dnd, e)
-        noAlarm.visibility = if (visible.isEmpty()) View.VISIBLE else View.GONE
-        addAlarm.visibility = if (visible.size < UteAlarm.SLOTS) View.VISIBLE else View.GONE
+        noAlarm.visibility = if (visible.isEmpty() && slots > 0) View.VISIBLE else View.GONE
+        addAlarm.visibility = if (visible.size < slots) View.VISIBLE else View.GONE
         exactBanner.view.visibility =
             if (Reminders.anyActive(act) && !Reminders.canExact(act)) View.VISIBLE else View.GONE
         refreshFind()
@@ -1118,6 +1152,8 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
         incomingCalls.toggle.set(Prefs.incomingCalls(act))
         missedCalls.toggle.set(Prefs.missedCalls(act))
         rejectCalls.toggle.set(Prefs.rejectFromWatch(act))
+        val caps = WatchManager.caps(act)
+        rejectCalls.view.visibility = if (caps.callReject) View.VISIBLE else View.GONE
         foldTurkish.toggle.set(Prefs.foldTurkish(act))
         onReady(WatchHub.ready)
         refreshApps()
@@ -1230,7 +1266,7 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
             act.toast("Saat bağlı değil.")
             return false
         }
-        if (s.ble.sendNotification(title, message, Prefs.vibrate(act)) == 0) return false
+        if (!s.sendTestNotification(title, message)) return false
         setNotifState(NotificationState.SENDING)
         act.handler.postDelayed({
             if (notifState == NotificationState.SENDING) setNotifState(NotificationState.TRANSFER_TIMEOUT)
@@ -1298,6 +1334,9 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     }
     private val cityRow: NavRow = ui.navRow(null, "Şehir", null, "") { pickCity() }
     private val weatherInfo: TextView = ui.caption("")
+
+    /** Hava durumu bölümü (etkin saat desteklemiyorsa gizlenir). */
+    private val weatherViews = ArrayList<View>()
 
     private val autoTime: SwitchRow = ui.switchRow(
         "Bağlanınca saati eşitle",
@@ -1375,8 +1414,11 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(body, alerts, topDp = 8)
 
         // Hava durumu
-        ui.add(body, ui.section("Hava durumu"), topDp = 20)
+        val wxSec = ui.section("Hava durumu")
+        ui.add(body, wxSec, topDp = 20)
         val wx = ui.card(padDp = 16, padVDp = 6)
+        weatherViews += wxSec
+        weatherViews += wx
         ui.add(wx, weatherSwitch.view)
         ui.add(wx, ui.divider(), height = ui.dp(1))
         ui.add(wx, cityRow.view)
@@ -1431,6 +1473,9 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     }
 
     override fun refresh() {
+        val caps = WatchManager.caps(act)
+        weatherViews.forEach { it.visibility = if (caps.weather) View.VISIBLE else View.GONE }
+        remote.view.visibility = if (caps.musicRemote || caps.findPhone) View.VISIBLE else View.GONE
         refreshSetup()
         refreshWatchInfo()
         theme.select(Prefs.themeMode(act))
@@ -1671,7 +1716,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         act.toast("Saat aranıyor.")
         act.handler.postDelayed({
             val s = WatchHub.service
-            if (s == null) WatchHub.log("Servis başlamadı; Bluetooth iznini kontrol et.") else s.ble.startScan()
+            if (s == null) WatchHub.log("Servis başlamadı; Bluetooth iznini kontrol et.") else s.startScan()
         }, 600L)
     }
 

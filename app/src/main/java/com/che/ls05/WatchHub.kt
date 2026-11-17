@@ -159,6 +159,13 @@ object WatchHub {
         observers.toList().forEach { it.onFrame(f) }
     }
 
+    /** Saat değişti: eski saatin pil ve firmware bilgisi atılır. */
+    fun resetDevice() = onMain {
+        battery = null
+        firmware = null
+        observers.toList().forEach { it.onSettingsChanged() }
+    }
+
     fun settingsChanged() = onMain {
         observers.toList().forEach { it.onSettingsChanged() }
     }
@@ -205,7 +212,7 @@ object WatchHub {
             s.nudgeReconnect()
             return@onMain
         }
-        if (Prefs.serviceEnabled(context) && Prefs.address(context) != null) {
+        if (Prefs.serviceEnabled(context) && WatchRegistry.hasActive(context)) {
             log("Saat servisi çalışmıyor; başlatılıyor.")
             if (!WatchService.start(context)) {
                 log("Servis arka planda başlatılamadı. Kuyruk uygulama açılınca gönderilir; pil kısıtlamasını kapat.")

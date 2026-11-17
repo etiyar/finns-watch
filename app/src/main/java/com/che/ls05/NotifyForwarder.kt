@@ -29,7 +29,7 @@ class NotifyForwarder : NotificationListenerService() {
     override fun onListenerConnected() {
         WatchHub.log("Bildirim erişimi etkin; iletim hazır.")
         // Süreç yeniden başladıysa (ör. uygulama son uygulamalardan kaydırıldı) servis ilk bildirimi beklemeden kalksın.
-        if (WatchHub.service == null && Prefs.serviceEnabled(this) && Prefs.address(this) != null) {
+        if (WatchHub.service == null && Prefs.serviceEnabled(this) && WatchRegistry.hasActive(this)) {
             WatchHub.log("Saat servisi çalışmıyor; bildirim dinleyici başlatıyor.")
             WatchService.start(this)
         }

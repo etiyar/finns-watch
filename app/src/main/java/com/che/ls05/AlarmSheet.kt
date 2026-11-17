@@ -142,7 +142,8 @@ class AlarmSheet(private val act: MainActivity, private val slot: Int, private v
         ui.add(form, seg.view, topDp = 8)
 
         // Hatırlatma notu (kurallar AlarmReminder'da, değişmedi)
-        ui.add(form, ui.cardTitle("Hatırlatma notu"), topDp = 16)
+        val noteTitle = ui.cardTitle("Hatırlatma notu")
+        ui.add(form, noteTitle, topDp = 16)
         val noteField = ui.field("İsteğe bağlı, ör. Sabah ilacı")
         noteField.filters = arrayOf(android.text.InputFilter.LengthFilter(AlarmReminder.MAX_NOTE))
         noteField.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
@@ -153,7 +154,20 @@ class AlarmSheet(private val act: MainActivity, private val slot: Int, private v
         } else {
             "Tam zamanlı alarm izni yok: not gecikebilir veya gönderilemeyebilir. Yalnızca telefonda saklanır."
         }
-        ui.add(form, ui.caption(noteHelp), topDp = 6)
+        val noteCaption = ui.caption(noteHelp)
+        ui.add(form, noteCaption, topDp = 6)
+
+        // Etkin saatin desteklemediği alanlar gizlenir (LS05'te hepsi görünür).
+        val caps = WatchManager.caps(act)
+        if (!caps.alarmVibration) {
+            vibHead.visibility = View.GONE
+            seg.view.visibility = View.GONE
+        }
+        if (!caps.alarmNote) {
+            noteTitle.visibility = View.GONE
+            noteField.visibility = View.GONE
+            noteCaption.visibility = View.GONE
+        }
 
         // Form kaydırılır, düğmeler hep görünür. (WRAP + ağırlık: uzun formda kaydırma alanı küçülür.)
         val scroll = ui.scroll(form)

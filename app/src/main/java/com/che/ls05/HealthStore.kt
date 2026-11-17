@@ -14,6 +14,9 @@ import java.time.ZoneId
 
 /**
  * Ham sağlık kayıtları: filesDir/health/yyyy-MM-dd.log (alınma gününe göre), yalnızca sona ekleme.
+ * Kaynak klasörü (v0.12): göç edilen LS05 (önek boş) v0.11'deki "health" klasörünü kullanır; diğer saatler
+ * "health-<kimlik>" klasörünü. Satır biçimi aynıdır; kaynak klasörden bilinir. Bu sürümde okuma etkin saatin
+ * klasöründen yapılır; birleşik görünüm sonraki adımda.
  * Bellekte son 3 günün kayıtları tutulur. Canlı adım (09) dosyaya yazılmaz, yalnızca bellekte.
  * Sağlık değerleri loga yazılmaz. Tüm çağrılar ana iş parçacığında yapılır.
  */
@@ -36,9 +39,15 @@ object HealthStore {
     private fun today(): LocalDate = LocalDate.now(zone())
     private fun fileFor(d: File, day: LocalDate) = File(d, "$day.log")
 
+    /** Etkin saatin sağlık klasörü adı. */
+    fun dirName(c: Context): String {
+        val a = WatchRegistry.active(c)
+        return if (a == null || a.legacy) DIR else "$DIR-${a.id}"
+    }
+
     fun init(c: Context) {
         if (dir != null) return
-        val d = File(c.filesDir, DIR)
+        val d = File(c.filesDir, dirName(c))
         dir = d
         try {
             if (!d.exists()) d.mkdirs()
@@ -69,6 +78,21 @@ object HealthStore {
         trimmedFor = today
         if (bad > 0) WatchHub.log("Sağlık kayıtlarında $bad bozuk satır atlandı.")
         deleteOld(d, today)
+    }
+
+    /** reset ile artar; uzun aralık önbellekleri (Bugün ekranı) buna bakıp yeniden okur. */
+    var generation = 0
+        private set
+
+    /** Etkin saat değişti: bellek boşaltılır, sonraki çağrı etkin saatin kayıtlarını yükler. */
+    fun reset(c: Context) {
+        generation++
+        dir = null
+        entries.clear()
+        seen.clear()
+        live.clear()
+        trimmedFor = null
+        init(c)
     }
 
     /** 90 günden eski günlük dosyaları siler. Yalnızca adı tarih biçimine uyan dosyalara dokunur. */

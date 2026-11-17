@@ -8,8 +8,8 @@ import android.content.Intent
 import android.os.Build
 import com.che.ls05.protocol.AlarmReminder
 import com.che.ls05.protocol.AlarmSetting
+import com.che.ls05.protocol.Capabilities
 import com.che.ls05.protocol.MSG_TYPE_GENERIC
-import com.che.ls05.protocol.UteAlarm
 import java.time.ZoneId
 
 /**
@@ -40,7 +40,13 @@ object Reminders {
 
     /** En az bir yuvada etkin not var mı (izin uyarısını göstermek için). */
     fun anyActive(c: Context): Boolean =
-        (1..UteAlarm.SLOTS).any { AlarmReminder.active(alarm(c, it), note(c, it)) }
+        slots(c).any { AlarmReminder.active(alarm(c, it), note(c, it)) }
+
+    /** Etkin saatin not alabilen yuvaları (alarm notu desteklenmiyorsa boş). */
+    private fun slots(c: Context): IntRange {
+        val caps = WatchRegistry.caps(c)
+        return if (caps.alarmNote) 1..caps.alarmSlots else IntRange.EMPTY
+    }
 
     private fun pending(c: Context, slot: Int, at: Long, create: Boolean): PendingIntent? {
         val i = Intent(c, ReminderReceiver::class.java)
@@ -52,15 +58,20 @@ object Reminders {
         return PendingIntent.getBroadcast(c, REQUEST_BASE + slot, i, flags)
     }
 
-    /** Üç yuvanın zamanlamasını baştan kurar. Eski zamanlama her durumda iptal edilir. */
+    /**
+     * Etkin saatin yuvalarının zamanlamasını baştan kurar. Eski zamanlama her durumda iptal edilir; iptal bütün
+     * saat türlerinin en çok yuva sayısına kadar yapılır (saat değişince eski saatin notu kalmasın).
+     */
     fun reschedule(c: Context) {
         val am = c.getSystemService(AlarmManager::class.java) ?: return
         val now = System.currentTimeMillis()
         val zone = ZoneId.systemDefault()
         val exact = canExact(c)
         var count = 0
-        for (slot in 1..UteAlarm.SLOTS) {
+        val active = slots(c)
+        for (slot in 1..Capabilities.MAX_ALARM_SLOTS) {
             pending(c, slot, 0, create = false)?.let { am.cancel(it); it.cancel() }
+            if (slot !in active) continue
             val at = AlarmReminder.next(alarm(c, slot), note(c, slot), now, zone) ?: continue
             val pi = pending(c, slot, at, create = true) ?: continue
             try {
@@ -107,7 +118,7 @@ class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val slot = intent.getIntExtra(Reminders.EXTRA_SLOT, 0)
         val at = intent.getLongExtra(Reminders.EXTRA_AT, 0L)
-        if (slot !in 1..UteAlarm.SLOTS || at <= 0L) return
+        if (slot !in 1..Capabilities.MAX_ALARM_SLOTS || at <= 0L) return
         Reminders.fire(context.applicationContext, slot, at)
     }
 }
