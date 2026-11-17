@@ -372,3 +372,44 @@ Saatteki kadran (`1a 01`):
 ## v0.12.0: çoklu saat çekirdeği (17 Kasım, cihaz testi bekliyor)
 - Saatlerim listesi, saat kaydı (`watches`), WatchDriver ve Ls05Driver, WatchManager ile saat değiştirme, yeteneklere göre arayüz, Keystore'da anahtar deposu, saate göre sağlık klasörü.
 - LS05 ayar anahtarları ve `health/` klasörü aynı kaldı. Ayrıntı ve sapmalar: `docs/COKLU_SAAT_TASARIM.md` bölüm 8.
+
+
+---
+
+## Güncel durum ve sıradaki işler | 18 Kasım 2026
+
+Bu bölüm en güncel operasyonel özettir. Eski bölümlerin deney kayıtları korunur. Geçmiş için `CHANGELOG.md`, cihaz kabul sonuçları için `docs/TEST_RESULTS.md` kullanılır.
+
+### Aktif sürüm
+- **v0.13.0-beta5**, geliştirme dalı `dev/v0.13-band8-connection`. `main` henüz birleştirilmedi.
+- Band 8 bilinen Bluetooth adresi üzerinden gerçek cihazda bağlandı ve pil yüzdesi doğru göründü.
+- Band 8 şifreli anahtar saklama, FE95 servis keşfi, pil ve cihaz bilgisi okuma kodu mevcut.
+- LS05 için hatalı kadran uyarısının yazılım düzeltmesi yapıldı; düzeltmenin gerçek cihaz doğrulaması bekliyor.
+- `docs/BAND8_PROTOKOL.md`, `docs/COKLU_SAAT_TASARIM.md` ve `docs/V12_BAND8_PLAN.md` mevcut teknik başvuru belgeleridir; yeni sürüm özeti için ayrı belge oluşturulmayacak.
+
+### Öncelik 1: v0.13 bağlantı kabul kapısı
+1. Band 8 için Bluetooth kapat/aç ve otomatik yeniden bağlanma.
+2. Telefon yeniden başlatma, arka plan servisinin toparlanması.
+3. LS05 -> Band 8 -> LS05 geçişi; eski bağlantı sessizce kapatılmalı, yanlış saatin verisi görünmemeli.
+4. LS05 kadran aktarımı; yanlış destek uyarısı kaybolmalı.
+5. Band 8 tarama ile bulunamasa bile kaydedilmiş adresle yeniden bağlanma sürmeli.
+
+### Öncelik 2: bağlantı incelemesi ve küçük güvenilirlik düzeltmeleri
+- `WatchService.switchTo` içinde eski sürücünün `release` yolu var; `Ls05Ble.forceClose` GATT oturumunu kapatıyor. Gerçek cihazda geçişin kararlılığı hâlâ test edilmeli.
+- Band 8 bağlantı kopmalarında geri deneme ve auth hatalarının kullanıcıya açıkça gösterilmesini kontrol et; yanlış cihazda sonsuz bağlanma döngüsü olmamalı.
+- Gerekli düzeltmeler küçük ve birbirinden ayrılmış commitlerde tutulmalı.
+- CI testleri, imza devamlılığı ve LS05 regresyonları geçmeden ana dala birleştirme yapılmayacak.
+
+### Sonraki aşama (bağlantı kapısı geçince): v0.13.1
+- Band 8 bildirimleri, gelen/cevapsız aramalar, müzik kontrolü ve bulma işlevleri.
+- Yeni bildirim veya müzik altyapısı yazma; mevcut servisleri sürücüye bağla.
+- Desteklenmeyen protokol komutları yalnızca doğrulandıktan sonra aktif edilecek.
+
+### Daha sonraki aşamalar
+- v0.13.2: adım, nabız ve uygunluğu doğrulanan uyku verilerinin cihaz kaynağını koruyarak birleştirilmesi.
+- v0.14.0: Band 8 ayarları ve güvenli yedekleme/geri yükleme.
+- v0.15.0: Health Connect; Sleep as Android ve gelişmiş sensörler ancak fizibilite testinden sonra.
+- Firmware, Google Find Hub ve yeni kadran derleyicisi bu iş paketinin dışında.
+
+### Çalışma biçimi
+Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan değişikliği yok. Her cihaz testi `docs/TEST_RESULTS.md`, her yayın `CHANGELOG.md`, her plan değişikliği burada güncellenir. Gizli kimlik bilgileri ve MAC adresleri depoya yazılmaz.
