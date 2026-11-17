@@ -97,6 +97,7 @@ object WatchRegistry {
             e.apply()
             SettingsStore.forget(rec.ns)
         }
+        SecretStore.remove(c, id)
         return true
     }
 
