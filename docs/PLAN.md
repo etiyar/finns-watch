@@ -458,3 +458,10 @@ Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan 
 - **BAŞARISIZ (beta6):** Uygulamayı durdurup açınca Band 8 kaydı korunmadı. **TEST EDİLMEDİ:** Telefon tamamen yeniden başlatma. **GEÇTİ (beta6):** LS05 kadran aktarımı yanlış uyarısız çalıştı.
 - **ÖNEMLİ:** Band 8 için sağlık komutları bu sürümde bulunmuyor. Bugün sekmesinde Band 8 adım, uyku ve nabzının 'Veri yok' olması normaldir, LS05 sağlık verilerinin silindiğine tek başına kanıt değildir.
 - Tam MAC adresi veya doğrulama anahtarı belgelere eklenmez.
+
+### 18 Kasım 2026 | Beta7 ekran görüntüsü sonrası ertelenen sorun
+- İki ekran görüntüsünde önce yalnız LS05 (bağlı, %85), ardından LS05 ve Band 8 (Band 8 etkin, bağlı, %98) görülüyor.
+- Band 8 bağlı görünürken alt uyarı kullanıcıyı Ayarlar > Saat bağlantısı > Tara yoluna yönlendiriyor ve anahtar doğrulamasından söz ediyor. **Durum tutarsızlığı olası; kök neden doğrulanmadı.**
+- Ekran görüntüleri farklı anlara ait olduğundan Band 8 kaydının uygulama yeniden başlatılırken gerçekten silindiği sonucu çıkarılamaz. Beta6 kayıt kalıcılığı hatası ayrı ve açık kalır.
+- **Kullanıcı kararı:** Bu uyarı ve kayıt durumu incelemesi sonraya ertelendi. Şimdi eşleşme silme, sıfırlama veya veri temizleme yapılmayacak.
+- Geri dönüldüğünde: kayıtlı saat listesi, etkin cihaz, GATT bağlantı durumu ve anahtar varlığını (anahtar değerini değil) ayrı gözlemle; bağlı durumdayken eski uyarı/toast gösterilip gösterilmediğini test et. Tam MAC veya kimlik anahtarı belgelere eklenmeyecek.
