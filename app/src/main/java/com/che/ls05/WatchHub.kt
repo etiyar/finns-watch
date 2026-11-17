@@ -159,6 +159,13 @@ object WatchHub {
         observers.toList().forEach { it.onFrame(f) }
     }
 
+    /** Saat değişti: eski saatin pil ve firmware bilgisi atılır. */
+    fun resetDevice() = onMain {
+        battery = null
+        firmware = null
+        observers.toList().forEach { it.onSettingsChanged() }
+    }
+
     fun settingsChanged() = onMain {
         observers.toList().forEach { it.onSettingsChanged() }
     }

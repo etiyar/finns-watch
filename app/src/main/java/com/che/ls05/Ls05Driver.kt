@@ -39,6 +39,9 @@ class Ls05Driver(
     /** Her hazır olmada artar. Gecikmeli komut yalnızca aynı bağlantıda gider. */
     private var link = 0
 
+    /** Bırakıldıktan sonra Ls05Ble'nin geç gelen geri çağrıları servise iletilmez (yeni saatin durumunu bozmasın). */
+    private var released = false
+
     val face: FaceUpload by lazy {
         FaceUpload(ble) {
             if (face.phase == FaceUpload.Phase.DONE && WatchHub.faceId.isNotEmpty()) {
@@ -59,32 +62,45 @@ class Ls05Driver(
 
     override fun onLog(line: String) = listener.onLog(line)
 
-    override fun onStatus(status: String) = listener.onStatus(status)
+    override fun onStatus(status: String) {
+        if (!released) listener.onStatus(status)
+    }
 
-    override fun onDeviceFound(device: BluetoothDevice, name: String, rssi: Int) =
-        listener.onDeviceFound(device, name, rssi)
+    override fun onDeviceFound(device: BluetoothDevice, name: String, rssi: Int) {
+        if (!released) listener.onDeviceFound(device, name, rssi)
+    }
 
     override fun onReadyChanged(ready: Boolean) {
+        if (released) return
         if (ready) link++
         listener.onReadyChanged(ready)
     }
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
         face.onDisconnected()
+        // Bırakılırken gelen son kopma servise gider (eski saatin ayar durumu kapanır); sonrakiler gitmez.
+        if (released && closedAfterRelease) return
+        if (released) closedAfterRelease = true
         listener.onDisconnected(userInitiated, status)
     }
 
-    override fun onAuthResult(code: Int?) = listener.onAuth(Ls05Events.auth(code))
+    override fun onAuthResult(code: Int?) {
+        if (!released) listener.onAuth(Ls05Events.auth(code))
+    }
 
     override fun onRawFrame(value: ByteArray) {
+        if (released) return
         face.onRaw(value)
         listener.onHealthRaw(value)
     }
 
     override fun onFrame(frame: UteFrame) {
+        if (released) return
         Ls05Events.of(frame)?.let { listener.onEvent(it) }
         WatchHub.frame(frame)
     }
+
+    private var closedAfterRelease = false
 
     override val isConnected: Boolean get() = ble.isConnected
     override val isReady: Boolean get() = ble.isReady
@@ -104,7 +120,8 @@ class Ls05Driver(
     override fun release(reason: String) {
         main.removeCallbacksAndMessages(delayedToken)
         ble.stopScan()
-        if (ble.isConnected) ble.forceClose(reason)
+        released = true
+        if (ble.isConnected) ble.forceClose(reason) else closedAfterRelease = true
     }
 
     override fun sendNotification(title: String, body: String, vibrate: Boolean, type: Int): Boolean =

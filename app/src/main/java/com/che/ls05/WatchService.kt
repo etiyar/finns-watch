@@ -28,9 +28,12 @@ import com.che.ls05.protocol.MSG_TYPE_GENERIC
 import com.che.ls05.protocol.ProfileSetting
 import com.che.ls05.protocol.RemoteAction
 import com.che.ls05.protocol.SettingSync
+import com.che.ls05.protocol.SwitchRules
 import com.che.ls05.protocol.TurkishFold
 import com.che.ls05.protocol.WatchEvent
 import com.che.ls05.protocol.WatchKeys
+import com.che.ls05.protocol.WatchState
+import com.che.ls05.protocol.WatchType
 import java.time.LocalDate
 import java.time.ZonedDateTime
 
@@ -136,6 +139,7 @@ class WatchService : Service(), DriverListener {
                     restarting = true
                     driver.forceClose("Bluetooth kapandı")
                     restarting = false
+                    WatchManager.setState(WatchState.BT_OFF)
                     updateStatus("Bluetooth kapalı")
                 }
                 BluetoothAdapter.STATE_ON -> {
@@ -152,7 +156,7 @@ class WatchService : Service(), DriverListener {
 
     override fun onCreate() {
         super.onCreate()
-        driver = Ls05Driver(applicationContext, this)
+        driver = WatchManager.driverFor(WatchRegistry.active(this)?.type ?: WatchType.LS05, applicationContext, this)
         HealthStore.init(applicationContext)
         SettingsStore.sync(applicationContext)
         WatchHub.service = this
@@ -178,6 +182,7 @@ class WatchService : Service(), DriverListener {
         restarting = false
         WatchHub.setReady(false)
         WatchHub.service = null
+        WatchManager.setState(WatchState.STOPPED)
         super.onDestroy()
     }
 
@@ -188,6 +193,7 @@ class WatchService : Service(), DriverListener {
             ACTION_STOP -> {
                 stopping = true
                 Prefs.setServiceEnabled(this, false)
+                WatchManager.setState(WatchState.STOPPED)
                 main.removeCallbacks(reconnectRunnable)
                 WatchHub.log("Servis kullanıcı tarafından durduruluyor.")
                 LinkAlert.disarm(this, "servis durduruldu")
@@ -256,6 +262,55 @@ class WatchService : Service(), DriverListener {
         Build.VERSION.SDK_INT < 31 ||
             checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
+    // ---------- Saat değiştirme ----------
+
+    /**
+     * Etkin saati değiştirir (docs/COKLU_SAAT_TASARIM.md 2.4). Eski saat sessizce kapatılır: kayıp uyarısı kurulmaz,
+     * son görülen yer alınmaz. Eski saatin bekleyen ayarları kendi kaydında kapanır, yeni saate taşınmaz.
+     * Telefondaki bildirim kuyruğu korunur ve yeni saat hazır olunca gider. Yeni saat bağlanamazsa eski saate
+     * kendiliğinden dönülmez. Yapılamazsa nedeni döner.
+     */
+    fun switchTo(id: String): String? {
+        val list = WatchRegistry.list(this)
+        when (SwitchRules.decide(list, id, driver.busy)) {
+            SwitchRules.Decision.SAME -> return null
+            SwitchRules.Decision.BUSY -> return "Kadran yükleniyor; bitince tekrar dene."
+            SwitchRules.Decision.UNKNOWN -> return "Saat bulunamadı."
+            SwitchRules.Decision.PROCEED -> Unit
+        }
+        val target = list.find(id) ?: return "Saat bulunamadı."
+        WatchManager.setState(WatchState.SWITCHING)
+        WatchHub.log("Saat değiştiriliyor (${target.type.label}).")
+        // Eski saatin zamanlayıcıları.
+        main.removeCallbacks(reconnectRunnable)
+        main.removeCallbacks(historyTimeout)
+        main.removeCallbacks(musicStateRunnable)
+        main.removeCallbacksAndMessages(delayedToken)
+        if (historyGate.running) historyGate.reset()
+        // Saat çalıyorsa önce susturulur; saati bul durdurulur.
+        if (callOnWatch) sendCallStop("saat değiştirildi")
+        main.removeCallbacks(callSafetyStop)
+        callOnWatch = false
+        stopFind("saat değiştirildi")
+        LinkAlert.disarm(this, "saat değiştirildi")
+        val dropped = (driver as? Ls05Driver)?.ble?.pendingOps ?: 0
+        if (dropped > 0) WatchHub.log("Eski saatin kuyruğundaki $dropped işlem atıldı.")
+        restarting = true
+        driver.release("saat değiştirildi")
+        restarting = false
+        WatchHub.setReady(false)
+        WatchRegistry.setActive(this, id)
+        SwitchLog.record(this, id)
+        resetAuth()
+        wasReady = false
+        stopping = false
+        WatchManager.afterSwitch(this)
+        driver = WatchManager.driverFor(target.type, applicationContext, this)
+        updateStatus("${target.name}: bağlanıyor")
+        connectSaved(autoConnect = false)
+        return null
+    }
+
     private fun connectSaved(autoConnect: Boolean) {
         if (stopping || driver.isConnected) return
         if (!hasConnectPermission()) {
@@ -265,18 +320,22 @@ class WatchService : Service(), DriverListener {
         }
         val address = Prefs.address(this)
         if (address == null) {
+            WatchManager.setState(WatchState.NONE)
             updateStatus("Saat seçilmedi")
             return
         }
         if (authBlocked) {
+            WatchManager.setState(WatchState.AUTH_BLOCKED)
             updateStatus("Doğrulama durdu; uygulamayı aç")
             return
         }
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter
         if (adapter == null || !adapter.isEnabled) {
+            WatchManager.setState(WatchState.BT_OFF)
             updateStatus("Bluetooth kapalı")
             return
         }
+        if (driver is UnsupportedDriver) WatchManager.setState(WatchState.UNSUPPORTED) else WatchManager.setState(WatchState.CONNECTING)
         val device: BluetoothDevice = try {
             adapter.getRemoteDevice(address)
         } catch (e: IllegalArgumentException) {
@@ -600,6 +659,7 @@ class WatchService : Service(), DriverListener {
         if (ready) session++
         WatchHub.setReady(ready)
         if (!ready) return
+        WatchManager.setState(WatchState.READY)
         wasReady = true
         LinkAlert.disarm(this, "saat yeniden bağlandı")
         reconnectAttempt = 0
@@ -641,18 +701,21 @@ class WatchService : Service(), DriverListener {
         WatchHub.setReady(false)
         if (restarting) return
         if (authBlocked) {
+            WatchManager.setState(WatchState.AUTH_BLOCKED)
             updateStatus("Doğrulama durdu; uygulamayı aç")
             return
         }
         if (stopping || userInitiated) {
+            WatchManager.setState(if (stopping) WatchState.STOPPED else WatchState.NONE)
             updateStatus("Bağlı değil")
             return
         }
         // Beklenmeyen kopma: ayar açıksa 60 sn sonra denetlenir; saat bu arada dönerse uyarı kalkar.
-        if (hadLink) {
+        if (SwitchRules.armLostAlert(switching = false, stopping = false, userInitiated = false, hadLink = hadLink)) {
             LinkAlert.arm(this)
             LastSeen.capture(this)
         }
+        WatchManager.setState(WatchState.WAIT_RECONNECT)
         scheduleReconnect()
     }
 
@@ -676,6 +739,7 @@ class WatchService : Service(), DriverListener {
 
     private fun blockAuth(message: String) {
         authBlocked = true
+        WatchManager.setState(WatchState.AUTH_BLOCKED)
         // Saat yakında ama doğrulama durdu: "uzaklaştı" uyarısı yanlış olur.
         LinkAlert.disarm(this, "doğrulama durdu")
         main.removeCallbacks(reconnectRunnable)
@@ -704,12 +768,19 @@ class WatchService : Service(), DriverListener {
         )
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle("Finn's Watch")
+            .setContentTitle(notificationTitle())
             .setContentText(text)
             .setOngoing(true)
             .setContentIntent(open)
             .addAction(Notification.Action.Builder(null as Icon?, "Durdur", stop).build())
             .build()
+    }
+
+    /** Tek saat kayıtlıysa v0.11 ile aynı başlık; birden çok saatte etkin saatin adı eklenir. */
+    private fun notificationTitle(): String {
+        val l = WatchRegistry.list(this)
+        val a = l.active
+        return if (l.watches.size > 1 && a != null) "Finn's Watch · ${a.name}" else "Finn's Watch"
     }
 
     /** Ön plan türüne "location" eklendi mi (son görülen yer için). */

@@ -71,6 +71,15 @@ object HealthStore {
         deleteOld(d, today)
     }
 
+    /** Etkin saat değişti: bellek boşaltılır, sonraki çağrı etkin saatin kayıtlarını yükler. */
+    fun reset() {
+        dir = null
+        entries.clear()
+        seen.clear()
+        live.clear()
+        trimmedFor = null
+    }
+
     /** 90 günden eski günlük dosyaları siler. Yalnızca adı tarih biçimine uyan dosyalara dokunur. */
     private fun deleteOld(d: File, today: LocalDate) {
         try {
