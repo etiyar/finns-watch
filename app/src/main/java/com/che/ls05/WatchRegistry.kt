@@ -3,6 +3,7 @@ package com.che.ls05
 import android.content.Context
 import android.content.SharedPreferences
 import com.che.ls05.protocol.Capabilities
+import com.che.ls05.protocol.RegistryRecovery
 import com.che.ls05.protocol.RegistryMigration
 import com.che.ls05.protocol.WatchList
 import com.che.ls05.protocol.WatchRecord
