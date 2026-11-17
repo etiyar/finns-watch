@@ -29,18 +29,32 @@ object WatchRegistry {
         synchronized(this) {
             cached?.let { return it }
             val old = legacy(c)
+            val stored = p(c).getString(KEY, null)
             val (l, src) = RegistryMigration.load(
-                p(c).getString(KEY, null),
+                stored,
                 old.getString("address", null),
                 old.getString("userId", null),
                 System.currentTimeMillis(),
             )
             if (src != RegistryMigration.Source.LOADED) {
-                p(c).edit().putString(KEY, l.serialize()).commit()
+                // Okunamayan mevcut saat listesini kaybetme: önce ayrı bir yerel yedekte koru.
+                // Bu veri cihazdan ve SharedPreferences'dan dışarı gönderilmez.
+                if (src == RegistryMigration.Source.REBUILT && stored != null) {
+                    val preserved = p(c).edit().putString("invalid_list_backup", stored).commit()
+                    if (!preserved) {
+                        WatchHub.log("Saat kayıt yedeği saklanamadı. Mevcut kayıt üzerine yazılmıyor.")
+                        return l
+                    }
+                    WatchHub.log("Saat kayıt biçimi okunamadı; bozuk liste yerel yedeğe alındı.")
+                }
+                if (!p(c).edit().putString(KEY, l.serialize()).commit()) {
+                    WatchHub.log("Saat kaydı diske yazılamadı; veriler korunmalı.")
+                    return l
+                }
                 when (src) {
                     RegistryMigration.Source.MIGRATED ->
                         if (l.watches.isNotEmpty()) WatchHub.log("Saat kaydı oluşturuldu: mevcut LS05 ayarları olduğu gibi kullanılıyor.")
-                    else -> WatchHub.log("Saat kaydı okunamadı; eski LS05 ayarlarından yeniden kuruldu.")
+                    else -> WatchHub.log("Saat kaydı yeniden oluşturuldu; önceki kayıt yerel yedekte.")
                 }
                 if (l.activeId != null) SwitchLog.record(c, l.activeId)
             }
@@ -51,8 +65,12 @@ object WatchRegistry {
 
     private fun save(c: Context, l: WatchList) {
         synchronized(this) {
-            p(c).edit().putString(KEY, l.serialize()).commit()
-            cached = l
+            // Başarısız disk yazımında yalnızca RAM'deki listeyi yeniymiş gibi gösterme.
+            if (p(c).edit().putString(KEY, l.serialize()).commit()) {
+                cached = l
+            } else {
+                WatchHub.log("Saat listesi kaydedilemedi; depolama durumunu kontrol et.")
+            }
         }
     }
 

@@ -714,7 +714,9 @@ class WatchService : Service(), DriverListener {
         if (restarting) return
         if (authBlocked) {
             WatchManager.setState(WatchState.AUTH_BLOCKED)
-            updateStatus("Doğrulama durdu; uygulamayı aç")
+            updateStatus(if (driver.type == WatchType.BAND8)
+                "Band 8 doğrulaması durdu; Bağlan ile yeniden dene"
+            else "Doğrulama durdu; uygulamayı aç")
             return
         }
         if (stopping || userInitiated) {
@@ -756,7 +758,9 @@ class WatchService : Service(), DriverListener {
         LinkAlert.disarm(this, "doğrulama durdu")
         main.removeCallbacks(reconnectRunnable)
         WatchHub.log(message)
-        updateStatus("Doğrulama durdu; uygulamayı aç")
+        updateStatus(if (driver.type == WatchType.BAND8)
+            "Band 8 doğrulaması durdu; Bağlan ile yeniden dene"
+        else "Doğrulama durdu; uygulamayı aç")
         if (driver.isConnected) driver.disconnect()
     }
 

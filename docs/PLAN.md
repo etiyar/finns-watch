@@ -413,3 +413,12 @@ Bu bölüm en güncel operasyonel özettir. Eski bölümlerin deney kayıtları 
 
 ### Çalışma biçimi
 Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan değişikliği yok. Her cihaz testi `docs/TEST_RESULTS.md`, her yayın `CHANGELOG.md`, her plan değişikliği burada güncellenir. Gizli kimlik bilgileri ve MAC adresleri depoya yazılmaz.
+
+
+### 18 Kasım ek kabul sonuçları ve düzeltme kapsamı
+- **GEÇTİ:** Band 8 Bluetooth kapat/aç sonrası otomatik yeniden bağlandı.
+- **GEÇTİ:** Saat değiştirildiğinde bağlantı kuruldu.
+- **AÇIK HATA:** 'Doğrulama durdu' mesajı ve uygulamanın yeniden açılmasında Band 8 kaydının görünmediği bir olay bildirildi. Kök neden belirlenmedi. `WatchRegistry` geçersiz seri kayıt yedeğini cihazda koruyacak ve başarılı disk yazımı olmadan RAM önbelleğini değiştirmeyecek şekilde sertleştirildi. Doğrulama uyarısı daha açık hâle getirildi. Bu kod düzeltmeleri cihazda henüz denenmedi.
+- **BEKLEYEN:** Telefon tamamen yeniden başlatıldıktan sonra saat kaydı / yeniden bağlanma; uygulamayı yeniden başlatma sonrası saat listesi; LS05 kadran düzeltmesinin cihaz doğrulaması.
+- **ÖNEMLİ:** Band 8 için sağlık komutları bu sürümde bulunmuyor. Bugün sekmesinde Band 8 adım, uyku ve nabzının 'Veri yok' olması normaldir, LS05 sağlık verilerinin silindiğine tek başına kanıt değildir.
+- Tam MAC adresi veya doğrulama anahtarı belgelere eklenmez.

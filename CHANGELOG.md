@@ -4,6 +4,13 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.13.0-beta6 | 18 Kasım 2026
+**Düzeltme (geliştirme dalı)**
+- Saat listesi diske yazılamazsa RAM önbelleğinin hatalı biçimde güncellenmesi önlendi.
+- Okunamayan mevcut saat listesi, yeniden oluşturulmadan önce uygulamanın özel yerel yedeğinde saklanıyor.
+- Band 8 kimlik doğrulama durması daha anlaşılır ve yeniden deneme yönlendirmeli gösteriliyor.
+- Cihaz kayıt kaybının kesin kök nedeni belirlenmedi; bu sürümün gerçek cihaz kabulü bekleniyor.
+
 ## v0.13.0-beta5 | 18 Kasım 2026
 **Eklenen**
 - Band 8 için Android BLE sürücüsü, kimlik doğrulama, pil ve cihaz bilgisi okuma.
@@ -20,7 +27,9 @@ Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihaz
 **Durum**
 - beta5 GitHub Actions testleri ve APK derlemesi başarılı.
 - **Cihazda doğrulandı:** Band 8 bilinen Bluetooth adresiyle bağlandı; şarj yüzdesi kullanıcı tarafından doğru bulundu.
-- **Henüz doğrulanmadı:** Otomatik yeniden bağlanma, Android yeniden başlatma, iki saat arasında tekrarlı geçiş, taramayla Band 8 bulma, kadran uyarısının düzeldiğinin yeni APK üzerinde teyidi.
+- **Cihazda doğrulandı:** Bluetooth kapat/aç sonrası otomatik yeniden bağlanma ve saat değiştirirken bağlantı kurma.
+- **Açık hata:** Bir oturumda doğrulama durdu mesajı ve uygulama tekrar açılınca Band 8 kaydının kaybolması bildirildi.
+- **Henüz doğrulanmadı:** Telefon yeniden başlatma sonrası kayıt kalıcılığı, taramayla Band 8 bulma, kadran uyarısının yeni APK üzerinde teyidi.
 - Band 8 bildirim, arama, müzik, sağlık ve ayar komutları bu sürümün kapsamına dahil değildir.
 
 ## v0.12.0 | 17 Kasım 2026
