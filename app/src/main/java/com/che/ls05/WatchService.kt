@@ -258,6 +258,8 @@ class WatchService : Service(), DriverListener {
     /** Anahtar girilince FE95 bağlantısını yeniden açmadan kimlik doğrulamayı sürdürür. */
     fun resumeBandAuth(): Boolean = (driver as? Band8Driver)?.resumeAuth() ?: false
 
+    fun testBandFind(start: Boolean): Boolean = (driver as? Band8Driver)?.testFindBand(start) ?: false
+
     /** Kullanıcı doğrulama anahtarını girmekten vazgeçtiğinde bağlantıyı sonlandır. */
     fun cancelBandSetup() { (driver as? Band8Driver)?.disconnect() }
 

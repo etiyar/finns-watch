@@ -16,7 +16,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * Band 8 bağlantısı, cihaz bilgisi ve normal uygulama bildirimleri.
+ * Band 8 bağlantısı ve cihaza özgü komutlar.
  */
 class Band8Driver(
     context: Context,
@@ -33,6 +33,8 @@ class Band8Driver(
     override val busy = false
 
     fun resumeAuth(): Boolean = ble.resumeAuth()
+
+    fun testFindBand(start: Boolean): Boolean = ble.testFindBand(start)
 
     override fun startScan() = ble.scan()
     override fun connect(device: BluetoothDevice, autoConnect: Boolean) = ble.connect(device, autoConnect)

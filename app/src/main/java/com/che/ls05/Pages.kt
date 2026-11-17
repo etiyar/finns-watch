@@ -1394,6 +1394,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private var lastSeenDenied = false
     private val firmwareValue: TextView = ui.text("", 15f, R.color.text2)
     private val actionButtons = ArrayList<Button>()
+    private val bandFindTests = ui.vertical()
     private val logView: TextView = ui.mono()
     private var setupOpened = false
 
@@ -1471,6 +1472,16 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         val timeButton = ui.secondary("Saati eşitle") { withWatch { it.sendTime() } }
         actionButtons += timeButton
         ui.add(adv.content, timeButton)
+        ui.add(bandFindTests, ui.cardTitle("Band 8 saati bul testi"))
+        ui.add(bandFindTests, ui.caption("Band 8 yanındayken dene. Gerekirse titreşimi bileklikten durdur."), topDp = 4)
+        val findStart = ui.secondary("Başlatmayı dene") { testBandFind(start = true) }
+        val findStop = ui.secondary("Durdurmayı dene") { testBandFind(start = false) }
+        actionButtons += findStart
+        actionButtons += findStop
+        ui.add(bandFindTests, findStart, topDp = 8)
+        ui.add(bandFindTests, findStop, topDp = 4)
+        bandFindTests.visibility = View.GONE
+        ui.add(adv.content, bandFindTests, topDp = 12)
         ui.add(adv.content, ui.cardTitle("Log"), topDp = 20)
         val lr = ui.horizontal()
         ui.add(lr, ui.secondary("Logu kopyala") { copyLog() }, width = 0, weight = 1f)
@@ -1497,10 +1508,17 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         val caps = WatchManager.caps(act)
         weatherViews.forEach { it.visibility = if (caps.weather) View.VISIBLE else View.GONE }
         remote.view.visibility = if (caps.musicRemote || caps.findPhone) View.VISIBLE else View.GONE
+        bandFindTests.visibility =
+            if (WatchRegistry.active(act)?.type == WatchType.BAND8) View.VISIBLE else View.GONE
         refreshSetup()
         refreshWatchInfo()
         theme.select(Prefs.themeMode(act))
         onReady(WatchHub.ready)
+    }
+
+    private fun testBandFind(start: Boolean) {
+        val service = act.readyService() ?: return
+        if (!service.testBandFind(start)) act.toast("Band 8 komutu gönderilemedi. Biraz bekleyip tekrar dene.")
     }
 
     /** Özet satırı: "Her şey hazır" ya da eksik sayısı. Eksik varsa liste ilk açılışta açık gelir. */

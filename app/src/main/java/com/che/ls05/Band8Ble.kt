@@ -14,6 +14,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import com.che.ls05.protocol.band8.B8Auth
 import com.che.ls05.protocol.band8.B8Battery
 import com.che.ls05.protocol.band8.B8Char
@@ -24,12 +25,14 @@ import com.che.ls05.protocol.band8.B8Incoming
 import com.che.ls05.protocol.band8.B8Messages
 import com.che.ls05.protocol.band8.B8Notification
 import com.che.ls05.protocol.band8.B8PhoneInfo
+import com.che.ls05.protocol.band8.B8Sub
+import com.che.ls05.protocol.band8.B8Type
 import com.che.ls05.protocol.band8.B8Write
 import java.util.Locale
 import java.util.UUID
 
 /**
- * Band 8 BLE oturumu. Doğrulamadan sonra cihaz bilgisi okunur ve uygulama bildirimleri gönderilebilir.
+ * Band 8 BLE oturumu, kimlik doğrulaması ve şifreli komut iletimi.
  */
 @SuppressLint("MissingPermission")
 class Band8Ble(private val context: Context, private val listener: Listener, private val watchId: String) {
@@ -67,6 +70,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     private var writeAttempt = 0
     private var mtu = 23
     private var generation = 0
+    private var nextFindTestAt = 0L
     private val commandTimeout = Runnable {
         if (ready && channel.pending > 0) {
             listener.onStatus("Band 8 aktarım onayı zaman aşımına uğradı")
@@ -323,6 +327,23 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         }, 15_000)
     }
 
+    /** Durdurma komutu cihazda doğrulanana kadar yalnızca elle denenir. */
+    fun testFindBand(start: Boolean): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        if (!ready || released || gatt == null || channel.session == null ||
+            channel.pending != 0 || channel.counter >= 0xFFFF ||
+            writing || writes.isNotEmpty() || now < nextFindTestAt
+        ) return false
+        val frames = channel.send(B8Messages.findBand(start))
+        if (frames.isEmpty()) return false
+        nextFindTestAt = now + 1_000L
+        enqueue(frames)
+        armCommandTimeout()
+        if (!ready) return false
+        listener.onLog("Band 8 bulma testi: " + if (start) "başlatma isteği gönderildi" else "durdurma isteği gönderildi")
+        return true
+    }
+
     private fun enqueue(list: List<B8Write>) {
         for (w in list) writes.addLast(w)
         drainWrites()
@@ -378,7 +399,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         if (id == B8Char.CMD_OUT && (result.writes.isNotEmpty() || !channel.busy)) armCommandTimeout()
         for (event in result.incoming) {
             when (event) {
-                is B8Incoming.Command -> processCommand(event.plain)
+                is B8Incoming.Command -> processCommand(event.plain, event.encrypted)
                 is B8Incoming.DecryptFailed -> listener.onLog("Band 8 mesajı doğrulanamadı")
                 is B8Incoming.SendRejected -> listener.onLog("Band 8 isteği reddetti")
                 is B8Incoming.ActivityPart -> Unit
@@ -386,7 +407,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         }
     }
 
-    private fun processCommand(plain: ByteArray) {
+    private fun processCommand(plain: ByteArray, encrypted: Boolean) {
         val command = B8Command.parse(plain) ?: return
         val step = auth?.onCommand(command)
         if (step != null) {
@@ -412,6 +433,10 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         when {
             command.matches(2, 1) -> B8Messages.parseBattery(command)?.let(listener::onBattery)
             command.matches(2, 2) -> B8Messages.parseDeviceInfo(command)?.let(listener::onDeviceInfo)
+            ready && encrypted && command.matches(B8Type.SYSTEM, B8Sub.SYS_FIND_BAND) -> {
+                val state = command.body(B8Type.F_SYSTEM)?.int(5)
+                listener.onLog("Band 8 bulma yanıtı: durum=${state ?: "yok"}")
+            }
         }
     }
 
