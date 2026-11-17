@@ -29,7 +29,7 @@ class FaceUpload(private val ble: Ls05Ble, private val onEnd: () -> Unit) {
 
     companion object {
         const val MTU = 247
-        const val MIN_BATTERY = 25
+        const val MIN_BATTERY = 20
         const val WAIT_MS = 10_000L
         /** Son blok onayı gelmezse Haylou Fun 1 sn sonra bitişi gönderiyor. */
         const val FINAL_GRACE_MS = 3_000L
@@ -41,7 +41,7 @@ class FaceUpload(private val ble: Ls05Ble, private val onEnd: () -> Unit) {
         if (!ble.isReady) return "Saat bağlı değil."
         if (!ble.canSendFace) return "Saatte kadran kanalı bulunamadı."
         val bat = WatchHub.battery
-        if (bat == null || bat < MIN_BATTERY) return "Saat pili en az %$MIN_BATTERY olmalı (şu an ${bat?.let { "%$it" } ?: "bilinmiyor"})."
+        if (bat == null || bat < MIN_BATTERY) return "Saat pili %$MIN_BATTERY'nin altında (şu an ${bat?.let { "%$it" } ?: "bilinmiyor"}). Şarj edip tekrar dene."
         file = face
         transfer = null
         startedAt = System.currentTimeMillis()

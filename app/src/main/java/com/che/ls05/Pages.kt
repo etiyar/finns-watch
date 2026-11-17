@@ -743,22 +743,13 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         d.show()
     }
 
+    /** Onay penceresi yok: doğrudan yükler. Pil sınırın altındaysa ya da saat hazır değilse nedeni gösterilir. */
     private fun confirmUpload(e: FaceLibrary.Entry, f: com.che.ls05.protocol.FaceFile) {
-        AlertDialog.Builder(act)
-            .setTitle("Saate yüklensin mi?")
-            .setMessage(
-                "Yükleme 1-2 dakika sürer. Bu sürede saati telefona yakın tut ve uygulamayı açık bırak; " +
-                    "ekran açık kalır. Bildirimler bekletilir, sonra gönderilir.\n\n" +
-                    "Saat pili en az %${FaceUpload.MIN_BATTERY} olmalı. Yükleme yarıda kesilirse saatin eski kadranda " +
-                    "kalması beklenir; bu henüz denenmedi.",
-            )
-            .setPositiveButton("Yükle") { _, _ ->
-                val s = act.readyService() ?: return@setPositiveButton
-                val err = s.startFace(f, e.id)
-                if (err != null) act.toast(err)
-            }
-            .setNegativeButton("Vazgeç", null)
-            .show()
+        val s = act.readyService() ?: return
+        val err = s.startFace(f, e.id)
+        if (err != null) {
+            AlertDialog.Builder(act).setMessage(err).setPositiveButton("Tamam", null).show()
+        }
     }
 
     // ---------- Ekran ve profil ----------
