@@ -1,7 +1,9 @@
 package com.che.ls05
 
 import android.bluetooth.BluetoothDevice
+import com.che.ls05.protocol.AuthOutcome
 import com.che.ls05.protocol.UteWeather
+import com.che.ls05.protocol.WatchEvent
 import com.che.ls05.protocol.WatchType
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -48,4 +50,21 @@ interface WatchDriver {
 
     fun sendMusicState(playing: Boolean, volumePercent: Int)
     fun sendWeather(current: Int, days: List<UteWeather.Day>, city: String)
+}
+
+/** Sürücüden servise giden olaylar. Saate özel çerçeveler burada yoktur; sürücü onları ortak olaylara çevirir. */
+interface DriverListener {
+    fun onLog(line: String)
+    fun onStatus(status: String)
+    fun onDeviceFound(device: BluetoothDevice, name: String, rssi: Int)
+    fun onReadyChanged(ready: Boolean)
+    fun onDisconnected(userInitiated: Boolean, status: Int)
+    fun onAuth(outcome: AuthOutcome)
+    fun onEvent(event: WatchEvent)
+
+    /** Saklanması gerekebilecek ham sağlık kaydı (saklama kararı HealthStore'da). */
+    fun onHealthRaw(bytes: ByteArray)
+
+    /** Uzun aktarım (kadran) bitti ya da durdu. */
+    fun onBusyEnded()
 }

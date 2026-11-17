@@ -22,15 +22,14 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
 import android.view.KeyEvent
-import com.che.ls05.protocol.AlarmSetting
-import com.che.ls05.protocol.DndSetting
+import com.che.ls05.protocol.AuthOutcome
 import com.che.ls05.protocol.HistoryGate
 import com.che.ls05.protocol.MSG_TYPE_GENERIC
 import com.che.ls05.protocol.ProfileSetting
 import com.che.ls05.protocol.RemoteAction
 import com.che.ls05.protocol.SettingSync
 import com.che.ls05.protocol.TurkishFold
-import com.che.ls05.protocol.UteFrame
+import com.che.ls05.protocol.WatchEvent
 import com.che.ls05.protocol.WatchKeys
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -43,7 +42,7 @@ import java.time.ZonedDateTime
  *   denemeleri durdurur; zaman aşımı en fazla 3 kez denenir (kural 7). Sonra kullanıcıya sorulur.
  * - Kullanıcı "Durdur" derse yeniden bağlanmaz ve açılışta başlamaz.
  */
-class WatchService : Service(), Ls05Ble.Listener {
+class WatchService : Service(), DriverListener {
 
     companion object {
         const val ACTION_START = "com.che.ls05.START"
@@ -153,7 +152,7 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     override fun onCreate() {
         super.onCreate()
-        driver = Ls05Driver(applicationContext, this) { onBusyEnded() }
+        driver = Ls05Driver(applicationContext, this)
         HealthStore.init(applicationContext)
         SettingsStore.sync(applicationContext)
         WatchHub.service = this
@@ -229,7 +228,7 @@ class WatchService : Service(), Ls05Ble.Listener {
     // ---------- Kadran ----------
 
     /** Uzun aktarım (kadran) bitti ya da durdu: bekleyen trafik şimdi gider. */
-    private fun onBusyEnded() {
+    override fun onBusyEnded() {
         if (driver.isReady) {
             flushPending()
             pushSettings()
@@ -411,8 +410,7 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     // ---------- Saatten kumanda ----------
 
-    private fun handleWatchKey(key: UteFrame.WatchKey) {
-        val action = WatchKeys.action(key)
+    private fun handleRemote(action: RemoteAction) {
         val label = WatchKeys.label(action)
         if (!Prefs.remoteControl(this)) {
             if (action != RemoteAction.UNKNOWN) WatchHub.log("Saatten kumanda kapalı; yok sayıldı ($label).")
@@ -564,7 +562,7 @@ class WatchService : Service(), Ls05Ble.Listener {
         notes.forEach { forward(it) }
     }
 
-    // ---------- Ls05Ble.Listener ----------
+    // ---------- DriverListener ----------
 
     override fun onLog(line: String) = WatchHub.log(line)
 
@@ -573,43 +571,33 @@ class WatchService : Service(), Ls05Ble.Listener {
     override fun onDeviceFound(device: BluetoothDevice, name: String, rssi: Int) =
         WatchHub.deviceFound(device, name, rssi)
 
-    override fun onRawFrame(value: ByteArray) {
-        ls05?.face?.onRaw(value)
-        if (HealthStore.add(this, value)) WatchHub.healthChanged()
+    override fun onHealthRaw(bytes: ByteArray) {
+        if (HealthStore.add(this, bytes)) WatchHub.healthChanged()
     }
 
-    override fun onFrame(frame: UteFrame) {
-        when (frame) {
-            is UteFrame.AlarmAck -> handleAck(AlarmSetting.key(frame.slot), null)
-            is UteFrame.DndAck -> handleAck(DndSetting.KEY, DndSetting.fromEcho(frame.bytes)?.encode())
-            is UteFrame.ProfileAck -> handleAck(ProfileSetting.KEY, null)
-            is UteFrame.WatchKey -> handleWatchKey(frame)
-            is UteFrame.Steps -> if (frame.hour.live) {
-                val h = frame.hour
+    override fun onEvent(event: WatchEvent) {
+        when (event) {
+            is WatchEvent.SettingAck -> handleAck(event.key, event.echo)
+            is WatchEvent.Remote -> handleRemote(event.action)
+            is WatchEvent.LiveSteps -> {
+                val h = event.hour
                 HealthStore.live["${h.date.year}-${h.date.month}-${h.date.day}-${h.hour}"] = h
                 while (HealthStore.live.size > MAX_LIVE_STEPS) HealthStore.live.remove(HealthStore.live.keys.first())
                 WatchHub.healthChanged()
             }
-            is UteFrame.StepHistoryEnd -> {
-                Prefs.setLastSync(this, System.currentTimeMillis())
-                WatchHub.healthChanged()
-                historyPartDone(HistoryGate.Part.STEPS)
+            is WatchEvent.HistoryPart -> {
+                if (event.part == HistoryGate.Part.STEPS) {
+                    Prefs.setLastSync(this, System.currentTimeMillis())
+                    WatchHub.healthChanged()
+                }
+                historyPartDone(event.part)
             }
-            is UteFrame.HeartHistoryEnd -> historyPartDone(HistoryGate.Part.HEART)
-            // Uyku: bölümler gelince ya da gece kaydı yoksa (0 bölüm) okuma bitmiş sayılır.
-            is UteFrame.SleepData -> historyPartDone(HistoryGate.Part.SLEEP)
-            is UteFrame.SleepHeader -> if (frame.count == 0) historyPartDone(HistoryGate.Part.SLEEP)
-            else -> Unit
         }
-        WatchHub.frame(frame)
     }
 
     override fun onReadyChanged(ready: Boolean) {
         // Oturum, gözlemciler haber almadan önce artar ki o sırada yapılan ayar yeni oturuma sayılsın.
-        if (ready) {
-            session++
-            ls05?.onLinkReady()
-        }
+        if (ready) session++
         WatchHub.setReady(ready)
         if (!ready) return
         wasReady = true
@@ -636,7 +624,6 @@ class WatchService : Service(), Ls05Ble.Listener {
     }
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
-        ls05?.face?.onDisconnected()
         clearFind("bağlantı koptu")
         val hadLink = wasReady
         wasReady = false
@@ -669,25 +656,21 @@ class WatchService : Service(), Ls05Ble.Listener {
         scheduleReconnect()
     }
 
-    override fun onAuthResult(code: Int?) {
-        if (code != null && code != 1 && code != -1) {
+    override fun onAuth(outcome: AuthOutcome) {
+        if (outcome.markUnknown) {
             // Saat yeniden bağlama istiyor ya da reddediyor: sıfırlanmış olabilir, ayarları belirsiz say.
             SettingsStore.sync(this).markAllUnknown()
             SettingsStore.save(this)
             WatchHub.settingsChanged()
-            WatchHub.log("Saat doğrulamada $code döndü; sıfırlanmış olabilir. Ayarlar 'durum bilinmiyor' olarak işaretlendi, otomatik gönderilmeyecek.")
+            outcome.unknownMessage?.let { WatchHub.log(it) }
         }
-        when (code) {
-            1 -> authTimeouts = 0
-            null -> {
+        when (outcome.kind) {
+            AuthOutcome.Kind.OK -> authTimeouts = 0
+            AuthOutcome.Kind.TIMEOUT -> {
                 authTimeouts++
-                if (authTimeouts >= MAX_AUTH_TIMEOUTS) {
-                    blockAuth("Doğrulama $MAX_AUTH_TIMEOUTS kez yanıtsız kaldı. Haylou Fun açıksa kapat, sonra uygulamadan yeniden bağlan.")
-                }
+                if (authTimeouts >= MAX_AUTH_TIMEOUTS) blockAuth(outcome.blockMessage ?: "Doğrulama yanıtsız kaldı.")
             }
-            -1 -> blockAuth("Kimlik girilmemiş. Uygulamada kimliği gir ve yeniden bağlan.")
-            4 -> blockAuth("Saat onay bekliyor (durum 4). Otomatik deneme durduruldu; uygulamayı aç.")
-            else -> blockAuth("Saat doğrulamayı reddetti (durum $code). Otomatik deneme durduruldu; kimliği kontrol et.")
+            AuthOutcome.Kind.BLOCK -> blockAuth(outcome.blockMessage ?: "Doğrulama durdu.")
         }
     }
 

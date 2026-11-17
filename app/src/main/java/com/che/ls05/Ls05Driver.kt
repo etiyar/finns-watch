@@ -5,9 +5,11 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import com.che.ls05.protocol.Ls05Events
 import com.che.ls05.protocol.SettingCommands
 import com.che.ls05.protocol.UteCommand
 import com.che.ls05.protocol.UteDate
+import com.che.ls05.protocol.UteFrame
 import com.che.ls05.protocol.UteHealth
 import com.che.ls05.protocol.UteMusic
 import com.che.ls05.protocol.UteWeather
@@ -17,17 +19,17 @@ import java.time.ZonedDateTime
 
 /**
  * Haylou LS05 sürücüsü. Ls05Ble'yi sarar; komut baytları ve log etiketleri v0.11 ile aynıdır.
- * Kadran yükleme yalnızca LS05'te var: [face], [startFace].
+ * Gelen UTE çerçeveleri ortak olaylara çevrilir (Ls05Events); pil, firmware ve ekran olayları için çerçeve
+ * WatchHub'a da verilir (v0.11'deki gibi). Kadran yükleme yalnızca LS05'te var: [face], [startFace].
  */
 class Ls05Driver(
     private val context: Context,
-    bleListener: Ls05Ble.Listener,
-    private val onFaceEnd: () -> Unit,
-) : WatchDriver {
+    private val listener: DriverListener,
+) : WatchDriver, Ls05Ble.Listener {
 
     override val type = WatchType.LS05
 
-    val ble = Ls05Ble(context, bleListener)
+    val ble = Ls05Ble(context, this)
 
     private val main = Handler(Looper.getMainLooper())
 
@@ -42,7 +44,7 @@ class Ls05Driver(
             if (face.phase == FaceUpload.Phase.DONE && WatchHub.faceId.isNotEmpty()) {
                 Prefs.setCurrentFace(context, WatchHub.faceId)
             }
-            onFaceEnd()
+            listener.onBusyEnded()
         }
     }
 
@@ -53,9 +55,35 @@ class Ls05Driver(
         return face.start(file)
     }
 
-    /** Hazır olma bildirimi geldi (servis çağırır). */
-    fun onLinkReady() {
-        link++
+    // ---------- Ls05Ble.Listener ----------
+
+    override fun onLog(line: String) = listener.onLog(line)
+
+    override fun onStatus(status: String) = listener.onStatus(status)
+
+    override fun onDeviceFound(device: BluetoothDevice, name: String, rssi: Int) =
+        listener.onDeviceFound(device, name, rssi)
+
+    override fun onReadyChanged(ready: Boolean) {
+        if (ready) link++
+        listener.onReadyChanged(ready)
+    }
+
+    override fun onDisconnected(userInitiated: Boolean, status: Int) {
+        face.onDisconnected()
+        listener.onDisconnected(userInitiated, status)
+    }
+
+    override fun onAuthResult(code: Int?) = listener.onAuth(Ls05Events.auth(code))
+
+    override fun onRawFrame(value: ByteArray) {
+        face.onRaw(value)
+        listener.onHealthRaw(value)
+    }
+
+    override fun onFrame(frame: UteFrame) {
+        Ls05Events.of(frame)?.let { listener.onEvent(it) }
+        WatchHub.frame(frame)
     }
 
     override val isConnected: Boolean get() = ble.isConnected
