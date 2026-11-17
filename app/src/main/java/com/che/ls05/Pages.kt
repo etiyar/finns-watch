@@ -192,10 +192,12 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
     private var olderHeartByDay: Map<java.time.LocalDate, List<com.che.ls05.protocol.HeartPoint>>? = null
     private var olderDate: java.time.LocalDate? = null
     private var olderLoading = false
+    private var olderGen = -1
 
     private fun loadOlder(today: java.time.LocalDate) {
-        if (olderLoading || (olderDate == today && olderView != null)) return
+        if (olderLoading || (olderDate == today && olderView != null && olderGen == HealthStore.generation)) return
         olderLoading = true
+        val gen = HealthStore.generation
         val read = HealthStore.reader(act, 31)
         Thread({
             val v = try { read() } catch (e: Exception) { null }
@@ -206,6 +208,7 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
                     olderView = v
                     olderHeartByDay = hb
                     olderDate = today
+                    olderGen = gen
                     refresh()
                 }
             }
