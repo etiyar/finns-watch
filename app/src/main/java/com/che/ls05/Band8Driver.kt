@@ -27,6 +27,8 @@ class Band8Driver(
     override val isReady: Boolean get() = ble.isReady
     override val busy = false
 
+    fun resumeAuth(): Boolean = ble.resumeAuth()
+
     override fun startScan() = ble.scan()
     override fun connect(device: BluetoothDevice, autoConnect: Boolean) = ble.connect(device, autoConnect)
     override fun disconnect() = ble.disconnect()
@@ -56,6 +58,8 @@ class Band8Driver(
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) =
         listener.onDisconnected(userInitiated, status)
+
+    override fun onKeyRequired() = listener.onBandKeyRequired()
 
     override fun onAuthFailed(message: String) {
         listener.onAuth(AuthOutcome(AuthOutcome.Kind.BLOCK, blockMessage = message))

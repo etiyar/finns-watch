@@ -33,6 +33,7 @@ import com.che.ls05.protocol.UteCommand
 import com.che.ls05.protocol.UteDate
 import com.che.ls05.protocol.UteFrame
 import com.che.ls05.protocol.UteProfile
+import com.che.ls05.protocol.SecretEnvelope
 import com.che.ls05.protocol.WatchType
 import java.time.LocalDateTime
 
@@ -1324,6 +1325,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private val deviceBox: LinearLayout = ui.vertical()
     private var scanCandidates = 0
     private var scanGeneration = 0
+    private var bandKeyDialog: AlertDialog? = null
     // Hava durumu
     private val weatherSwitch: SwitchRow = ui.switchRow(
         "Hava durumunu saate gönder",
@@ -1743,7 +1745,8 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         val active = WatchRegistry.active(act)
         if (active?.type == WatchType.BAND8) {
             if (!SecretStore.has(act, active.id)) {
-                act.toast("Band 8 anahtarı eksik. Saatlerim'den yeniden ekle.")
+                if (Prefs.address(act) != null && WatchHub.service?.resumeBandAuth() == true) return
+                act.toast("Önce Tara ile Band 8'i seç; anahtar cihaz doğrulandıktan sonra istenecek.")
                 return
             }
         } else if (!hasId()) {
@@ -1763,7 +1766,13 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
 
     fun onDeviceFound(device: BluetoothDevice, name: String, rssi: Int) {
         if (scanCandidates++ == 0) deviceBox.removeAllViews()
-        ui.add(deviceBox, ui.row(name, "Bu cihazı seç · $rssi dBm", onClick = { useDevice(device) }))
+        val candidate = name.contains("Band 8", true) || name.contains("M2239B1", true) ||
+            name.contains("FE95", true)
+        val subtitle = if (WatchRegistry.active(act)?.type == WatchType.BAND8) {
+            if (candidate) "Olası Band 8 · servisi doğrula · $rssi dBm"
+            else "Diğer Bluetooth cihazı · FE95 kontrolü · $rssi dBm"
+        } else "Bu cihazı seç · $rssi dBm"
+        ui.add(deviceBox, ui.row(name, subtitle, onClick = { useDevice(device) }))
     }
 
     private fun useDevice(device: BluetoothDevice) {
@@ -1772,8 +1781,72 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             editId()
             return
         }
+        val active = WatchRegistry.active(act)
+        if (active?.type == WatchType.BAND8) {
+            val likely = device.name?.let {
+                it.contains("Band 8", true) || it.contains("M2239B1", true)
+            } == true
+            if (!likely) {
+                val dlg = AlertDialog.Builder(act)
+                    .setTitle("Cihazı doğrula")
+                    .setMessage("Bu cihazın Band 8 olduğu kesin değil. Xiaomi FE95 servis kontrolü yapılacak. Eşleşme veya sıfırlama yapılmaz.")
+                    .setPositiveButton("Servisi kontrol et") { _, _ ->
+                        deviceBox.removeAllViews()
+                        WatchService.start(act, WatchService.ACTION_CONNECT_NEW, device.address)
+                    }
+                    .setNegativeButton("Vazgeç", null)
+                    .create()
+                act.track(dlg)
+                dlg.show()
+                return
+            }
+        }
         deviceBox.removeAllViews()
         WatchService.start(act, WatchService.ACTION_CONNECT_NEW, device.address)
+    }
+
+    /** İlk GATT servis doğrulamasından sonra istenir; anahtar kullanıcıya geri gösterilmez. */
+    fun promptBandKey() {
+        val active = WatchRegistry.active(act) ?: return
+        if (active.type != WatchType.BAND8 || bandKeyDialog?.isShowing == true) return
+        val box = ui.dialogBox()
+        ui.add(box, ui.caption("Band 8 doğrulandı. Mi Fitness eşleşmesinden alınan 32 haneli anahtarı gir. Anahtar yalnızca telefonda şifreli saklanır."), topDp = 8)
+        val input = ui.field("Band 8 anahtarı")
+        input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        input.filters = arrayOf(android.text.InputFilter.LengthFilter(40))
+        ui.add(box, input, topDp = 12)
+        val d = AlertDialog.Builder(act)
+            .setTitle("Band 8 kimlik doğrulama")
+            .setView(box)
+            .setPositiveButton("Bağlan", null)
+            .setNegativeButton("Vazgeç", null)
+            .create()
+        bandKeyDialog = d
+        d.setOnShowListener {
+            d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val value = input.text.toString().trim()
+                val bytes = SecretEnvelope.parseKeyHex(value)
+                if (bytes == null) {
+                    act.toast("32 haneli geçerli onaltılık anahtar gerekli.")
+                    return@setOnClickListener
+                }
+                bytes.fill(0)
+                if (!SecretStore.putHex(act, active.id, value)) {
+                    act.toast("Anahtar güvenli biçimde kaydedilemedi.")
+                    return@setOnClickListener
+                }
+                input.text.clear()
+                d.dismiss()
+                if (WatchHub.service?.resumeBandAuth() != true) {
+                    val address = Prefs.address(act)
+                    if (address != null) WatchService.start(act, WatchService.ACTION_CONNECT_NEW, address)
+                    else act.toast("Bağlantı kesildi; yeniden Tara'ya bas.")
+                }
+            }
+        }
+        d.setOnDismissListener { if (bandKeyDialog === d) bandKeyDialog = null }
+        act.track(d)
+        d.show()
     }
 
     // ---------- Log ----------

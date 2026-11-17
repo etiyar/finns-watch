@@ -39,6 +39,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         fun onFound(device: BluetoothDevice, name: String, rssi: Int)
         fun onReady(ready: Boolean)
         fun onDisconnected(userInitiated: Boolean, status: Int)
+        fun onKeyRequired()
         fun onAuthFailed(message: String)
         fun onBattery(value: B8Battery)
         fun onDeviceInfo(value: B8DeviceInfo)
@@ -102,12 +103,17 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             // Band 8 bazı firmware sürümlerinde farklı adla yayın yapabilir.
             // Bu yüzden yalnızca modele göre filtrelemiyoruz. Cihazın FE95 servisi
             // bağlantı sonrasında doğrulanır; başka bir saate komut gönderilmez.
-            val name = result.scanRecord?.deviceName ?: result.device.name ?: return
+            val services = result.scanRecord?.serviceUuids
+            val advertisedFe95 = services?.any { it.uuid == serviceId } == true
+            val name = result.scanRecord?.deviceName ?: result.device.name
+            // İsimsiz cihazları da yalnızca Xiaomi servis kimliği görünüyorsa listele.
+            if (name.isNullOrBlank() && !advertisedFe95) return
             main.post {
                 if (!scanning || released || !seen.add(result.device.address)) return@post
                 scanResults++
-                listener.onFound(result.device, name, result.rssi)
-                listener.onStatus("$scanResults Bluetooth cihazı bulundu; Band 8'i listeden seç")
+                val label = if (advertisedFe95) "${name ?: "İsimsiz Xiaomi BLE cihazı"} · FE95" else name!!
+                listener.onFound(result.device, label, result.rssi)
+                listener.onStatus("$scanResults Bluetooth cihazı bulundu; Band 8 olduğunu doğrula")
             }
         }
         override fun onScanFailed(errorCode: Int) {
@@ -123,13 +129,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     fun connect(device: BluetoothDevice, autoConnect: Boolean) {
         if (released || gatt != null) return
         stopScan()
-        val key = SecretStore.get(context, watchId)
-        if (key == null || key.size != 16) {
-            key?.fill(0)
-            listener.onAuthFailed("Band 8 kimlik anahtarı eksik veya okunamıyor")
-            return
-        }
-        authKey = key
+        // Bağlantı öncesi anahtar istenmez. İlk olarak FE95 servisi ve gerekli kanallar doğrulanır.
         userDisconnect = false
         listener.onStatus("Band 8 bağlanıyor…")
         try {
@@ -232,7 +232,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     private fun discovered(g: BluetoothGatt, status: Int) {
         val service = if (status == BluetoothGatt.GATT_SUCCESS) g.getService(serviceId) else null
         if (service == null) {
-            listener.onStatus("Band 8 protokol servisi bulunamadı")
+            listener.onAuthFailed("Seçilen cihaz Xiaomi Smart Band 8 değil veya FE95 servisini sunmuyor. Başka cihaz seç.")
             close(false, status)
             return
         }
@@ -272,8 +272,23 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         }
     }
 
+    /** FE95 doğrulandıktan sonra anahtar kaydedilirse aynı GATT oturumunda devam eder. */
+    fun resumeAuth(): Boolean {
+        if (released || gatt == null || chars.isEmpty() || ready) return false
+        startAuth()
+        return true
+    }
+
     private fun startAuth() {
-        val key = authKey ?: return
+        if (auth != null || ready || gatt == null) return
+        val key = SecretStore.get(context, watchId)
+        if (key == null || key.size != 16) {
+            key?.fill(0)
+            listener.onStatus("Band 8 doğrulandı; kimlik anahtarı gerekli")
+            listener.onKeyRequired()
+            return
+        }
+        authKey = key
         val phone = B8PhoneInfo(Build.VERSION.SDK_INT, Build.MODEL, Locale.getDefault().country.ifBlank { "TR" })
         auth = B8Auth(key, phone)
         listener.onStatus("Band 8 kimlik doğruluyor…")

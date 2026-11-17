@@ -37,6 +37,7 @@ object WatchHub {
 
         /** Kadran yükleme durumu ya da ilerlemesi değişti. */
         fun onFaceChanged() {}
+        fun onBandKeyRequired() {}
     }
 
     /** Saate gidecek şeyin türü. */
@@ -111,6 +112,10 @@ object WatchHub {
     fun setReady(r: Boolean) = onMain {
         ready = r
         observers.toList().forEach { it.onReadyChanged(r) }
+    }
+
+    fun bandKeyRequired() = onMain {
+        observers.toList().forEach { it.onBandKeyRequired() }
     }
 
     fun deviceFound(device: BluetoothDevice, name: String, rssi: Int) = onMain {

@@ -2,7 +2,6 @@ package com.che.ls05
 
 import android.app.AlertDialog
 import android.text.InputType
-import com.che.ls05.protocol.SecretEnvelope
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -10,10 +9,7 @@ import com.che.ls05.protocol.WatchList
 import com.che.ls05.protocol.WatchRecord
 import com.che.ls05.protocol.WatchType
 
-/**
- * Saat sekmesinin en üstündeki "Saatlerim" listesi: saat ekle, etkin yap, yeniden adlandır, sil.
- * Band 8 eklenirken kimlik anahtarı telefonda şifreli saklanır.
- */
+/** Saatlerim: Band 8 önce taranır ve doğrulanır, ardından anahtarı istenir. */
 class WatchesCard(private val act: MainActivity) {
 
     private val ui: Ui = act.ui
@@ -131,11 +127,7 @@ class WatchesCard(private val act: MainActivity) {
                 val type = types[which]
                 nameDialog("Saat adı", type.label) { name ->
                     val rec = WatchRegistry.add(act, type, name)
-                    if (type == WatchType.BAND8) {
-                        enterBandKey(rec)
-                    } else {
-                        activate(rec)
-                    }
+                    activate(rec)
                     refresh()
                 }
             }
@@ -147,41 +139,7 @@ class WatchesCard(private val act: MainActivity) {
     private fun activate(rec: WatchRecord) {
         val err = WatchManager.switchTo(act, rec.id)
         if (err != null) act.toast(err)
-        else act.toast("Ayarlar > Saat bağlantısı > Tara ile cihazı seç.")
+        else act.toast("Ayarlar > Saat bağlantısı > Tara ile cihazı seç. Band 8 anahtarı doğrulama sırasında istenecek.")
         refresh()
     }
-
-    private fun enterBandKey(rec: WatchRecord) {
-        val box = ui.dialogBox()
-        ui.add(box, ui.caption("Mi Fitness eşleştirmesinden alınan 32 haneli anahtarı gir. Anahtar yalnızca telefonda şifreli tutulur."), topDp = 8)
-        val field = ui.field("Band 8 anahtarı (32 hane)")
-        field.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-        field.filters = arrayOf(android.text.InputFilter.LengthFilter(34))
-        ui.add(box, field, topDp = 12)
-        val dialog = AlertDialog.Builder(act)
-            .setTitle("Band 8 kimlik doğrulama")
-            .setView(box)
-            .setPositiveButton("Kaydet", null)
-            .setNegativeButton("Vazgeç", null)
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val value = field.text.toString().trim()
-                if (SecretEnvelope.parseKeyHex(value) == null) {
-                    act.toast("32 haneli onaltılık anahtar gerekli.")
-                    return@setOnClickListener
-                }
-                if (!SecretStore.putHex(act, rec.id, value)) {
-                    act.toast("Anahtar güvenli şekilde saklanamadı.")
-                    return@setOnClickListener
-                }
-                field.text.clear()
-                dialog.dismiss()
-                activate(rec)
-            }
-        }
-        act.track(dialog)
-        dialog.show()
-    }
-
 }

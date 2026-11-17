@@ -254,6 +254,12 @@ class WatchService : Service(), DriverListener {
     /** Kurulumdaki "Tara". */
     fun startScan() = driver.startScan()
 
+    /** Anahtar girilince FE95 bağlantısını yeniden açmadan kimlik doğrulamayı sürdürür. */
+    fun resumeBandAuth(): Boolean = (driver as? Band8Driver)?.resumeAuth() ?: false
+
+    /** Kullanıcı doğrulama anahtarını girmekten vazgeçtiğinde bağlantıyı sonlandır. */
+    fun cancelBandSetup() { (driver as? Band8Driver)?.disconnect() }
+
     private fun resetAuth() {
         authBlocked = false
         authTimeouts = 0
@@ -623,6 +629,8 @@ class WatchService : Service(), DriverListener {
     }
 
     // ---------- DriverListener ----------
+
+    override fun onBandKeyRequired() = WatchHub.bandKeyRequired()
 
     override fun onLog(line: String) = WatchHub.log(line)
 

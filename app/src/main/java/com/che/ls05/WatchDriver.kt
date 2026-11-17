@@ -67,4 +67,7 @@ interface DriverListener {
 
     /** Uzun aktarım (kadran) bitti ya da durdu. */
     fun onBusyEnded()
+
+    /** Xiaomi FE95 servis keşfi başarılı, fakat Band 8 anahtarı henüz yok. */
+    fun onBandKeyRequired() {}
 }

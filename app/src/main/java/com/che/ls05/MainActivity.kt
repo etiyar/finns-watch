@@ -498,6 +498,11 @@ class MainActivity : Activity(), WatchHub.Observer {
         today.refresh()
     }
 
+    override fun onBandKeyRequired() {
+        selectTab(3)
+        settings.promptBandKey()
+    }
+
     override fun onDeviceFound(device: BluetoothDevice, name: String, rssi: Int) {
         settings.onDeviceFound(device, name, rssi)
     }
