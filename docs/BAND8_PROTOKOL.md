@@ -699,3 +699,11 @@ Sleep as Android'in saat eklentisi arayüzü yayın (broadcast) mesajlarıyla ç
 - **Ekran kilidi:** var, 2/9 ve 2/21 (bkz. 8.4).
 - **Bileği kaldırınca ekran ve duş modu:** protokolde görülmedi (bkz. 8.4).
 - **Yazılım güncellemesi:** protokolde var, **uygulanmayacak** (bkz. 9).
+
+## 15. Durum: 3. adımın protokol kısmı
+
+`protocol/` içinde `band8` paketi yazıldı ve birim testli: protobuf, kripto, çerçeve, kanal, auth, mesajlar, etkinlik dosyası, ayrıştırıcılar, dosya çekme. Hava durumu 6. adımda. Uyku ayrıştırıcısı yok, uyku dosyası "desteklenmiyor" olarak döner (belge 7.6 kayıtla doğrulanmadı).
+
+- Testler: RFC 5869, RFC 3610 ve NIST SP 800-38C vektörleri, bağımsız bir Python betiğiyle TEST anahtarıyla üretilmiş altın vektörler, sentetik fikstürler ve sahte bantla akış testi.
+- `B8CaptureTest` yalnızca yerelde, `B8_AUTH_KEY` ve `B8_CAPTURE_FRAMES` varsa çalışır. Gerçek kayıtta 3 auth, bütün komutlar, yüklemeler ve tam dosyalar hatasız çözüldü. Yalnızca sayılar yazdırılır.
+- Ayrıştırıcıların çıktısı UTC saniye ve 15 dakikalık saat dilimi birimidir. Yerel saate çevirme ortak yardımcıya bırakıldı.
