@@ -1084,7 +1084,11 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
     }
 
     // Küçük ikincil düğme: sayfanın asıl işi iletim ayarları, test yardımcı.
-    private val testButton: Button = ui.secondary("Test bildirimi gönder") { sendTest("LS05TEST123", "LS05TEST123") }.also {
+    private val ls05NotificationOptions = ui.vertical()
+    private val testButton: Button = ui.secondary("Test bildirimi gönder") {
+        if (WatchRegistry.active(act)?.type == WatchType.BAND8) sendTest("Band 8 denemesi", "Öğle ışığı, çığ ve güller")
+        else sendTest("LS05TEST123", "LS05TEST123")
+    }.also {
         it.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
     }
     private val testState: TextView = ui.text("", 14f, R.color.text)
@@ -1102,16 +1106,11 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
 
         val main = ui.card(padDp = 16, padVDp = 6)
         ui.add(main, forward.view)
-        ui.add(main, ui.divider(), height = ui.dp(1))
-        ui.add(main, incomingCalls.view)
-        ui.add(main, ui.divider(), height = ui.dp(1))
-        ui.add(main, missedCalls.view)
-        ui.add(main, ui.divider(), height = ui.dp(1))
-        ui.add(main, vibrate.view)
-        ui.add(main, ui.divider(), height = ui.dp(1))
-        ui.add(main, foldTurkish.view)
-        ui.add(main, ui.divider(), height = ui.dp(1))
-        ui.add(main, rejectCalls.view)
+        for (row in listOf(incomingCalls, missedCalls, vibrate, foldTurkish, rejectCalls)) {
+            ui.add(ls05NotificationOptions, ui.divider(), height = ui.dp(1))
+            ui.add(ls05NotificationOptions, row.view)
+        }
+        ui.add(main, ls05NotificationOptions)
         ui.add(body, main, topDp = 10)
 
         // "Uygulamalar" + arama simgesi. Arama kutusu simgeye dokununca açılır.
@@ -1158,6 +1157,7 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
         missedCalls.toggle.set(Prefs.missedCalls(act))
         rejectCalls.toggle.set(Prefs.rejectFromWatch(act))
         val caps = WatchManager.caps(act)
+        ls05NotificationOptions.visibility = if (WatchRegistry.active(act)?.type == WatchType.BAND8) View.GONE else View.VISIBLE
         rejectCalls.view.visibility = if (caps.callReject) View.VISIBLE else View.GONE
         foldTurkish.toggle.set(Prefs.foldTurkish(act))
         onReady(WatchHub.ready)
@@ -1272,6 +1272,10 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
             return false
         }
         if (!s.sendTestNotification(title, message)) return false
+        if (WatchRegistry.active(act)?.type == WatchType.BAND8) {
+            setNotifState(NotificationState.REQUESTED)
+            return true
+        }
         setNotifState(NotificationState.SENDING)
         act.handler.postDelayed({
             if (notifState == NotificationState.SENDING) setNotifState(NotificationState.TRANSFER_TIMEOUT)
@@ -1285,6 +1289,8 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
             NotificationState.IDLE -> return
             NotificationState.SENDING ->
                 "Test bildirimi gönderiliyor…" to "Gönderiliyor…"
+            NotificationState.REQUESTED ->
+                "Test bildirimi sıraya alındı. Saatte gördün mü?" to "Gönderim istendi. Saatte gördün mü?"
             NotificationState.TRANSFER_DONE ->
                 "Aktarım tamam (saat onayladı). Ekranda gördün mü?" to "Aktarım tamam. Saatte gördün mü?"
             NotificationState.TRANSFER_TIMEOUT ->
@@ -1299,7 +1305,9 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
         testState.text = shownText
         testState.visibility = View.VISIBLE
         confirmRow.visibility =
-            if (st == NotificationState.TRANSFER_DONE || st == NotificationState.TRANSFER_TIMEOUT) View.VISIBLE else View.GONE
+            if (st in setOf(NotificationState.REQUESTED, NotificationState.TRANSFER_DONE, NotificationState.TRANSFER_TIMEOUT)) {
+                View.VISIBLE
+            } else View.GONE
     }
 
     fun onFrame(frame: UteFrame) {

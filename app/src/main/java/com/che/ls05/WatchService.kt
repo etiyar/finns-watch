@@ -442,10 +442,16 @@ class WatchService : Service(), DriverListener {
     fun forward(note: WatchHub.Note) {
         when (note.kind) {
             WatchHub.NoteKind.MESSAGE, WatchHub.NoteKind.MISSED_CALL -> {
-                val sent = driver.sendNotification(fold(note.title), fold(note.body), Prefs.vibrate(this), note.type)
+                val isBand = driver.type == WatchType.BAND8
+                if (isBand && (!Prefs.forwardingEnabled(this) || !Prefs.appEnabled(this, note.pkg))) return
+                val text = if (driver.type == WatchType.LS05) {
+                    note.copy(title = fold(note.title), body = fold(note.body))
+                } else note
+                val sent = driver.sendAppNotification(text, Prefs.vibrate(this))
                 if (sent) {
                     val what = if (note.kind == WatchHub.NoteKind.MISSED_CALL) "Cevapsız arama" else note.appLabel
-                    WatchHub.log("İletildi: $what (tip ${note.type}, ${note.title.length + note.body.length} karakter).")
+                    if (isBand) WatchHub.log("Band 8 bildirim gönderimi sıraya alındı: $what.")
+                    else WatchHub.log("İletildi: $what (tip ${note.type}, ${note.title.length + note.body.length} karakter).")
                 }
             }
             WatchHub.NoteKind.CALL_ALERT -> sendCallAlert(fold(note.body))
@@ -680,9 +686,11 @@ class WatchService : Service(), DriverListener {
         LinkAlert.disarm(this, "saat yeniden bağlandı")
         reconnectAttempt = 0
         authTimeouts = 0
-        // Band 8 ilk testinde sadece kimlik doğrulama, pil ve cihaz bilgisi okunur.
-        // LS05 ayarları, bildirim kuyruğu, saat eşitleme ve geçmiş istekleri gönderilmez.
-        if (driver.type == WatchType.BAND8) return
+        // Band 8 yalnızca normal telefon bildirimlerini alır; LS05'e özel istekler gönderilmez.
+        if (driver.type == WatchType.BAND8) {
+            flushPending()
+            return
+        }
         if (Prefs.autoTime(this)) sendTime("otomatik saat eşitleme (04)")
         // Bağlantı koparken saat çalıyor kaldıysa ve arama artık sürmüyorsa sustur.
         if (callOnWatch && !WatchHub.calls.isRinging) sendCallStop("bağlantı yeniden kuruldu, arama sürmüyor")

@@ -79,6 +79,8 @@ class NotifyForwarder : NotificationListenerService() {
                 body = cleanText,
                 type = AppTypeMap.forPackage(pkg),
                 at = now,
+                androidId = sbn.id,
+                androidKey = sbn.key,
             ),
         )
     }

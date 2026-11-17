@@ -66,6 +66,8 @@ object WatchHub {
         val kind: NoteKind = NoteKind.MESSAGE,
         /** Kuyrukta en çok ne kadar bekleyebilir (alarm notu için 5 dakika). */
         val ttlMs: Long = PENDING_TTL_MS,
+        val androidId: Int = 0,
+        val androidKey: String? = null,
     )
 
     /** Çalan aramalar (bildirim anahtarına göre). Bildirim dinleyici ve servis ana iş parçacığında kullanır. */

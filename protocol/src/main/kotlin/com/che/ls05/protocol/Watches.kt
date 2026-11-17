@@ -52,9 +52,9 @@ data class Capabilities(
             findWatch = true, findPhone = true, musicRemote = true, faces = true,
         )
 
-        /** Band 8 için başlangıç: hiçbir özellik açık değil. Doğrulanan özellik yazıldıkça açılır. */
+        /** Doğrulanan Band 8 özellikleri yazıldıkça açılır. */
         val BAND8_BASE = Capabilities(
-            notifications = false, incomingCall = false, callReject = false, missedCall = false,
+            notifications = true, incomingCall = false, callReject = false, missedCall = false,
             alarmSlots = 0, alarmNote = false, alarmVibration = false, dnd = false, profile = false,
             weather = false, timeSync = false, steps = false, heart = false, sleep = false, liveSteps = false,
             findWatch = false, findPhone = false, musicRemote = false, faces = false,

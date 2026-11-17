@@ -22,14 +22,14 @@ import com.che.ls05.protocol.band8.B8Command
 import com.che.ls05.protocol.band8.B8DeviceInfo
 import com.che.ls05.protocol.band8.B8Incoming
 import com.che.ls05.protocol.band8.B8Messages
+import com.che.ls05.protocol.band8.B8Notification
 import com.che.ls05.protocol.band8.B8PhoneInfo
 import com.che.ls05.protocol.band8.B8Write
 import java.util.Locale
 import java.util.UUID
 
 /**
- * Band 8 için ilk, salt-okunur BLE bağlantı aşaması.
- * Auth sonrası yalnızca pil ve cihaz bilgisi istenir. Firmware, eşleşme ve sağlık verisi değiştirilmez.
+ * Band 8 BLE oturumu. Doğrulamadan sonra cihaz bilgisi okunur ve uygulama bildirimleri gönderilebilir.
  */
 @SuppressLint("MissingPermission")
 class Band8Ble(private val context: Context, private val listener: Listener, private val watchId: String) {
@@ -64,11 +64,24 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     private var userDisconnect = false
     private var released = false
     private var writing = false
+    private var writeAttempt = 0
     private var mtu = 23
     private var generation = 0
+    private val commandTimeout = Runnable {
+        if (ready && channel.pending > 0) {
+            listener.onStatus("Band 8 aktarım onayı zaman aşımına uğradı")
+            close(false, -1)
+        }
+    }
 
     val isConnected: Boolean get() = gatt != null
     val isReady: Boolean get() = ready
+
+    fun sendAppNotification(note: B8Notification): Boolean {
+        if (!ready || released || gatt == null || channel.pending >= MAX_PENDING_COMMANDS) return false
+        sendAuthenticated(B8Messages.notification(note))
+        return ready
+    }
 
     fun scan() {
         val scanner = adapter?.bluetoothLeScanner ?: run { listener.onStatus("Bluetooth taraması başlatılamadı"); return }
@@ -163,6 +176,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
 
     private fun close(byUser: Boolean, status: Int) {
         generation++
+        main.removeCallbacks(commandTimeout)
         val hadGatt = gatt != null
         val wasReady = ready
         ready = false
@@ -314,12 +328,25 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         drainWrites()
     }
 
+    private fun sendAuthenticated(command: ByteArray) {
+        if (!ready) return
+        val wasIdle = channel.pending == 0
+        enqueue(channel.send(command))
+        if (wasIdle) armCommandTimeout()
+    }
+
+    private fun armCommandTimeout() {
+        main.removeCallbacks(commandTimeout)
+        if (ready && channel.pending > 0) main.postDelayed(commandTimeout, COMMAND_TIMEOUT_MS)
+    }
+
     private fun drainWrites() {
         if (writing || writes.isEmpty()) return
         val g = gatt ?: return
         val cmd = writes.removeFirst()
         val ch = chars[cmd.char] ?: return
         writing = true
+        val attempt = ++writeAttempt
         val ok = if (Build.VERSION.SDK_INT >= 33) {
             g.writeCharacteristic(ch, cmd.bytes, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) ==
                 android.bluetooth.BluetoothStatusCodes.SUCCESS
@@ -337,7 +364,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         val serial = generation
         // Bazı Android yığınları yanıtsız yazma callback'i göndermiyor.
         main.postDelayed({
-            if (serial == generation && writing) {
+            if (serial == generation && writing && writeAttempt == attempt) {
                 writing = false
                 drainWrites()
             }
@@ -348,6 +375,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         val id = B8Char.values().firstOrNull { chars[it] === ch } ?: return
         val result = channel.onNotify(id, value)
         enqueue(result.writes)
+        if (id == B8Char.CMD_OUT && (result.writes.isNotEmpty() || !channel.busy)) armCommandTimeout()
         for (event in result.incoming) {
             when (event) {
                 is B8Incoming.Command -> processCommand(event.plain)
@@ -356,7 +384,6 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
                 is B8Incoming.ActivityPart -> Unit
             }
         }
-        // Onay gelmeyen gönderim, auth zaman aşımı ile sonlandırılır.
     }
 
     private fun processCommand(plain: ByteArray) {
@@ -372,8 +399,8 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
                     ready = true
                     listener.onReady(true)
                     listener.onStatus("Band 8 bağlı")
-                    enqueue(channel.send(B8Messages.batteryRequest()))
-                    enqueue(channel.send(B8Messages.deviceInfoRequest()))
+                    sendAuthenticated(B8Messages.batteryRequest())
+                    sendAuthenticated(B8Messages.deviceInfoRequest())
                 }
                 is B8Auth.Step.Failed -> {
                     listener.onAuthFailed("Band 8 kimlik doğrulaması başarısız: ${step.reason.name}")
@@ -386,5 +413,10 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             command.matches(2, 1) -> B8Messages.parseBattery(command)?.let(listener::onBattery)
             command.matches(2, 2) -> B8Messages.parseDeviceInfo(command)?.let(listener::onDeviceInfo)
         }
+    }
+
+    private companion object {
+        const val MAX_PENDING_COMMANDS = 24
+        const val COMMAND_TIMEOUT_MS = 8_000L
     }
 }

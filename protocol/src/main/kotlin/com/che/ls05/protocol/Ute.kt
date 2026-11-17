@@ -507,7 +507,7 @@ object UteParser {
  * Bildirim durumları. Aktarımın bitmesi ile ekranda görünmesi ayrı tutulur:
  * DISPLAYED yalnızca kullanıcı saatte gördüğünü onaylayınca kurulur.
  */
-enum class NotificationState { IDLE, SENDING, TRANSFER_DONE, TRANSFER_TIMEOUT, DISPLAYED_CONFIRMED, NOT_DISPLAYED }
+enum class NotificationState { IDLE, SENDING, REQUESTED, TRANSFER_DONE, TRANSFER_TIMEOUT, DISPLAYED_CONFIRMED, NOT_DISPLAYED }
 
 object Hex {
     fun of(bytes: ByteArray): String = bytes.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }

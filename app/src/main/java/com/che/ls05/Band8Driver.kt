@@ -7,12 +7,16 @@ import com.che.ls05.protocol.UteWeather
 import com.che.ls05.protocol.WatchType
 import com.che.ls05.protocol.band8.B8Battery
 import com.che.ls05.protocol.band8.B8DeviceInfo
+import com.che.ls05.protocol.band8.B8Notification
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
- * v0.13.0: Band 8 bağlantı ve salt-okunur cihaz bilgisi.
- * Gündelik komutlar ve sağlık eşitlemesi sonraki aşamada etkinleştirilecek.
+ * Band 8 bağlantısı, cihaz bilgisi ve normal uygulama bildirimleri.
  */
 class Band8Driver(
     context: Context,
@@ -22,6 +26,7 @@ class Band8Driver(
     private val watchId = WatchRegistry.active(context)?.id
         ?: error("Band 8 için etkin saat kaydı bulunamadı")
     private val ble = Band8Ble(context, this, watchId)
+    private val packageName = context.packageName
 
     override val isConnected: Boolean get() = ble.isConnected
     override val isReady: Boolean get() = ble.isReady
@@ -35,7 +40,24 @@ class Band8Driver(
     override fun forceClose(reason: String) = ble.forceClose()
     override fun release(reason: String) = ble.release()
 
-    override fun sendNotification(title: String, body: String, vibrate: Boolean, type: Int) = false
+    override fun sendNotification(title: String, body: String, vibrate: Boolean, type: Int): Boolean {
+        val now = System.currentTimeMillis()
+        return ble.sendAppNotification(B8Notification(
+            packageName, "Finn's Watch", title, body, notificationTime(now), now.toInt(), "test:$now",
+        ))
+    }
+
+    override fun sendAppNotification(note: WatchHub.Note, vibrate: Boolean): Boolean {
+        val key = note.androidKey ?: return false
+        if (note.kind != WatchHub.NoteKind.MESSAGE) return false
+        return ble.sendAppNotification(B8Notification(
+            note.pkg, note.appLabel, note.title, note.body, notificationTime(note.at), note.androidId, key,
+        ))
+    }
+
+    private fun notificationTime(at: Long): String =
+        NOTIFICATION_TIME.format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()))
+
     override fun sendIncomingCall(name: String) = false
     override fun sendCallStop() = false
     override fun sendTime(now: ZonedDateTime, label: String) = Unit
@@ -74,5 +96,9 @@ class Band8Driver(
         value.firmware?.let { WatchHub.bandFirmware(it) }
         // Cihazın seri numarası kişisel bilgidir; loga yazılmaz.
         listener.onLog("Band 8 cihaz bilgisi okundu")
+    }
+
+    private companion object {
+        val NOTIFICATION_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss", Locale.ROOT)
     }
 }
