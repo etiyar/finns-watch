@@ -382,3 +382,18 @@ Sonra v0.12.0'ı kaldırmadan üstüne kur ve şunları dene:
 7. CSV'ye `kaynak` sütunu eklensin mi? Che CSV'yi başka bir yerde okuyorsa sütun sonu ekleme yine de bozabilir.
 8. Nabızda "aynı dakika" dışında, etkin olmayan saatin okumaları da gizlensin mi? Bölüm 8 bunu istemiyor; şimdilik gösterilir.
 9. Saat değiştirildiğinde eski saat de titresin ya da "bağlantı yok" göstersin mi? Bu saatin kendi davranışı; uygulama bir şey göndermez.
+
+## 8. Adım 2 uygulama notları (v0.12.0)
+
+Kullanıcı kararları: profil ortak; son görülen yer saate göre; CSV'ye `kaynak` sütunu (adım 5); nabız grafiğinde dakika başına yalnızca etkin saatin okuması, iki ham okuma da saklanır.
+
+Tasarımdan sapmalar:
+- **Kayıt biçimi:** `watches` dosyasında ayrı anahtarlar yerine tek `list` metni (`WatchList.serialize`). Şifreli anahtar ayrı: `w.<id>.auth`.
+- **WatchManager:** servis içinde sınıf yerine küçük bir `object`. Geçiş işini `WatchService.switchTo` yapar; servis çalışmıyorsa yalnızca kayıt değişir.
+- **Durumlar:** `AUTHENTICATING` yok (LS05 katmanı bunu ayrı bildirmiyor). `UNSUPPORTED` eklendi: sürücüsü olmayan tür etkin olursa servis çökmez (`UnsupportedDriver`).
+- **Sürücü arayüzü:** `readBattery` yok. `findStart`/`findStop`, `sendMusicState`, `sendWeather` var. Gelen olaylar `DriverListener` ve ortak `WatchEvent` ile; LS05 çevirisi `Ls05Events` (protocol, gerileme testli).
+- **Yetenekler:** `battery` bayrağı yok; `alarmNote` eklendi. Band 8 başlangıçta her şey kapalı, `alarmSlots = 0`. Alarm kartları en çok 3 yuva için kurulu; Band 8'in 10 yuvası adım 6'da.
+- **Bildirim başlığı:** tek saat kayıtlıyken v0.11 ile aynı. Birden çok saatte "Finn's Watch · <ad>".
+- **Sağlık:** bu sürümde okuma etkin saatin klasöründen. Birleşik görünüm ve CSV `kaynak` sütunu adım 5'te.
+- **Saat dilimi:** `LocalWall` (protocol): kayıt kendi UTC farkıyla yerel saate çevrilir, yoksa telefonun bölgesi. Band8Source bunu kullanacak.
+- **İkinci LS05:** eklenirken Haylou kimliği göç edilen LS05'ten kopyalanır (yalnızca telefonda).

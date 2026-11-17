@@ -368,3 +368,7 @@ Saatteki kadran (`1a 01`):
 - İbre kuyruk baytları: b0 = ibrenin toplam boyu (merkezin altına uzanan kısım dahil), b1 = uçtan merkeze uzaklık, b2 = genişlik. Örnek: saniye 8d 67 04 → toplam 141, uç-merkez 103, 38 px kuyruk. Saat ibre resminin yalnızca bu şeridini çiziyor; tam disk için (240, 120, 240) denenecek.
 - Yeni türler (topluluk kadranlarında çalışıyor): 7 sabit iki nokta (1 kare), 12 ay adı (12 kare, OCA…ARA yazılabilir), 18 yanıp sönen iki nokta (2 kare: açık/kapalı), 22 derece işareti, 34 yüzde işareti.
 - Nane yeşili (#7FE3C3) saatte mavimsi görünüyor; saat kadranlarında daha yeşil ton gerekli.
+
+## v0.12.0: çoklu saat çekirdeği (17 Kasım, cihaz testi bekliyor)
+- Saatlerim listesi, saat kaydı (`watches`), WatchDriver ve Ls05Driver, WatchManager ile saat değiştirme, yeteneklere göre arayüz, Keystore'da anahtar deposu, saate göre sağlık klasörü.
+- LS05 ayar anahtarları ve `health/` klasörü aynı kaldı. Ayrıntı ve sapmalar: `docs/COKLU_SAAT_TASARIM.md` bölüm 8.
