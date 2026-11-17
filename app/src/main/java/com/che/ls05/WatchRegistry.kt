@@ -95,6 +95,7 @@ object WatchRegistry {
             val e = prefs.edit()
             for (k in prefs.all.keys) if (k.startsWith(rec.ns)) e.remove(k)
             e.apply()
+            SettingsStore.forget(rec.ns)
         }
         return true
     }

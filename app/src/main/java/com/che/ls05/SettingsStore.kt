@@ -10,7 +10,8 @@ import com.che.ls05.protocol.SyncEntry
 import com.che.ls05.protocol.UteAlarm
 
 /**
- * Saate giden ayarların kalıcı durumu. SettingSync, "ls05" SharedPreferences dosyasında "sync" anahtarında saklanır.
+ * Saate giden ayarların kalıcı durumu. SettingSync, "ls05" SharedPreferences dosyasında etkin saatin önekiyle
+ * "sync" anahtarında saklanır (göç edilen LS05: önek boş, v0.11 ile aynı anahtar). Her saatin ayarları ayrıdır.
  * Tüm çağrılar ana iş parçacığında yapılır.
  */
 object SettingsStore {
@@ -18,25 +19,33 @@ object SettingsStore {
     private const val PREFS = "ls05"
     private const val KEY = "sync"
 
-    private var cached: SettingSync? = null
+    /** Önek → yüklenmiş ayarlar. Servis ve ekranlar aynı nesneyi kullanır. */
+    private val cached = HashMap<String, SettingSync>()
 
     private fun prefs(c: Context): SharedPreferences = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** Servis ve ekranlar aynı nesneyi kullanır. İlk çağrıda yüklenir, gerekirse eski kayıttan göç edilir. */
     fun sync(c: Context): SettingSync {
-        cached?.let { return it }
+        val ns = WatchRegistry.ns(c)
+        cached[ns]?.let { return it }
         val p = prefs(c)
-        val text = p.getString(KEY, null)
+        val text = p.getString(ns + KEY, null)
         val s = if (text != null) {
             SettingSync.deserialize(text)
         } else {
-            val migrated = migrate(p)
-            p.edit().putString(KEY, migrated.serialize()).apply()
+            // v0.3 kayıtları yalnızca göç edilen LS05'e aittir; yeni saat boş başlar.
+            val migrated = if (ns.isEmpty()) migrate(p) else SettingSync()
+            p.edit().putString(ns + KEY, migrated.serialize()).apply()
             migrated
         }
-        cached = s
+        cached[ns] = s
         migrateV11(c, s)
         return s
+    }
+
+    /** Silinen saatin önbelleği. */
+    fun forget(ns: String) {
+        if (ns.isNotEmpty()) cached.remove(ns)
     }
 
     /**
@@ -67,7 +76,7 @@ object SettingsStore {
     }
 
     fun save(c: Context) {
-        prefs(c).edit().putString(KEY, sync(c).serialize()).apply()
+        prefs(c).edit().putString(WatchRegistry.ns(c) + KEY, sync(c).serialize()).apply()
     }
 
     fun entry(c: Context, key: String): SyncEntry = sync(c).entry(key)
