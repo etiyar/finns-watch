@@ -1,161 +1,74 @@
-# Finn's Watch (LS05 Controller)
+# Finn's Watch
 
-Haylou Solar LS05 saatimi Haylou uygulamasına bağımlı olmaktan çıkarıp, üreticinin sunmadığı özelliklerle kullanmak için kişisel Android uygulaması. Saat artık resmi güncelleme almıyor; bu proje onun yerine geçiyor.
+**Haylou Solar LS05 ve Xiaomi Smart Band 8 için geliştirilen, yerel Bluetooth bağlantısını esas alan açık kaynak Android uygulaması.**
 
-## Asıl hedefler
+Finn's Watch, birden fazla saati tek uygulamadan yönetmeyi hedefleyen bağımsız bir projedir. LS05 için mevcut günlük kullanım işlevlerini sürdürürken Xiaomi Smart Band 8 desteği aşamalı olarak geliştirilmektedir. Bulut hesabı veya üreticinin uygulaması, Finn's Watch'ın temel LS05 işlevleri için gerekli değildir.
 
-| Hedef | Nasıl | Aşama |
+## Proje durumu
+
+| Bileşen | Durum | Açıklama |
 | --- | --- | --- |
-| Haylou uygulaması olmadan kullanım, bulut ve hesap yok | Kendi BLE istemcimiz (UTE/Youcy protokolü) | 1-3 |
-| Doğru Türkçe bildirimler, uygulamaya göre simge ve titreşim | `0F` bildirim + uygulama tipleri + titreşim komutları | 2-3 |
-| Kayıp saati bulma | Bağlantı kopunca telefonun son konumu, RSSI yakınlık radarı, saati titretme | 4 |
-| Sağlık verilerine sahip olma | Adım, nabız, uyku, SpO2 geçmişi; CSV ve Health Connect'e aktarma | 3-4 |
-| Otomasyon | Tasker, bildirim filtreleri, kişisel kurallar | 4 |
-| Özel saat kadranı | Haylou Fun'ın resmi yükleme akışı: `1a 02` / `61FF/6101` veri / `1a 03 00` (12 Kasım kaydı) | 5 |
-| Find My tarzı kalabalık ağ takibi, özel firmware | Firmware'e yayın eklemek; önce güvenli yedek ve kurtarma yolu kanıtlanmalı | 6, araştırma |
+| Haylou Solar LS05 | Kullanımda | Bağlantı, bildirim, arama, alarm, DND, sağlık geçmişi, cihaz bulma ve kadran aktarımı için mevcut işlevler |
+| Xiaomi Smart Band 8 | **Beta** | Bluetooth bağlantısı, kimlik doğrulama, pil yüzdesi ve firmware bilgisi gerçek cihazda doğrulandı |
+| Çoklu saat yönetimi | **Beta** | Etkin saat değiştirme ve Bluetooth kapat/aç sonrasında yeniden bağlantı kullanıcı testinde çalıştı |
+| Band 8 günlük özellikleri | Geliştirmede | Bildirim, arama, müzik, sağlık senkronizasyonu ve saat ayarları henüz tamamlanmadı |
 
-Not: Gerçek Find My / Find Hub kalabalık ağı (başkasının telefonunun saati görüp konum bildirmesi) firmware değişikliği ister. Bu, kurtarma yolu olmadan tek saati bozma riski taşıdığı için en sona bırakıldı. Telefon tarafındaki "son görülen konum" ve radar bu riski taşımadan kayıp saatin çoğu senaryosunu çözer.
+**Sürümler:** `main` üzerinde **v0.12.0** bulunur. **v0.13.0-beta6**, [ayrı geliştirme dalındadır](https://github.com/etiyar/ls05-controller/tree/dev/v0.13-band8-connection); kararlı sürüm olarak yayımlanmamıştır.
 
-## Şu anki sürüm: v0.6.0 (görsel tur, test bekliyor)
+> **Bilinen açık sorun:** Band 8 için bir test oturumunda doğrulama durdu ve uygulama yeniden açıldığında saat kaydı listede görünmedi. Koruyucu kod değişiklikleri geliştirme dalına eklendi; kesin kök neden ve gerçek cihaz testi bekleniyor. Sağlık verileri Band 8 için henüz eşitlenmediğinden ilgili ekranda veri görünmemesi bu aşamada normaldir.
 
-Uygulamanın adı artık **Finn's Watch** (paket adı `com.che.ls05` aynı, güncelleme eskisinin üzerine kurulur) ve kendi "FW" simgesi var. Bu sürüm yalnızca görünümü değiştirir; bağlantı, protokol ve ayar durum modeli v0.5 ile aynıdır.
+## Özellikler
 
-- Tek tasarım dili: renkler `docs/V06_TASARIM_SARTNAMESI.md` bölüm 2 tablosundan (`values/colors.xml`, `values-night/colors.xml`), bileşenler `Ui.kt` ve `Charts.kt` içinde. Üst uygulama çubuğu yok; her ekranda sayfa başlığı ve bağlantı kapsülü, altta tek yüzeyli menü.
-- Bugün: adım halkası, saatlik adım sütunları, nabız kartı (küçük eğri), uyku kartı (gerçek evre şeridi) ve evre açıklaması.
-- Saat: üç alarm kartı altı durumlu durum satırıyla ("başarısız" durumu yok), rahatsız etme ve saati bul yan yana, "Ekran ve profil" kartı.
-- Bildirimler: uygulama listesinde gerçek uygulama ikonları, sistem uygulamaları katlanır grupta, arama simgeyle açılır, test en altta.
-- Ayarlar: kurulum özeti, tema seçimi (Sistem, Koyu, Açık), saat, profil, "Gelişmiş ve log" (varsayılan kapalı).
-- Alarm notu bu sürümde yok (v0.6.1).
+**Haylou Solar LS05**
+- Arka planda Bluetooth bağlantısı ve uygun olduğunda yeniden bağlanma.
+- Türkçe bildirimler, gelen ve cevapsız arama bilgisi.
+- Alarm, rahatsız etmeme, saat ve profil ayarları.
+- Adım, nabız ve uyku geçmişi ile yerel grafikler.
+- Saati bulma, son görülen konum ve desteklenen telefon kumandaları.
+- Özel kadran yükleme ve kadran araçları.
 
-### v0.5.0
+**Xiaomi Smart Band 8 (beta)**
+- FE95 üzerinden Bluetooth bağlantısı ve kimlik doğrulama.
+- Pil yüzdesi ve firmware sürümünü okuma.
+- Bluetooth taraması, kayıtlı cihazlardan seçim veya bilinen adresle bağlantı.
+- Kimlik anahtarını Android Keystore aracılığıyla koruma.
+- LS05 ile etkin saat arasında geçiş.
 
+Band 8 için LS05 ile aynı özellik kapsamı **henüz sunulmaz**. Destek yalnızca gerçek cihaz testleriyle doğrulandıkça genişletilir.
 
-v0.4.2'nin (dört sekmeli arayüz, ortak ayar modeli, adım, nabız ve uyku) üzerine işlevsel eklemeler. Ekran görünümü değişmedi; yeni işlevler ilgili sekmelere kart ve satır olarak eklendi.
+## Kurulum ve geliştirme
 
-- Bildirim metni 80 karaktere kesilir (saat 160 bayt alıyor, yaklaşık 78 karakter gösterip "..." koyuyor). Kesme emoji gibi iki birimlik karakterleri bölmez.
-- Gelen arama: arayan saatte arama ekranında görünür, saat titrer; cevaplayınca, reddedince ya da arama bitince saat susar (`0D 04`). Ek izin istemez, bildirim erişimiyle çalışır. WhatsApp gibi uygulamaların internet aramaları da arama kategorisindeyse aynı yoldan gider.
-- Cevapsız arama: saate bildirim olarak gider (tip 3).
-- Bildirimler sekmesi: "Gelen aramalar" ve "Cevapsız aramalar" anahtarları (varsayılan açık).
-- Saatten kumanda: oynat/duraklat, sonraki, önceki, ses aç/kıs ve "telefonu bul" (zil sesi en yüksek sesle ve titreşim, Durdur eylemli bildirim, 30 sn sonra kendiliğinden durur). Telefonun müzik durumu ve ses düzeyi saate gönderilir. Ayarlar sekmesinde "Saatten kumanda" anahtarı (varsayılan açık).
-- Saat sekmesinde "Ekran ve profil": ekran açık kalma süresi (5, 10, 15 sn), bileği kaldırınca ekran, adım hedefi ve ayrı "Profil" penceresinde boy, kilo, yaş, cinsiyet. Bunlar saate tek pakette (`05`) gider; profil girilmeden hiçbir şey gönderilmez. İlk gönderim elle ("Saate gönder"); saat onayladıktan sonra değişiklikler kendiliğinden gider. Bugün ekranındaki adım hedefi aynı değeri kullanır.
-- Uygulama son uygulamalardan kaydırıldıktan sonra: bildirim dinleyici yeniden bağlanınca saat servisi hemen başlar; servis bekleme halindeyse bekleyen bildirim yeniden bağlanmayı öne alır; uygulama açılınca servis çalışmıyorsa başlar.
-- Biçimler ve güven düzeyleri: `docs/PLAN.md` bölüm 4.2.
+Bu depo Android kaynak kodunu ve GitHub Actions testlerini içerir. Deneme APK'ları [Actions](https://github.com/etiyar/ls05-controller/actions) çıktılarından alınabilir. Beta sürümler yalnızca ilgili geliştirme dalından derlenir.
 
-### v0.3.0
+Yerel derleme için Android SDK ve JDK 17 gerekir:
 
-v0.2.0'ın üzerine, 12 Kasım Haylou Fun kaydından çözülen komutlarla:
-
-- Alarmlar (3 yuva): saat, günler, açık/kapalı. Ayar saat onay verince kaydedilir. Saatteki alarmlar telefondan okunamadığı için ilk gönderim o yuvanın üzerine yazar.
-- Rahatsız etme: başlangıç, bitiş, açık/kapalı. Ayar saatin yankısıyla kaydedilir.
-- Sağlık (deneysel): "Adım, nabız ve uyku geçmişini oku" dünden beri saatlik adım ve 10 dakikalık nabız kayıtlarını ister; uyku kayıtları henüz çözülmediği için ham loglanır. Saatin kendiliğinden yolladığı canlı adım ve nabız da gösterilir. Veriler yalnızca bellekte; kalıcı kayıt v0.3a'da.
-- Log: canlı adım dakikada bir yazılır; hava paketindeki şehir ve profil paketi gizlenir.
-- Biçimlerin ayrıntısı ve güven düzeyleri: `docs/PLAN.md` bölüm 4.1.
-
-### v0.2.0
-
-- Arka planda kalıcı bağlantı (ön plan servisi), uygulama kapalıyken de çalışır. Bildirim çubuğunda "LS05 saat" görünür; oradan durdurulabilir.
-- Kopunca otomatik yeniden bağlanma (2, 5, 15, 30, 60 sn bekleme; saat menzile girince sistem bağlar). Her bağlantıda doğrulama.
-- Doğrulama reddedilirse, saat onay isterse veya kimlik yoksa otomatik deneme durur; 3 kez yanıtsız kalırsa durur. Uygulamadan "Bağlan" ile yeniden başlatılır.
-- Telefon açılınca ve uygulama güncellenince kendiliğinden başlar (kullanıcı "Durdur" demediyse).
-- Telefon bildirimlerini saate iletir: uygulama listesi (mesajlaşma varsayılan açık), uygulama tipi baytı, emoji temizliği, 60 sn tekrar engeli, saat hazır değilken 10 dk / 20 bildirimlik kuyruk.
-- "Saati eşitle" düğmesi (`04`). Otomatik eşitleme varsayılan kapalı; elle doğrulandıktan sonra açılır.
-- Sabit imza: build-10'dan itibaren tüm sürümler aynı anahtarla imzalı, üzerine kurulur. (Önbellek 7 gün kullanılmazsa silinebilir; o zaman bir kez kaldırıp kurmak gerekir.)
-
-## v0.1 (gate testi, tamamlandı)
-
-Tek amacı, Haylou uygulaması olmadan saate bağlanıp konuşabildiğimizi kanıtlamak. Bu çalışmazsa yukarıdaki hiçbir hedef yapılamaz; çalışırsa her aşama bunun üzerine kurulur.
-
-Teknik kaynak: `Haylou_LS05_Ajan_Devir_Notu_v4.md` ve v5 eki.
-
-## Kapsam
-
-Var:
-- HAYLOU adlı cihazları tarama, tek cihaza bağlanma
-- GATT haritasını loglama ve iki aday komut kanalını bulma:
-  - A: `55FF` servis, `33F1` / `33F2` (Hello Haylou tablosu; bu saatte doğrulamasız yanıt vermedi, doğrulamalı hali test edilmedi)
-  - B: `60FF` servis, yaz `6001`, dinle `6002` ve `61FF/6101-6102` (Haylou Fun youcy kodunun kullandığı)
-- Tüm dinleme kanallarını açma (CCCD), sonra Haylou Fun'ın bağlanma sırası: `33F1` ve `34F1` okumaları, `6001`'e doğrulama (`20 02` + kimlik), `6002`'den `20 04 01`, ardından firmware (`02`) ve pil (`03`). Komut kanalı B (`60FF/6001` → `6002`), gerçek cihazda doğrulandı.
-- Logda açıkça görünenler: GATT haritası, her CCCD aboneliğinin sonucu, her yazmanın sonucu (`yazma tamam` / `YAZMA HATASI`), zaman aşımları, gelen her çerçeve.
-- Ardından firmware sorgusu (`02`). Otomatik gönderilen başka komut yok.
-- Standart pil okuma (`180F/2A19`) çapraz kontrol için
-- Test bildirimi (`0F`) ve Türkçe glif testi, yalnızca düğmeyle. Bildirim sonrası titreşim (`06 00 00 00 02 02 00 00`, kayıttaki akış) bir seçenek; varsayılan açık. Ayrıca "Sadece titreşim" düğmesi.
-- Aktarım onayı ile ekranda görünme ayrı durumlar: ekran sonucu yalnızca senin "Saatte gördüm / Görmedim" onayınla kaydedilir
-- Kopyalanabilir log; bildirim metinleri gizli, MAC adresi maskeli
-
-Bilerek yok (sonraki aşamalar ve güvenlik):
-- `07 00` eşleştirme kaldırma, `07` sıfırlama, `20 02` yetki anahtarı, kadran/firmware aktarımı (`56FF/34F1`): kodda hiç yok
-- Otomatik yeniden bağlanma, arka plan servisi
-- Sağlık senkronu, saat ayarı, alarm, kadran, firmware
-- Eşleştirmeyi silme veya değiştirme
-
-## Proje yapısı
-
-```
-protocol/   Saf Kotlin, Android'siz. UUID'ler, komutlar, 0F paketleyici, yanıt ayrıştırıcı.
-            Birim testleri btsnoop kaydındaki gerçek baytlara karşı.
-app/        Android: BLE katmanı (Ls05Ble.kt) ve test ekranı (MainActivity.kt).
+```bash
+./gradlew :protocol:test
+./gradlew :app:assembleDebug
 ```
 
-## Doğrulama durumu
+Paket kimliği `com.che.ls05` olarak korunmaktadır. **Mevcut uygulamayı kaldırmadan önce imza uyumluluğunu ve verilerin korunmasını doğrulayın.** Saat eşleşmesini silmek veya saati sıfırlamak, kurulumun bir parçası değildir.
 
-- `protocol` modülü Kotlin 2.0.21 ile derlendi, 8/8 test geçti. `LS05TEST123` bildirimi kayıttaki 4 paketle (3 veri + `0F FD`), titreşim komutu kayıttaki 1486 numaralı paketle bayt bayt aynı.
-- `app` modülü burada Android SDK olmadığı için tam derlenemedi; yalnızca sözdizimi denetiminden geçti. Derleme ve kod güvenliği onayı bağımsız inceleme ve Android Studio derlemesiyle verilecek. İlk tam derlemeyi Android Studio yapacak. Hata çıkarsa mesajı aynen gönder.
+## Mimari
 
-## Kurulum notu
+- `protocol/`: Saat protokolleri, komutlar, ayrıştırıcılar, şifreleme ve birim testleri.
+- `app/`: Android arayüzü, Bluetooth sürücüleri, saat yönetimi ve yerel veri depolama.
+- `docs/`: Teknik incelemeler, mevcut yol haritası ve cihaz testleri.
 
-build-9 ve öncesi her derlemede farklı anahtarla imzalandı. build-10'dan itibaren imza sabit. v0.1.x'ten geçerken bir kez eskisini kaldır ve kimliği yeniden gir; sonraki güncellemeler üzerine kurulur.
+Tasarım ilkesi, çalışan LS05 işlevlerini koruyarak saat başına ayrı sürücüler üzerinden ilerlemektir.
 
-## Derleme
+## Geliştirme ve test takibi
 
-1. Android Studio'da Open ile bu klasörü aç. Gradle senkronu bitsin (ilk seferde indirme yapar).
-2. Telefonda Geliştirici seçenekleri > USB hata ayıklama açık olsun, kabloyla bağla.
-3. Run (yeşil üçgen), cihaz olarak telefonu seç.
-4. Protokol testleri: sağ tıkla `protocol/src/test/.../UteTest.kt` > Run.
+Güncel belgeler [v0.13 geliştirme dalında](https://github.com/etiyar/ls05-controller/tree/dev/v0.13-band8-connection) tutulur:
 
-## Doğrulama (v0.1.4)
+- [CHANGELOG.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/CHANGELOG.md): Sürüm değişiklikleri.
+- [TEST_RESULTS.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/docs/TEST_RESULTS.md): Gerçek cihaz ve CI test sonuçları.
+- [PLAN.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/docs/PLAN.md): Mevcut durum, açık sorunlar ve sonraki adımlar.
 
-Saat, bağlanan uygulamadan önce bir doğrulama ister; gelmezse komutlara cevap vermez ve yaklaşık 30 sn sonra bağlantıyı keser. Haylou Fun'ın kaydedilmiş bağlanma sırası (`haylou_notification_test.log`, kayıt 23-32):
+CI derlemesinin geçmesi, ilgili özelliğin gerçek saatte doğrulandığı anlamına gelmez. Bu iki durum ayrı takip edilir.
 
-1. `33F1` ve `34F1` yapılandırma okumaları
-2. `60FF/6001`'e `20 02 <4 bayt kullanıcı kimliği>`
-3. Saat `6002`'den `20 04 01` (doğrulandı) döner
-4. Ancak bundan sonra pil (`03`), firmware (`02`) ve diğer komutlar
+## Gizlilik ve güvenlik
 
-Kayıttaki handle'lar kesin olarak eşlendi: yazma `0x0022` = `6001`, bildirim `0x0024` = `6002`.
+Saat bağlantıları yerel Bluetooth üzerinden yürütülür. Kimlik anahtarları kaynak koduna veya GitHub'a eklenmez. Tam Bluetooth adresleri, kişisel sağlık kayıtları ve ham cihaz günlükleri sürüm belgelerine yazılmaz. Uygulama geliştirme aşamasındadır; özellikle beta özellikleri için veri saklama ve geri yükleme henüz tam olarak doğrulanmamıştır.
 
-Kullanıcı kimliği kişiseldir: koda ve depoya yazılmaz. Uygulamadaki alana girilir, yalnızca telefonda saklanır, logda `20 02 XX XX XX XX` olarak maskelenir. Saat `4` dönerse ekranında onay isteyebilir; bilinmeyen bir onay verilmez.
-
-## Gate testi (ilk yapılacak)
-
-1. Saati telefona yakın tut, şarjı yeterli olsun.
-2. Haylou Fun'ı durdur: Ayarlar > Uygulamalar > Haylou Fun > Durmaya zorla. Xiaomi'de "Otomatik başlatma"yı da geçici kapat, yoksa saati geri kapar.
-3. LS05 Controller'ı aç, izinleri ver.
-4. Tara > çıkan "Bağlan: HAYLOU SOLAR" düğmesine bas.
-5. Beklenen: log'da GATT haritası, "Dinleme açıldı … status=0" satırları, "KANIT: saat doğrulamayı kabul etti (20 04 01)", sonra `Firmware RH192SV002066` ve `Pil %…`.
-6. Sonuç ne olursa olsun "Logu kopyala" ile logu gönder.
-
-Sonuçların anlamı:
-- Firmware ve pil geldi: bağımsız okuma kanıtlandı. Test bildirimine geç.
-- "Kimlik girilmedi": kimlik alanını doldur, bağlantıyı kesip yeniden bağlan.
-- "Doğrulama yanıtı yok" veya "reddedildi": kimliği kontrol et. Haylou Fun açıksa kapat.
-- "Saatte onay bekleniyor": saatin ekranına bak; bilinmeyen bir onayı verme. Eşleştirmeyi SİLME. Logu gönder; bir sonraki adım Haylou'nun bağlanırken gönderdiği ilk paketleri incelemek.
-- 133 hatası veya bağlanamıyor: Haylou hâlâ saati tutuyordur. Haylou'yu tekrar durdur, Bluetooth'u kapatıp aç, tekrar dene.
-- "Beklenen UUID'ler yok": GATT haritasını gönder; yazma yapılmaz.
-- Logda "Saat yetki/bağlama durumu bildirdi" satırı görürsen kodunu not et; el sıkışma sorusunun ipucu.
-
-Bildirim testi:
-1. "Test bildirimi"ne bas. Durum "Aktarım tamam" olursa saat ekranına bak, "Saatte gördüm" veya "Görmedim" de.
-2. "Türkçe glif testi" (`şğıöüç ŞĞİÖÜÇ`): harflerin doğru mu, kutu/boşluk mu göründüğünü not et.
-
-Testten sonra Haylou Fun'ı normal kullanmak istersen yeniden aç; gerekirse saati orada yeniden bağla.
-
-## Bilinen notlar
-
-- Uzun bildirimde metin 80 UTF-16 birimine (160 bayt) kesilir; saat fazlasını almıyor (v0.5.0, gerçek saat testi). Orijinal uygulama 255 bayt gönderiyor.
-- Bildirim paketleri arasında 50 ms boşluk var. Kayıttaki akışa göre güvenli taraf; gerekirse azaltılır.
-- Tip baytı her zaman 4 (mesaj). Uygulama tipleri (WhatsApp 7, Telegram 24 vb.) Hello Haylou'dan alındı, `UteAppType` içinde; saatte simgeleri test edilmedi.
-
-## Kaynaklar
-
-- Haylou Fun 4.0.7: `com.yingsheng.protocol.youcy` (komut haritası, `SendMsgTask` paketleme).
-- Hello Haylou 3.7.19 (bağımsız geliştirici, tiborsosdevs): `c8/a3.java` özellik → kanal tablosu. LS05 ile daha önce çalıştığı kullanıcı tarafından biliniyor.
+**Not:** Finn's Watch bağımsız bir topluluk/kişisel geliştirme projesidir. Haylou veya Xiaomi tarafından yayımlanan resmî bir uygulama değildir.
