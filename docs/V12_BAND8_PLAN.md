@@ -131,3 +131,7 @@ Her adım arasında onay. Adım 1 yalnızca belge üretir: kod, çalışan uygul
 - Health Connect'e birleşik sağlık verisinin yazılması (Android 14+ sistem API'si, ek kütüphane yok).
 - Küçük Band 8 ayarları 6. adıma eklenir: duş modu (kaldırınca uyanma kapalı), hareketsizlik uyarısı.
 - Kapsam dışı: bellenim güncelleme, Google Fit, Sheets, Home Assistant, Tasker.
+
+## 9. Sonraya notlar (17 Kasım)
+- **Repo adı:** GitHub reposu uygulama adına geçecek (öneri: finns-watch). Sürüm başlıklarındaki "LS05 Controller" da değişecek. Paket adı com.che.ls05 değişmez (değişirse güncelleme yerine yeniden kurulum, veri kaybı).
+- **Yedekle ve geri yükle (Gelişmiş):** Tek dosyalık tam yedek: saat kaydı, saate göre ayarlar, alarm notları, kadran kütüphanesi, sağlık klasörleri, geçiş günlüğü. Uygulama silinip yeniden kurulsa da geri yüklenebilmeli. Bugün yalnızca sağlık CSV dışa aktarımı var, geri yükleme yok; allowBackup kapalı. Band 8 auth key yedeğe düz yazılmaz: ya hiç girmez (yeniden girilir) ya da kullanıcının parolasıyla şifrelenir. Geri yüklemeden önce mevcut durumun otomatik yedeği alınır.
