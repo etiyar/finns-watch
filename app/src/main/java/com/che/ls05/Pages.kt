@@ -421,6 +421,9 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
     private var dndView: View? = null
     private var findView: View? = null
 
+    // Saatlerim: kayıtlı saatler ve etkin saat.
+    private val watchList = WatchesCard(act)
+
     // Alarm ekle: yalnızca kurulmuş yuvalar görünür (v0.11).
     private val addAlarm: Button = ui.secondary("Alarm ekle") { addAlarm() }
     private val noAlarm: TextView = ui.caption("Henüz alarm yok. Saatte en çok 3 alarm kurulabilir.")
@@ -454,9 +457,10 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
 
     init {
         // Alarmlar: saatte üç yuva; yalnızca kurulmuş olanlar görünür. Yoğunluk: saat 28 sp, kart içi 14 dp, kart arası 10 dp.
+        ui.add(body, watchList.view)
         val alarmSec = ui.section("Alarmlar")
         alarmViews += alarmSec
-        ui.add(body, alarmSec, topDp = 8)
+        ui.add(body, alarmSec, topDp = 20)
         for (slot in 1..UteAlarm.SLOTS) {
             val key = AlarmSetting.key(slot)
             alarms += alarmCard(
@@ -607,6 +611,7 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
     }
 
     override fun refresh() {
+        watchList.refresh()
         val caps = WatchManager.caps(act)
         val slots = minOf(caps.alarmSlots, UteAlarm.SLOTS)
         fun show(v: View?, on: Boolean) { v?.visibility = if (on) View.VISIBLE else View.GONE }
