@@ -27,7 +27,7 @@ object WatchManager {
 
     fun driverFor(type: WatchType, c: Context, listener: DriverListener): WatchDriver = when (type) {
         WatchType.LS05 -> Ls05Driver(c, listener)
-        else -> UnsupportedDriver(type, listener)
+        WatchType.BAND8 -> Band8Driver(c, listener)
     }
 
     /** Etkin saati değiştirir. Yapılamazsa kullanıcıya gösterilecek neden döner. */
