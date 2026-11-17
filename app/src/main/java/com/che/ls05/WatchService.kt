@@ -279,6 +279,9 @@ class WatchService : Service(), DriverListener {
             SwitchRules.Decision.PROCEED -> Unit
         }
         val target = list.find(id) ?: return "Saat bulunamadı."
+        // Eski saat titriyorsa durdurma komutu kapanmadan gidemeyebilir: önce kullanıcı durdurur.
+        if (finding) return "Saati bul sürüyor; önce Durdur'a bas."
+        if (callOnWatch) return "Saatte arama ekranı açık; arama bitince tekrar dene."
         WatchManager.setState(WatchState.SWITCHING)
         WatchHub.log("Saat değiştiriliyor (${target.type.label}).")
         // Eski saatin zamanlayıcıları.
@@ -287,11 +290,7 @@ class WatchService : Service(), DriverListener {
         main.removeCallbacks(musicStateRunnable)
         main.removeCallbacksAndMessages(delayedToken)
         if (historyGate.running) historyGate.reset()
-        // Saat çalıyorsa önce susturulur; saati bul durdurulur.
-        if (callOnWatch) sendCallStop("saat değiştirildi")
         main.removeCallbacks(callSafetyStop)
-        callOnWatch = false
-        stopFind("saat değiştirildi")
         LinkAlert.disarm(this, "saat değiştirildi")
         val dropped = (driver as? Ls05Driver)?.ble?.pendingOps ?: 0
         if (dropped > 0) WatchHub.log("Eski saatin kuyruğundaki $dropped işlem atıldı.")

@@ -50,8 +50,9 @@ object WatchManager {
 
     /** Kayıtta etkin saat değişti: saate bağlı telefon tarafı yenilenir. */
     fun afterSwitch(c: Context) {
-        HealthStore.reset()
+        HealthStore.reset(c)
         Reminders.reschedule(c)
         WatchHub.resetDevice()
+        WatchHub.healthChanged()
     }
 }
