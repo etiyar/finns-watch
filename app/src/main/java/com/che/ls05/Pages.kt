@@ -1322,6 +1322,8 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private val theme: Segmented = ui.segmented(listOf("Sistem", "Koyu", "Açık"), Prefs.themeMode(act)) { act.setThemeMode(it) }
     private val idRow: NavRow = ui.navRow(null, "Kimlik", null, "") { editId() }
     private val deviceBox: LinearLayout = ui.vertical()
+    private var scanCandidates = 0
+    private var scanGeneration = 0
     // Hava durumu
     private val weatherSwitch: SwitchRow = ui.switchRow(
         "Hava durumunu saate gönder",
@@ -1716,6 +1718,15 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             return
         }
         deviceBox.removeAllViews()
+        scanCandidates = 0
+        val generation = ++scanGeneration
+        ui.add(deviceBox, ui.caption("10 saniye boyunca yakındaki Bluetooth cihazları aranıyor…"), topDp = 8)
+        act.handler.postDelayed({
+            if (scanGeneration == generation && scanCandidates == 0) {
+                deviceBox.removeAllViews()
+                ui.add(deviceBox, ui.caption("Cihaz bulunamadı. Band 8'i yakına getir, Mi Fitness ve Notify bağlantılarını kapat, ardından tekrar Tara'ya bas."), topDp = 8)
+            }
+        }, 11_000L)
         if (WatchHub.service == null) WatchService.start(act)
         act.toast("Saat aranıyor.")
         act.handler.postDelayed({
@@ -1751,7 +1762,8 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     }
 
     fun onDeviceFound(device: BluetoothDevice, name: String, rssi: Int) {
-        ui.add(deviceBox, ui.row(name, "Bu saati kullan · $rssi dBm", onClick = { useDevice(device) }))
+        if (scanCandidates++ == 0) deviceBox.removeAllViews()
+        ui.add(deviceBox, ui.row(name, "Bu cihazı seç · $rssi dBm", onClick = { useDevice(device) }))
     }
 
     private fun useDevice(device: BluetoothDevice) {
