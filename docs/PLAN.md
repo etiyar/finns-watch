@@ -417,7 +417,7 @@ Saatteki kadran (`1a 01`):
 Bu bölüm en güncel operasyonel özettir. Eski bölümlerin deney kayıtları korunur. Geçmiş için `CHANGELOG.md`, cihaz kabul sonuçları için `docs/TEST_RESULTS.md` kullanılır.
 
 ### Aktif sürüm
-- **v0.13.0-beta6**, geliştirme dalı `dev/v0.13-band8-connection`. `main` henüz birleştirilmedi.
+- Bağlantı tabanı **v0.13.0-beta7**, dal `dev/v0.13-band8-connection`. Saatlerim hızlı kurulum denemesi **v0.13.0-beta8**, dal `dev/v0.13-watch-setup`. Kararlı sürüm `main` dalında **v0.12.0**.
 - Band 8 bilinen Bluetooth adresi üzerinden gerçek cihazda bağlandı ve pil yüzdesi doğru göründü.
 - Band 8 şifreli anahtar saklama, FE95 servis keşfi, pil ve cihaz bilgisi okuma kodu mevcut.
 - LS05 için hatalı kadran uyarısı düzeltildi ve v0.13.0-beta6 gerçek cihaz testinde **GEÇTİ**.
@@ -437,7 +437,7 @@ Bu bölüm en güncel operasyonel özettir. Eski bölümlerin deney kayıtları 
 - CI testleri, imza devamlılığı ve LS05 regresyonları geçmeden ana dala birleştirme yapılmayacak.
 
 ### Sonraki aşama (bağlantı kapısı geçince): v0.13.1
-- Band 8 bildirimleri, gelen/cevapsız aramalar, müzik kontrolü ve bulma işlevleri.
+- Band 8 normal bildirimleri ve saati bulma önce geliştirilir. Ardından gelen/cevapsız aramalar ve müzik kontrolü gelir. Hazırlık ayrı dalda ilerleyebilir; yayın v0.13 bağlantı testleri geçtikten sonra yapılır.
 - Yeni bildirim veya müzik altyapısı yazma; mevcut servisleri sürücüye bağla.
 - Desteklenmeyen protokol komutları yalnızca doğrulandıktan sonra aktif edilecek.
 
@@ -465,3 +465,10 @@ Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan 
 - Ekran görüntüleri farklı anlara ait olduğundan Band 8 kaydının uygulama yeniden başlatılırken gerçekten silindiği sonucu çıkarılamaz. Beta6 kayıt kalıcılığı hatası ayrı ve açık kalır.
 - **Kullanıcı kararı:** Bu uyarı ve kayıt durumu incelemesi sonraya ertelendi. Şimdi eşleşme silme, sıfırlama veya veri temizleme yapılmayacak.
 - Geri dönüldüğünde: kayıtlı saat listesi, etkin cihaz, GATT bağlantı durumu ve anahtar varlığını (anahtar değerini değil) ayrı gözlemle; bağlı durumdayken eski uyarı/toast gösterilip gösterilmediğini test et. Tam MAC veya kimlik anahtarı belgelere eklenmeyecek.
+
+### Beta8 cihaz kabulü
+
+1. Temiz test profili: Saatlerim'de iki model görünür; ikisi de kurulum gerektirir. Seçilen model bağlantı ayarlarını açar.
+2. Mevcut kurulumun üzerine güncelleme: mevcut adlar, etkin saat, sağlık geçmişi ve kayıtlı Band 8 anahtarı korunur; aynı model için ikinci kurulum kartı çıkmaz.
+3. Band 8 etkinken zorla durdur/aç işlemini iki kez yap. Kayıt ve etkin seçim korunmalı, anahtar tekrar istenmeden pil bilgisi okunmalı.
+4. Servis etkinken telefonu yeniden başlat. Uygulamayı açmadan otomatik bağlantının geldiğini doğrula. LS05 ↔ Band 8 geçişinde eski durum ve pil bilgisi görünmemeli.

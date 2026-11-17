@@ -5,6 +5,7 @@ import android.text.InputType
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.che.ls05.protocol.UteCommand
 import com.che.ls05.protocol.WatchList
 import com.che.ls05.protocol.WatchRecord
 import com.che.ls05.protocol.WatchType
@@ -19,9 +20,6 @@ class WatchesCard(private val act: MainActivity) {
 
     companion object {
         const val BAND8_HINT = "Band 8 bağlıyken Mi Fitness ve Notify kapalı olmalı."
-
-        /** "Saat ekle"de sunulan türler. Band 8, sürücüsü gelince eklenir. */
-        val ADDABLE = listOf(WatchType.LS05, WatchType.BAND8)
     }
 
     init {
@@ -35,19 +33,34 @@ class WatchesCard(private val act: MainActivity) {
     fun refresh() {
         list.removeAllViews()
         val l = WatchRegistry.list(act)
-        if (l.watches.isEmpty()) {
-            ui.add(list, ui.row("Henüz saat yok", "Saat ekle ile başla. İlk LS05, Ayarlar > Saat bağlantısı'ndan da bağlanabilir."))
-        }
         for ((i, w) in l.watches.withIndex()) {
             if (i > 0) ui.add(list, ui.divider(), height = ui.dp(1))
             val active = w.id == l.activeId
-            val sub = if (active) "${w.type.label} · ${WatchManager.state.label}" else w.type.label
+            val sub = when {
+                needsSetup(w) -> "Kurulum gerekli"
+                active -> "${w.type.label} · ${WatchManager.state.label}"
+                else -> w.type.label
+            }
             val trailing = if (active) ui.pill("Etkin", Tone.OK) else null
             ui.add(list, ui.row(w.name, sub, trailing) { actions(w) })
+        }
+        // Model kısayolu yalnızca kullanıcı kuruluma başladığında kayıt oluşturur.
+        for (type in WatchType.entries) {
+            if (l.watches.any { it.type == type }) continue
+            if (list.childCount > 0) ui.add(list, ui.divider(), height = ui.dp(1))
+            ui.add(list, ui.row(type.label, "Kurulum gerekli") { addAndSetUp(type, type.label) })
         }
         ui.add(list, ui.divider(), height = ui.dp(1))
         ui.add(list, ui.row("Saat ekle", null) { add() })
         hint.visibility = if (l.watches.any { it.type == WatchType.BAND8 }) View.VISIBLE else View.GONE
+    }
+
+    private fun needsSetup(w: WatchRecord): Boolean {
+        if (Prefs.address(act, w.ns) == null) return true
+        return when (w.type) {
+            WatchType.LS05 -> UteCommand.parseUserId(Prefs.userIdText(act, w.ns)) == null
+            WatchType.BAND8 -> !SecretStore.has(act, w.id)
+        }
     }
 
     private fun actions(w: WatchRecord) {
@@ -55,11 +68,14 @@ class WatchesCard(private val act: MainActivity) {
         val active = w.id == l.activeId
         val labels = ArrayList<String>()
         val doers = ArrayList<() -> Unit>()
-        if (!active) {
+        if (needsSetup(w)) {
+            labels += "Kurulumu aç"
+            doers += { setUp(w) }
+        } else if (!active) {
             labels += "Bu saati tak (etkin yap)"
             doers += { switchTo(w) }
         }
-        if (active && w.type == WatchType.BAND8) {
+        if (active && w.type == WatchType.BAND8 && SecretStore.has(act, w.id)) {
             labels += "Kimlik anahtarını değiştir"
             doers += { act.showBandKeyEditor() }
         }
@@ -122,21 +138,15 @@ class WatchesCard(private val act: MainActivity) {
         d.show()
     }
 
-    /** Saat türü ve ad seçimi; Band 8 anahtarı doğrulanmadan etkin yapılmaz. */
+    /** İkinci bir saat için tür ve ad seçimi. */
     private fun add() {
-        val types = ADDABLE
+        val types = WatchType.entries
         val d = AlertDialog.Builder(act)
             .setTitle("Saat ekle")
             .setItems(types.map { it.label }.toTypedArray()) { _, which ->
                 val type = types[which]
                 nameDialog("Saat adı", type.label) { name ->
-                    try {
-                        val rec = WatchRegistry.add(act, type, name)
-                        activate(rec)
-                    } catch (_: IllegalStateException) {
-                        act.toast("Saat kaydedilemedi; telefon depolamasını kontrol et.")
-                    }
-                    refresh()
+                    addAndSetUp(type, name)
                 }
             }
             .setNegativeButton("Vazgeç", null)
@@ -144,10 +154,20 @@ class WatchesCard(private val act: MainActivity) {
         act.track(d)
         d.show()
     }
-    private fun activate(rec: WatchRecord) {
+    private fun addAndSetUp(type: WatchType, name: String) {
+        val rec = try {
+            WatchRegistry.add(act, type, name)
+        } catch (e: IllegalStateException) {
+            act.toast(e.message ?: "Saat kaydedilemedi.")
+            return
+        }
+        setUp(rec)
+    }
+
+    private fun setUp(rec: WatchRecord) {
         val err = WatchManager.switchTo(act, rec.id)
         if (err != null) act.toast(err)
-        else act.toast("Ayarlar > Saat bağlantısı > Tara ile cihazı seç. Band 8 anahtarı doğrulama sırasında istenecek.")
+        else act.settings.openWatchConnection()
         refresh()
     }
 }

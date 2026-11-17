@@ -18,11 +18,11 @@ object Prefs {
      */
     private fun k(c: Context, name: String): String = WatchRegistry.ns(c) + name
 
-    fun userIdText(c: Context): String = p(c).getString(k(c, "userId"), "") ?: ""
+    fun userIdText(c: Context, ns: String = WatchRegistry.ns(c)): String = p(c).getString(ns + "userId", "") ?: ""
     fun setUserIdText(c: Context, value: String) = p(c).edit().putString(k(c, "userId"), value.trim()).apply()
     fun userIdBytes(c: Context): ByteArray? = UteCommand.parseUserId(userIdText(c))
 
-    fun address(c: Context): String? = p(c).getString(k(c, "address"), null)
+    fun address(c: Context, ns: String = WatchRegistry.ns(c)): String? = p(c).getString(ns + "address", null)
     fun setAddress(c: Context, value: String) = p(c).edit().putString(k(c, "address"), value).apply()
 
     /** Kullanıcı "Durdur" demediyse servis açılışta ve güncellemeden sonra yeniden başlar. */

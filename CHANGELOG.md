@@ -4,6 +4,13 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.13.0-beta8 | 18 Kasım 2026
+
+- Saatlerim, kaydı bulunmayan Haylou LS05 ve Xiaomi Smart Band 8 modellerini kurulum kısayolu olarak gösterir.
+- Kısayol, mevcut saat kayıtları ve etkin seçim korunarak doğrudan bağlantı ayarlarını açar. Bluetooth adresi ve doğrulama anahtarı kurulumda telefonda saklanır.
+- Saat eklenirken görünen genel kurulum uyarısı kaldırıldı; bağlantı tamamlandığında kurulum ilerleme yazısı temizlenir.
+- Kayıt tanılaması, yükleme kaynağını, etkin saat için adres ve Band 8 anahtar zarfı bulunup bulunmadığını gösterir. Cihazda kayıt kalıcılığı testi bekliyor.
+
 ## v0.13.0-beta7 | 18 Kasım 2026
 
 **Kayıt ve bağlantı güvenliği**

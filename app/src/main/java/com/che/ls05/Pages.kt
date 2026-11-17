@@ -1324,6 +1324,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
 
     private val setup: Collapsible = ui.collapsible("Kurulum", "", R.drawable.ic_check, open = false)
     private val theme: Segmented = ui.segmented(listOf("Sistem", "Koyu", "Açık"), Prefs.themeMode(act)) { act.setThemeMode(it) }
+    private val connectionHeading = ui.section("Saat bağlantısı")
     private val idRow: NavRow = ui.navRow(null, "Kimlik", null, "") { editId() }
     private val deviceBox: LinearLayout = ui.vertical()
     private val directConnectButtons: LinearLayout = ui.vertical()
@@ -1393,7 +1394,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(body, setup.view, topDp = 4)
 
         // Saat bağlantısı
-        ui.add(body, ui.section("Saat bağlantısı"), topDp = 8)
+        ui.add(body, connectionHeading, topDp = 8)
         val w = ui.card(padDp = 16, padVDp = 6)
         ui.add(w, idRow.view)
         val btns = ui.horizontal()
@@ -1573,6 +1574,11 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         dialog.show()
     }
 
+    fun openWatchConnection() {
+        act.selectTab(3)
+        root.post { root.smoothScrollTo(0, connectionHeading.top) }
+    }
+
     fun refreshWatchInfo() {
         weatherSwitch.toggle.set(Prefs.weatherEnabled(act))
         cityRow.value.text = Prefs.weatherCityName(act).ifEmpty { "Seçilmedi" }
@@ -1602,6 +1608,10 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
 
     fun onReady(ready: Boolean) {
         actionButtons.forEach { ui.enable(it, ready) }
+        if (ready) {
+            ++scanGeneration
+            deviceBox.removeAllViews()
+        }
     }
 
     // ---------- Son görülen yer ----------

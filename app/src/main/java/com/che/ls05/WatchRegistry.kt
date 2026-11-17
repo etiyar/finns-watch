@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.che.ls05.protocol.Capabilities
 import com.che.ls05.protocol.RegistryRecovery
-import com.che.ls05.protocol.RegistryMigration
 import com.che.ls05.protocol.WatchList
 import com.che.ls05.protocol.WatchRecord
 import com.che.ls05.protocol.WatchType
@@ -23,6 +22,7 @@ object WatchRegistry {
 
     @Volatile
     private var cached: WatchList? = null
+    private var loadSource = RegistryRecovery.Source.MIGRATED
 
     private fun p(c: Context): SharedPreferences = c.getSharedPreferences(FILE, Context.MODE_PRIVATE)
     private fun legacy(c: Context): SharedPreferences = c.getSharedPreferences("ls05", Context.MODE_PRIVATE)
@@ -42,6 +42,7 @@ object WatchRegistry {
                 System.currentTimeMillis(),
             )
             val l = result.list
+            loadSource = result.source
             when (result.source) {
                 RegistryRecovery.Source.PRIMARY -> Unit
                 RegistryRecovery.Source.BACKUP -> {
@@ -95,9 +96,13 @@ object WatchRegistry {
 
     fun diagnosticSummary(c: Context): String {
         val l = list(c)
+        val active = l.active
         val primaryValid = WatchList.deserialize(p(c).getString(KEY, null)) != null
         val backupValid = WatchList.deserialize(backup(c).getString(BACKUP_KEY, null)) != null
-        return "Saat kaydı: adet=${l.watches.size}, etkin tür=${l.active?.type?.name ?: "yok"}, " +
+        val hasAddress = active != null && Prefs.address(c, active.ns) != null
+        val bandKey = if (active?.type == WatchType.BAND8) SecretStore.has(c, active.id) else null
+        return "Saat kaydı: kaynak=${loadSource.name}, adet=${l.watches.size}, etkin tür=${active?.type?.name ?: "yok"}, " +
+            "adres kayıtlı=$hasAddress, Band 8 anahtar zarfı=${bandKey ?: "uygulanmaz"}, " +
             "ana kayıt=${if (primaryValid) "geçerli" else "yok/bozuk"}, " +
             "yedek=${if (backupValid) "geçerli" else "yok/bozuk"}"
     }
@@ -114,8 +119,10 @@ object WatchRegistry {
 
     /** Yeni saat ekler (etkin yapmaz). */
     fun add(c: Context, type: WatchType, name: String): WatchRecord {
-        val (l, rec) = list(c).add(type, name, System.currentTimeMillis())
-        if (!save(c, l)) throw IllegalStateException("Saat listesi kaydedilemedi.")
+        val current = list(c)
+        check(loadSource != RegistryRecovery.Source.CORRUPT) { "Saat kayıtları okunamadı; mevcut veriler korunuyor." }
+        val (l, rec) = current.add(type, name, System.currentTimeMillis())
+        if (!save(c, l)) throw IllegalStateException("Saat kaydedilemedi; telefon depolamasını kontrol et.")
         // İkinci LS05 aynı Haylou kimliğini kullanır; kimlik yeni saate kopyalanır (yalnızca telefonda).
         if (type == WatchType.LS05 && !rec.legacy) {
             val id = legacy(c).getString("userId", null)
