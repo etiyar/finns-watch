@@ -1810,7 +1810,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         val active = WatchRegistry.active(act) ?: return
         if (active.type != WatchType.BAND8 || bandKeyDialog?.isShowing == true) return
         val box = ui.dialogBox()
-        ui.add(box, ui.caption("Band 8 doğrulandı. Mi Fitness eşleşmesinden alınan 32 haneli anahtarı gir. Anahtar yalnızca telefonda şifreli saklanır."), topDp = 8)
+        ui.add(box, ui.caption("Xiaomi BLE protokol servisi bulundu. Eşleştirilmiş Band 8 için 32 haneli anahtarı gir. Anahtar telefonda şifreli saklanır."), topDp = 8)
         val input = ui.field("Band 8 anahtarı")
         input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         input.filters = arrayOf(android.text.InputFilter.LengthFilter(40))
@@ -1819,7 +1819,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             .setTitle("Band 8 kimlik doğrulama")
             .setView(box)
             .setPositiveButton("Bağlan", null)
-            .setNegativeButton("Vazgeç", null)
+            .setNegativeButton("Vazgeç") { _, _ -> WatchHub.service?.cancelBandSetup() }
             .create()
         bandKeyDialog = d
         d.setOnShowListener {
