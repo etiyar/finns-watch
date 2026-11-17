@@ -33,6 +33,7 @@ import com.che.ls05.protocol.UteCommand
 import com.che.ls05.protocol.UteDate
 import com.che.ls05.protocol.UteFrame
 import com.che.ls05.protocol.UteProfile
+import com.che.ls05.protocol.WatchType
 import java.time.LocalDateTime
 
 /**
@@ -1565,6 +1566,9 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         weatherSwitch.toggle.set(Prefs.weatherEnabled(act))
         cityRow.value.text = Prefs.weatherCityName(act).ifEmpty { "Seçilmedi" }
         weatherInfo.text = WeatherSync.summary(act)
+        val band = WatchRegistry.active(act)?.type == WatchType.BAND8
+        idRow.view.visibility = if (band) View.GONE else View.VISIBLE
+        autoTime.view.visibility = if (band) View.GONE else View.VISIBLE
         idRow.value.text = if (hasId()) "Kayıtlı" else "Girilmedi"
         autoTime.toggle.set(Prefs.autoTime(act))
         remote.toggle.set(Prefs.remoteControl(act))
@@ -1725,7 +1729,13 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             act.requestBlePermissions()
             return
         }
-        if (!hasId()) {
+        val active = WatchRegistry.active(act)
+        if (active?.type == WatchType.BAND8) {
+            if (!SecretStore.has(act, active.id)) {
+                act.toast("Band 8 anahtarı eksik. Saatlerim'den yeniden ekle.")
+                return
+            }
+        } else if (!hasId()) {
             WatchHub.log("Kimlik geçersiz veya boş: 8 haneli onaltılık değer gerekli.")
             act.toast("Önce kimliği gir.")
             editId()
@@ -1745,7 +1755,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     }
 
     private fun useDevice(device: BluetoothDevice) {
-        if (!hasId()) {
+        if (WatchRegistry.active(act)?.type != WatchType.BAND8 && !hasId()) {
             act.toast("Önce kimliği gir.")
             editId()
             return
