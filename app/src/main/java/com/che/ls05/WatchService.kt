@@ -25,16 +25,12 @@ import android.view.KeyEvent
 import com.che.ls05.protocol.AlarmSetting
 import com.che.ls05.protocol.DndSetting
 import com.che.ls05.protocol.HistoryGate
+import com.che.ls05.protocol.MSG_TYPE_GENERIC
 import com.che.ls05.protocol.ProfileSetting
 import com.che.ls05.protocol.RemoteAction
-import com.che.ls05.protocol.SettingCommands
 import com.che.ls05.protocol.SettingSync
 import com.che.ls05.protocol.TurkishFold
-import com.che.ls05.protocol.UteCommand
-import com.che.ls05.protocol.UteDate
 import com.che.ls05.protocol.UteFrame
-import com.che.ls05.protocol.UteHealth
-import com.che.ls05.protocol.UteMusic
 import com.che.ls05.protocol.WatchKeys
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -85,8 +81,12 @@ class WatchService : Service(), Ls05Ble.Listener {
         }
     }
 
-    lateinit var ble: Ls05Ble
+    /** Etkin saatin sürücüsü. */
+    lateinit var driver: WatchDriver
         private set
+
+    /** Yalnızca LS05'e özel işler (kadran) için. */
+    private val ls05: Ls05Driver? get() = driver as? Ls05Driver
 
     private val main = Handler(Looper.getMainLooper())
     private val backoffMs = longArrayOf(2_000, 5_000, 15_000, 30_000, 60_000)
@@ -135,7 +135,7 @@ class WatchService : Service(), Ls05Ble.Listener {
                     LinkAlert.disarm(this@WatchService, "Bluetooth kapandı")
                     main.removeCallbacks(reconnectRunnable)
                     restarting = true
-                    ble.forceClose("Bluetooth kapandı")
+                    driver.forceClose("Bluetooth kapandı")
                     restarting = false
                     updateStatus("Bluetooth kapalı")
                 }
@@ -153,7 +153,7 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     override fun onCreate() {
         super.onCreate()
-        ble = Ls05Ble(applicationContext, this)
+        driver = Ls05Driver(applicationContext, this) { onBusyEnded() }
         HealthStore.init(applicationContext)
         SettingsStore.sync(applicationContext)
         WatchHub.service = this
@@ -174,11 +174,9 @@ class WatchService : Service(), Ls05Ble.Listener {
         stopFind("servis kapandı")
         main.removeCallbacksAndMessages(delayedToken)
         try { unregisterReceiver(btReceiver) } catch (_: Exception) {}
-        if (ble.isConnected) {
-            restarting = true
-            ble.forceClose("servis kapandı")
-            restarting = false
-        }
+        restarting = true
+        driver.release("servis kapandı")
+        restarting = false
         WatchHub.setReady(false)
         WatchHub.service = null
         super.onDestroy()
@@ -194,7 +192,7 @@ class WatchService : Service(), Ls05Ble.Listener {
                 main.removeCallbacks(reconnectRunnable)
                 WatchHub.log("Servis kullanıcı tarafından durduruluyor.")
                 LinkAlert.disarm(this, "servis durduruldu")
-                if (ble.isConnected) ble.disconnect()
+                if (driver.isConnected) driver.disconnect()
                 main.postDelayed({
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
@@ -209,16 +207,16 @@ class WatchService : Service(), Ls05Ble.Listener {
                 stopping = false
                 resetAuth()
                 main.removeCallbacks(reconnectRunnable)
-                if (ble.isConnected) {
+                if (driver.isConnected) {
                     restarting = true
-                    ble.forceClose("yeni bağlantı isteği")
+                    driver.forceClose("yeni bağlantı isteği")
                     restarting = false
                 }
                 connectSaved(autoConnect = false)
             }
             else -> {
                 stopping = false
-                if (!ble.isConnected) connectSaved(autoConnect = false)
+                if (!driver.isConnected) connectSaved(autoConnect = false)
             }
         }
         return START_STICKY
@@ -226,29 +224,28 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     // ---------- Bağlantı yönetimi ----------
 
-    fun isWatchReady(): Boolean = ble.isReady && !face.active
+    fun isWatchReady(): Boolean = driver.isReady && !driver.busy
 
     // ---------- Kadran ----------
 
-    val face: FaceUpload by lazy {
-        FaceUpload(ble) {
-            if (face.phase == FaceUpload.Phase.DONE && WatchHub.faceId.isNotEmpty()) {
-                Prefs.setCurrentFace(this, WatchHub.faceId)
-            }
-            // Yükleme bitti ya da durdu: bekleyen trafik şimdi gider.
-            if (ble.isReady) {
-                flushPending()
-                pushSettings()
-            }
+    /** Uzun aktarım (kadran) bitti ya da durdu: bekleyen trafik şimdi gider. */
+    private fun onBusyEnded() {
+        if (driver.isReady) {
+            flushPending()
+            pushSettings()
         }
     }
 
     /** Ayarlar ekranından çağrılır. Başlatılamazsa nedeni döner. */
-    fun startFace(file: com.che.ls05.protocol.FaceFile, id: String): String? {
-        if (face.active) return "Yükleme zaten sürüyor."
-        WatchHub.faceId = id
-        return face.start(file)
-    }
+    fun startFace(file: com.che.ls05.protocol.FaceFile, id: String): String? =
+        ls05?.startFace(file, id) ?: "Bu saatte kadran yüklenemez."
+
+    /** Saat ekranındaki deneme bildirimi (sadeleştirme yok, genel tür). */
+    fun sendTestNotification(title: String, message: String): Boolean =
+        driver.sendNotification(title, message, Prefs.vibrate(this), MSG_TYPE_GENERIC)
+
+    /** Kurulumdaki "Tara". */
+    fun startScan() = driver.startScan()
 
     private fun resetAuth() {
         authBlocked = false
@@ -261,7 +258,7 @@ class WatchService : Service(), Ls05Ble.Listener {
             checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
     private fun connectSaved(autoConnect: Boolean) {
-        if (stopping || ble.isConnected) return
+        if (stopping || driver.isConnected) return
         if (!hasConnectPermission()) {
             updateStatus("Bluetooth izni yok")
             WatchHub.log("Bluetooth bağlantı izni yok; uygulamayı açıp izin ver.")
@@ -281,7 +278,6 @@ class WatchService : Service(), Ls05Ble.Listener {
             updateStatus("Bluetooth kapalı")
             return
         }
-        ble.userId = Prefs.userIdBytes(this)
         val device: BluetoothDevice = try {
             adapter.getRemoteDevice(address)
         } catch (e: IllegalArgumentException) {
@@ -289,7 +285,7 @@ class WatchService : Service(), Ls05Ble.Listener {
             return
         }
         if (autoConnect) WatchHub.log("Saat menzile girince bağlanılacak (otomatik bağlantı).")
-        ble.connect(device, autoConnect)
+        driver.connect(device, autoConnect)
     }
 
     /**
@@ -297,7 +293,7 @@ class WatchService : Service(), Ls05Ble.Listener {
      * Bağlantı denemesi sürüyorsa (otomatik bağlantı dahil) bir şey yapmaz. En çok 30 sn'de bir.
      */
     fun nudgeReconnect() {
-        if (stopping || authBlocked || ble.isConnected) return
+        if (stopping || authBlocked || driver.isConnected) return
         val now = SystemClock.uptimeMillis()
         if (now - lastNudge < NUDGE_MIN_INTERVAL_MS) return
         lastNudge = now
@@ -316,7 +312,12 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     // ---------- Komutlar ----------
 
-    fun command(data: ByteArray, label: String) = ble.sendCommand(data, label)
+    /** Hava durumu (WeatherSync). Saat hazır değilse false. */
+    fun sendWeather(current: Int, days: List<com.che.ls05.protocol.UteWeather.Day>, city: String): Boolean {
+        if (!isWatchReady()) return false
+        driver.sendWeather(current, days, city)
+        return true
+    }
 
     // ---------- Saati bul ----------
 
@@ -331,12 +332,12 @@ class WatchService : Service(), Ls05Ble.Listener {
      * İkisi de aramada cihazda doğrulandı. En çok 30 sn sürer.
      */
     fun startFind(): Boolean {
-        if (!ble.isReady) return false
+        if (!driver.isReady) return false
         if (callOnWatch) {
             WatchHub.log("Saati bul: saatte arama ekranı açık, titreşim gönderilmedi.")
             return false
         }
-        ble.sendCommand(UteCommand.VIBRATE_CALL, "saati bul: sürekli titreşim (06 FF FF)")
+        driver.findStart()
         finding = true
         main.removeCallbacks(findTimeout)
         main.postDelayed(findTimeout, FIND_MAX_MS)
@@ -349,7 +350,7 @@ class WatchService : Service(), Ls05Ble.Listener {
         if (!finding) return
         finding = false
         main.removeCallbacks(findTimeout)
-        if (ble.isReady && !callOnWatch) ble.sendCommand(UteCommand.VIBRATE_STOP, "saati bul durdu (06 00): $reason")
+        if (!callOnWatch) driver.findStop(reason)
         WatchHub.settingsChanged()
     }
 
@@ -363,19 +364,14 @@ class WatchService : Service(), Ls05Ble.Listener {
     }
 
     fun sendTime(label: String = "saat eşitleme (04)") {
-        val now = ZonedDateTime.now()
-        val offsetHours = now.offset.totalSeconds / 3600
-        ble.sendCommand(
-            UteCommand.timeSync(now.year, now.monthValue, now.dayOfMonth, now.hour, now.minute, now.second, offsetHours),
-            label,
-        )
+        driver.sendTime(ZonedDateTime.now(), label)
     }
 
     fun forward(note: WatchHub.Note) {
         when (note.kind) {
             WatchHub.NoteKind.MESSAGE, WatchHub.NoteKind.MISSED_CALL -> {
-                val sent = ble.sendNotification(fold(note.title), fold(note.body), Prefs.vibrate(this), note.type)
-                if (sent > 0) {
+                val sent = driver.sendNotification(fold(note.title), fold(note.body), Prefs.vibrate(this), note.type)
+                if (sent) {
                     val what = if (note.kind == WatchHub.NoteKind.MISSED_CALL) "Cevapsız arama" else note.appLabel
                     WatchHub.log("İletildi: $what (tip ${note.type}, ${note.title.length + note.body.length} karakter).")
                 }
@@ -391,10 +387,10 @@ class WatchService : Service(), Ls05Ble.Listener {
     // ---------- Gelen arama ----------
 
     private fun sendCallAlert(name: String) {
-        if (!ble.isReady) return
+        if (!driver.isReady) return
         // Arama titreşimi saati bul titreşiminin yerini alır; aramanın bitişi titreşimi durdurur.
         clearFind("gelen arama")
-        if (ble.sendIncomingCall(name) > 0) {
+        if (driver.sendIncomingCall(name)) {
             callOnWatch = true
             main.removeCallbacks(callSafetyStop)
             main.postDelayed(callSafetyStop, CALL_MAX_MS)
@@ -405,9 +401,9 @@ class WatchService : Service(), Ls05Ble.Listener {
     /** Saatte arama ekranı açıksa kapatır. Saat hazır değilse bağlanınca kapatılır. */
     private fun sendCallStop(reason: String) {
         if (!callOnWatch) return
-        if (!ble.isReady) return
+        if (!driver.isReady) return
         main.removeCallbacks(callSafetyStop)
-        if (ble.sendCallStop()) {
+        if (driver.sendCallStop()) {
             callOnWatch = false
             WatchHub.log("Saatteki arama ekranı kapatıldı ($reason).")
         }
@@ -457,27 +453,24 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     /** Telefonun müzik durumu ve ses düzeyi (12 0C, 12 0D). Haylou Fun bağlanınca ve değişince gönderiyor. */
     private fun sendMusicState() {
-        if (!ble.isReady || face.active || !Prefs.remoteControl(this)) return
-        ble.sendCommand(UteMusic.playState(PhoneRemote.isMusicActive(this)), "müzik durumu (12 0C)")
-        ble.sendCommand(UteMusic.volume(PhoneRemote.volumePercent(this)), "ses düzeyi (12 0D)")
+        if (!driver.isReady || driver.busy || !Prefs.remoteControl(this)) return
+        driver.sendMusicState(PhoneRemote.isMusicActive(this), PhoneRemote.volumePercent(this))
     }
 
     // ---------- Ayar eşitleme ----------
 
     /** Saat hazırsa gönderilmeyi bekleyen ayarları gönderir. Onay gelmeyenler otomatik yeniden gönderilmez. */
     fun pushSettings() {
-        if (!ble.isReady || face.active) return
+        if (!driver.isReady || driver.busy) return
         val sync = SettingsStore.sync(this)
         val todo = sync.nextToSend()
         if (todo.isEmpty()) return
         var sent = 0
         for ((key, value) in todo) {
-            val cmd = try { SettingCommands.build(key, value) } catch (e: Exception) { null }
-            if (cmd == null) {
+            if (!driver.sendSetting(key, value)) {
                 WatchHub.log("Ayar komutu üretilemedi ($key); gönderilmedi.")
                 continue
             }
-            ble.sendCommand(cmd, "ayar $key")
             sync.markSent(key, value, session, System.currentTimeMillis())
             sent++
         }
@@ -523,11 +516,11 @@ class WatchService : Service(), Ls05Ble.Listener {
      * İstek gönderildiyse true.
      */
     fun requestHistory(includeSleep: Boolean): Boolean {
-        if (face.active) {
+        if (driver.busy) {
             WatchHub.log("Kadran yükleniyor; geçmiş daha sonra okunacak.")
             return false
         }
-        if (!ble.isReady) {
+        if (!driver.isReady) {
             WatchHub.log("Saat hazır değil; geçmiş okunmadı.")
             return false
         }
@@ -549,19 +542,8 @@ class WatchService : Service(), Ls05Ble.Listener {
         main.removeCallbacks(historyTimeout)
         main.postDelayed(historyTimeout, HistoryGate.TIMEOUT_MS)
         historyChanged()
-        val y = LocalDate.now().minusDays(1)
-        val from = UteDate(y.year, y.monthValue, y.dayOfMonth)
-        val s = session
         WatchHub.log("Geçmiş okunuyor (dünden beri${if (includeSleep) ", uyku dahil" else ""}).")
-        ble.sendCommand(UteHealth.stepHistory(from), "adım geçmişi (0a)")
-        main.postAtTime(Runnable {
-            if (session == s && ble.isReady) ble.sendCommand(UteHealth.heartHistory(from), "nabız geçmişi (18 FA)")
-        }, delayedToken, SystemClock.uptimeMillis() + 1_500)
-        if (includeSleep) {
-            main.postAtTime(Runnable {
-                if (session == s && ble.isReady) ble.sendCommand(UteHealth.sleepHistory(from), "uyku geçmişi (1d 01)")
-            }, delayedToken, SystemClock.uptimeMillis() + 4_000)
-        }
+        driver.requestHistory(LocalDate.now().minusDays(1), includeSleep)
         return true
     }
 
@@ -592,7 +574,7 @@ class WatchService : Service(), Ls05Ble.Listener {
         WatchHub.deviceFound(device, name, rssi)
 
     override fun onRawFrame(value: ByteArray) {
-        face.onRaw(value)
+        ls05?.face?.onRaw(value)
         if (HealthStore.add(this, value)) WatchHub.healthChanged()
     }
 
@@ -624,7 +606,10 @@ class WatchService : Service(), Ls05Ble.Listener {
 
     override fun onReadyChanged(ready: Boolean) {
         // Oturum, gözlemciler haber almadan önce artar ki o sırada yapılan ayar yeni oturuma sayılsın.
-        if (ready) session++
+        if (ready) {
+            session++
+            ls05?.onLinkReady()
+        }
         WatchHub.setReady(ready)
         if (!ready) return
         wasReady = true
@@ -651,7 +636,7 @@ class WatchService : Service(), Ls05Ble.Listener {
     }
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
-        face.onDisconnected()
+        ls05?.face?.onDisconnected()
         clearFind("bağlantı koptu")
         val hadLink = wasReady
         wasReady = false
@@ -713,7 +698,7 @@ class WatchService : Service(), Ls05Ble.Listener {
         main.removeCallbacks(reconnectRunnable)
         WatchHub.log(message)
         updateStatus("Doğrulama durdu; uygulamayı aç")
-        if (ble.isConnected) ble.disconnect()
+        if (driver.isConnected) driver.disconnect()
     }
 
     // ---------- Ön plan bildirimi ----------

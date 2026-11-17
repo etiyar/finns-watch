@@ -141,8 +141,8 @@ object WeatherSync {
         if (System.currentTimeMillis() - f.fetchedAt > MAX_AGE_MS) return
         val s = WatchHub.service ?: return
         if (!s.isWatchReady()) return
-        val packets = UteWeather.build(f.current, f.days, WeatherCodes.shortCity(Prefs.weatherCityName(c)))
-        packets.forEachIndexed { i, p -> s.command(p, "hava durumu ${i + 1}/3 (11)") }
+        if (!WatchRegistry.caps(c).weather) return
+        if (!s.sendWeather(f.current, f.days, WeatherCodes.shortCity(Prefs.weatherCityName(c)))) return
         Prefs.setWeatherSentAt(c, System.currentTimeMillis())
     }
 

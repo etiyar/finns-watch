@@ -1230,7 +1230,7 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
             act.toast("Saat bağlı değil.")
             return false
         }
-        if (s.ble.sendNotification(title, message, Prefs.vibrate(act)) == 0) return false
+        if (!s.sendTestNotification(title, message)) return false
         setNotifState(NotificationState.SENDING)
         act.handler.postDelayed({
             if (notifState == NotificationState.SENDING) setNotifState(NotificationState.TRANSFER_TIMEOUT)
@@ -1671,7 +1671,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         act.toast("Saat aranıyor.")
         act.handler.postDelayed({
             val s = WatchHub.service
-            if (s == null) WatchHub.log("Servis başlamadı; Bluetooth iznini kontrol et.") else s.ble.startScan()
+            if (s == null) WatchHub.log("Servis başlamadı; Bluetooth iznini kontrol et.") else s.startScan()
         }, 600L)
     }
 
