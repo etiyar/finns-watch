@@ -665,6 +665,9 @@ class WatchService : Service(), DriverListener {
         LinkAlert.disarm(this, "saat yeniden bağlandı")
         reconnectAttempt = 0
         authTimeouts = 0
+        // Band 8 ilk testinde sadece kimlik doğrulama, pil ve cihaz bilgisi okunur.
+        // LS05 ayarları, bildirim kuyruğu, saat eşitleme ve geçmiş istekleri gönderilmez.
+        if (driver.type == WatchType.BAND8) return
         if (Prefs.autoTime(this)) sendTime("otomatik saat eşitleme (04)")
         // Bağlantı koparken saat çalıyor kaldıysa ve arama artık sürmüyorsa sustur.
         if (callOnWatch && !WatchHub.calls.isRinging) sendCallStop("bağlantı yeniden kuruldu, arama sürmüyor")
