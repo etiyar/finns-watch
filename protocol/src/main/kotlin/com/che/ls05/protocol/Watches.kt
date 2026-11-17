@@ -213,6 +213,26 @@ object RegistryMigration {
     }
 }
 
+/**
+ * Saat listesi kurtarma seçimi. Birincil kayıt geçerliyse her zaman onu kullanır.
+ * Birincil veri yok veya bozuksa son geçerli ayrı kurtarma kopyasına döner.
+ * Mevcut bozuk kayıtlar hiçbir durumda otomatik boş listeyle ezilmez.
+ */
+object RegistryRecovery {
+    enum class Source { PRIMARY, BACKUP, MIGRATED, CORRUPT }
+    data class Result(val list: WatchList, val source: Source)
+
+    fun load(primary: String?, mirror: String?, legacyAddress: String?, legacyUserId: String?, now: Long): Result {
+        WatchList.deserialize(primary)?.let { return Result(it, Source.PRIMARY) }
+        WatchList.deserialize(mirror)?.let { return Result(it, Source.BACKUP) }
+        if (primary == null && mirror == null) {
+            return Result(RegistryMigration.fromLegacy(legacyAddress, legacyUserId, now), Source.MIGRATED)
+        }
+        // Geçersiz kayıt: eski LS05'ten arayüzde geçici görüntü oluştur, diske asla yazma.
+        return Result(RegistryMigration.fromLegacy(legacyAddress, legacyUserId, now), Source.CORRUPT)
+    }
+}
+
 /** WatchManager durumları (Saatlerim ekranı ve log için). */
 enum class WatchState(val label: String) {
     NONE("Saat yok"),

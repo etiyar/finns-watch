@@ -41,7 +41,7 @@ object WatchManager {
             SwitchRules.Decision.PROCEED -> Unit
         }
         LinkAlert.disarm(c, "saat değiştirildi")
-        WatchRegistry.setActive(c, id)
+        if (!WatchRegistry.setActive(c, id)) return "Saat seçimi kaydedilemedi. Depolama durumunu kontrol et."
         SwitchLog.record(c, id)
         afterSwitch(c)
         if (Prefs.serviceEnabled(c) && WatchRegistry.hasActive(c)) WatchService.start(c)

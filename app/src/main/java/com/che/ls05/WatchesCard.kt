@@ -130,8 +130,12 @@ class WatchesCard(private val act: MainActivity) {
             .setItems(types.map { it.label }.toTypedArray()) { _, which ->
                 val type = types[which]
                 nameDialog("Saat adı", type.label) { name ->
-                    val rec = WatchRegistry.add(act, type, name)
-                    activate(rec)
+                    try {
+                        val rec = WatchRegistry.add(act, type, name)
+                        activate(rec)
+                    } catch (_: IllegalStateException) {
+                        act.toast("Saat kaydedilemedi; telefon depolamasını kontrol et.")
+                    }
                     refresh()
                 }
             }

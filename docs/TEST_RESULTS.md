@@ -21,6 +21,12 @@ Kaynak: kullanıcının doğrudan bildirdiği denemeler. CI derlemesi burada ayr
 - **GÜNCEL TEST (beta6):** Uygulama durdurulup açıldıktan sonra Band 8 kaydı korunmadı (**BAŞARISIZ**). LS05 kadran yükleme yanlış uyarı olmadan tamamlandı (**GEÇTİ**). Telefonun tamamen yeniden başlatılması **TEST EDİLMEDİ**.
 - **Kapsam dışı:** Band 8 adım, nabız ve uyku senkronizasyonu henüz uygulanmadı. Bu yüzden Band 8 etkinse Bugün sayfasında 'Veri yok' görünmesi bu sürümde beklenir.
 
+## v0.13.0-beta7 | Beklenen doğrulama
+- Kayıt kurtarma ve yazma hatası davranışı: otomatik testler eklendi, **CI sonucu ayrıca kontrol edilmeli**.
+- Gerçek cihaz testi: **BEKLENİYOR**. Uygulamayı iki kez durdur/aç, Band 8 saat listesinde mi, anahtar hâlâ geçerli mi, yeniden şarj bilgisi geliyor mu?
+- Telefonu yeniden başlatıp kayıt ve otomatik bağlantıyı doğrula.
+- Hata tekrarlanırsa maskeli kayıt tanılama satırını paylaş; kişisel adres veya anahtar paylaşma.
+
 ## Sıradaki kısa kabul testi
 1. **GEÇTİ:** Band 8 bağlıyken Bluetooth kapatılıp açılınca otomatik geri bağlandı.
 2. **BAŞARISIZ (beta6):** Uygulama durdurulup açılınca Band 8 kayıtlı kalmadı. Hatanın kaynağını belirlemeden tekrar saat ekleyip verileri değiştirme. Telefon yeniden başlatma testi henüz yapılmadı.

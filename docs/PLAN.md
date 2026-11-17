@@ -382,6 +382,15 @@ Saatteki kadran (`1a 01`):
 
 ---
 
+## v0.13.0-beta7 | Birlikte tamamlanan işler
+
+- Kayıt güvenliği: ayrı yerel yedek ve bozuk kaydı sessizce boş listeyle değiştirmeme.
+- Saat ekleme ve etkin saat değiştirme: disk yazımı başarısızlığı açıkça bildirilir.
+- Uygulama servisi başlangıcı: gizli kimlik veya adres paylaşmadan kayıt sayısı, etkin türü ve kayıt bütünlüğü loglanır.
+- Saf Kotlin regresyon testleri: geçerli ana kaydı tercih, geçersiz ana kayıttan yedeği kurtar, iki kopya da bozukken otomatik kalıcı sıfırlamayı önle.
+- Sonraki cihaz testleri: uygulamayı kapat/aç iki kez, Band 8 aynı kimlik/şarj ile geri geliyor mu; ardından telefon yeniden başlat. Başarılı olursa v0.13.1 gündelik özelliklerine geç.
+- Bu düzeltmeler **henüz gerçek cihazda doğrulanmadı**. Kök nedenin kesinlikle bu olduğu iddia edilmez.
+
 ## Son kabul sonuçları ve kritik düzeltme önceliği | 18 Kasım 2026
 
 **v0.13.0-beta6 gerçek cihaz sonucu:** LS05 kadran aktarımı **GEÇTİ**; Band 8 uygulama durdurulup yeniden açılınca kayıt kalıcılığı **BAŞARISIZ**; telefonun tamamen yeniden başlatılması **TEST EDİLMEDİ**. Bluetooth kapat/aç ve saat geçişi önceki beta testlerinde başarılıydı.

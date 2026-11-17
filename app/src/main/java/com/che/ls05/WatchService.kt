@@ -156,6 +156,7 @@ class WatchService : Service(), DriverListener {
 
     override fun onCreate() {
         super.onCreate()
+        WatchHub.log(WatchRegistry.diagnosticSummary(this))
         driver = WatchManager.driverFor(WatchRegistry.active(this)?.type ?: WatchType.LS05, applicationContext, this)
         HealthStore.init(applicationContext)
         SettingsStore.sync(applicationContext)
@@ -306,7 +307,13 @@ class WatchService : Service(), DriverListener {
         driver.release("saat değiştirildi")
         restarting = false
         WatchHub.setReady(false)
-        WatchRegistry.setActive(this, id)
+        if (!WatchRegistry.setActive(this, id)) {
+            WatchHub.log("Saat değişimi iptal edildi: kayıt diske yazılamadı.")
+            // Eski sürücü kapatıldı, fakat etkin kayıt değişmedi; aynı saate geri dön.
+            driver = WatchManager.driverFor(list.active?.type ?: WatchType.LS05, applicationContext, this)
+            connectSaved(autoConnect = false)
+            return "Saat seçimi kaydedilemedi; mevcut saat korunuyor."
+        }
         SwitchLog.record(this, id)
         resetAuth()
         wasReady = false

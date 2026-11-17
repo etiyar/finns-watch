@@ -73,6 +73,35 @@ class WatchesTest {
         }
     }
 
+    @Test
+    fun recoveryPrefersValidPrimaryOverStaleMirror() {
+        val (start, _) = RegistryMigration.load(null, "legacy", null, now)
+        val (newer, rec) = start.add(WatchType.BAND8, "B8", now)
+        val current = newer.withActive(rec.id)
+        val result = RegistryRecovery.load(current.serialize(), start.serialize(), "legacy", null, now)
+        assertEquals(RegistryRecovery.Source.PRIMARY, result.source)
+        assertEquals(current, result.list)
+    }
+
+    @Test
+    fun recoveryRestoresBand8WhenPrimaryMissingOrCorrupted() {
+        val (start, _) = RegistryMigration.load(null, "legacy", null, now)
+        val (newer, rec) = start.add(WatchType.BAND8, "B8", now)
+        val latest = newer.withActive(rec.id)
+        for (primary in listOf<String?>(null, "invalid file")) {
+            val result = RegistryRecovery.load(primary, latest.serialize(), "legacy", null, now)
+            assertEquals(RegistryRecovery.Source.BACKUP, result.source)
+            assertEquals(latest, result.list)
+        }
+    }
+
+    @Test
+    fun recoveryDoesNotSilentlyPersistCorruptRecordsAsFreshInstall() {
+        val result = RegistryRecovery.load("corrupt", "also corrupt", "legacy", null, now)
+        assertEquals(RegistryRecovery.Source.CORRUPT, result.source)
+        assertEquals(WatchType.LS05, result.list.active?.type)
+    }
+
     // ---------- Kayıt işlemleri ----------
 
     @Test

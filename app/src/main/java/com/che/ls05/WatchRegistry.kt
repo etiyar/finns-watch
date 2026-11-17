@@ -17,61 +17,88 @@ object WatchRegistry {
 
     private const val FILE = "watches"
     private const val KEY = "list"
+    private const val BACKUP_FILE = "watches_recovery"
+    private const val BACKUP_KEY = "last_good_list"
 
     @Volatile
     private var cached: WatchList? = null
 
     private fun p(c: Context): SharedPreferences = c.getSharedPreferences(FILE, Context.MODE_PRIVATE)
     private fun legacy(c: Context): SharedPreferences = c.getSharedPreferences("ls05", Context.MODE_PRIVATE)
+    private fun backup(c: Context): SharedPreferences = c.getSharedPreferences(BACKUP_FILE, Context.MODE_PRIVATE)
 
     fun list(c: Context): WatchList {
         cached?.let { return it }
         synchronized(this) {
             cached?.let { return it }
             val old = legacy(c)
-            val stored = p(c).getString(KEY, null)
-            val (l, src) = RegistryMigration.load(
-                stored,
+            val primary = p(c).getString(KEY, null)
+            val fallback = backup(c).getString(BACKUP_KEY, null)
+            val result = RegistryRecovery.load(
+                primary, fallback,
                 old.getString("address", null),
                 old.getString("userId", null),
                 System.currentTimeMillis(),
             )
-            if (src != RegistryMigration.Source.LOADED) {
-                // Okunamayan mevcut saat listesini kaybetme: önce ayrı bir yerel yedekte koru.
-                // Bu veri cihazdan ve SharedPreferences'dan dışarı gönderilmez.
-                if (src == RegistryMigration.Source.REBUILT && stored != null) {
-                    val preserved = p(c).edit().putString("invalid_list_backup", stored).commit()
-                    if (!preserved) {
-                        WatchHub.log("Saat kayıt yedeği saklanamadı. Mevcut kayıt üzerine yazılmıyor.")
-                        return l
-                    }
-                    WatchHub.log("Saat kayıt biçimi okunamadı; bozuk liste yerel yedeğe alındı.")
+            val l = result.list
+            when (result.source) {
+                RegistryRecovery.Source.PRIMARY -> Unit
+                RegistryRecovery.Source.BACKUP -> {
+                    WatchHub.log("Saat listesi yerel kurtarma kopyasından geri alındı.")
+                    // Bozuk kaydı üzerine yazmadan önce özel cihaz alanında koru.
+                    if (primary != null) p(c).edit().putString("invalid_list_backup", primary).commit()
+                    if (!p(c).edit().putString(KEY, l.serialize()).commit())
+                        WatchHub.log("Kurtarılan saat listesi diske yazılamadı.")
                 }
-                if (!p(c).edit().putString(KEY, l.serialize()).commit()) {
-                    WatchHub.log("Saat kaydı diske yazılamadı; veriler korunmalı.")
-                    return l
+                RegistryRecovery.Source.MIGRATED -> {
+                    // Eski LS05 ayarından ilk kayıt. Yedeği önceden yaz, sonra asıl kaydı.
+                    persist(c, l)
+                    if (l.watches.isNotEmpty()) WatchHub.log("Önceki LS05 kaydı içe aktarıldı.")
                 }
-                when (src) {
-                    RegistryMigration.Source.MIGRATED ->
-                        if (l.watches.isNotEmpty()) WatchHub.log("Saat kaydı oluşturuldu: mevcut LS05 ayarları olduğu gibi kullanılıyor.")
-                    else -> WatchHub.log("Saat kaydı yeniden oluşturuldu; önceki kayıt yerel yedekte.")
+                RegistryRecovery.Source.CORRUPT -> {
+                    // Bozuk iki kopyadan boş/LS05 listesini sessizce kaydetme.
+                    WatchHub.log("Saat kayıtları okunamadı; kurtarma için eski veriler korunuyor.")
                 }
-                if (l.activeId != null) SwitchLog.record(c, l.activeId)
+            }
+            // İlk başarılı okumadan sonra yedek eksikse, mevcut geçerli veriyi kaydet.
+            if (result.source == RegistryRecovery.Source.PRIMARY &&
+                WatchList.deserialize(fallback) == null) {
+                backup(c).edit().putString(BACKUP_KEY, l.serialize()).commit()
             }
             cached = l
             return l
         }
     }
 
-    private fun save(c: Context, l: WatchList) {
-        synchronized(this) {
-            // Başarısız disk yazımında yalnızca RAM'deki listeyi yeniymiş gibi gösterme.
-            if (p(c).edit().putString(KEY, l.serialize()).commit()) {
-                cached = l
-            } else {
-                WatchHub.log("Saat listesi kaydedilemedi; depolama durumunu kontrol et.")
-            }
+    /** Yedek ilk yazılır; diskteki son iyi liste bir hata halinde geri alınabilir. */
+    private fun persist(c: Context, l: WatchList): Boolean {
+        val content = l.serialize()
+        val backupWritten = backup(c).edit().putString(BACKUP_KEY, content).commit()
+        if (!backupWritten) {
+            WatchHub.log("Saat kurtarma kopyası yazılamadı; kayıt değiştirilmedi.")
+            return false
         }
+        val primaryWritten = p(c).edit().putString(KEY, content).commit()
+        if (!primaryWritten) WatchHub.log("Saat listesi yazılamadı; kurtarma kopyası korundu.")
+        return primaryWritten
+    }
+
+    private fun save(c: Context, l: WatchList): Boolean = synchronized(this) {
+        if (persist(c, l)) {
+            cached = l
+            true
+        } else {
+            false
+        }
+    }
+
+    fun diagnosticSummary(c: Context): String {
+        val l = list(c)
+        val primaryValid = WatchList.deserialize(p(c).getString(KEY, null)) != null
+        val backupValid = WatchList.deserialize(backup(c).getString(BACKUP_KEY, null)) != null
+        return "Saat kaydı: adet=${l.watches.size}, etkin tür=${l.active?.type?.name ?: "yok"}, " +
+            "ana kayıt=${if (primaryValid) "geçerli" else "yok/bozuk"}, " +
+            "yedek=${if (backupValid) "geçerli" else "yok/bozuk"}"
     }
 
     fun active(c: Context): WatchRecord? = list(c).active
@@ -87,7 +114,7 @@ object WatchRegistry {
     /** Yeni saat ekler (etkin yapmaz). */
     fun add(c: Context, type: WatchType, name: String): WatchRecord {
         val (l, rec) = list(c).add(type, name, System.currentTimeMillis())
-        save(c, l)
+        if (!save(c, l)) throw IllegalStateException("Saat listesi kaydedilemedi.")
         // İkinci LS05 aynı Haylou kimliğini kullanır; kimlik yeni saate kopyalanır (yalnızca telefonda).
         if (type == WatchType.LS05 && !rec.legacy) {
             val id = legacy(c).getString("userId", null)
@@ -107,7 +134,7 @@ object WatchRegistry {
         val l = list(c)
         val rec = l.find(id) ?: return false
         if (id == l.activeId) return false
-        save(c, l.remove(id))
+        if (!save(c, l.remove(id))) return false
         if (!rec.legacy && rec.ns.isNotEmpty()) {
             val prefs = legacy(c)
             val e = prefs.edit()
@@ -120,7 +147,7 @@ object WatchRegistry {
     }
 
     /** Etkin saati değiştirir (yalnızca kayıt). Bağlantıyı WatchService.switchTo yönetir. */
-    fun setActive(c: Context, id: String?) = save(c, list(c).withActive(id))
+    fun setActive(c: Context, id: String?): Boolean = save(c, list(c).withActive(id))
 
     /**
      * Kurulumdan yeni LS05 bağlanacak ama etkin saat yok (ilk kurulum): öneksiz LS05 kaydı etkin yapılır.

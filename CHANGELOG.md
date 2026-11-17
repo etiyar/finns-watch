@@ -4,6 +4,16 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.13.0-beta7 | 18 Kasım 2026
+
+**Kayıt ve bağlantı güvenliği**
+- Saat listesi için ayrı yerel kurtarma kopyası; bozuk/eksik birincil kayıt durumunda geri yükleme.
+- İki kayıt da geçersizse otomatik boş listeyle üzerine yazma önlenir.
+- Saat ekleme ve değiştirmede kayıt yazımı başarısızlığı kullanıcıya bildirilir; aktif saat değişimi iptal edilir.
+- Kimlik anahtarı ve Bluetooth adresi içermeyen kısa kayıt tanılama özeti.
+- Birincil ve yedek kayıt seçimi için Kotlin regresyon testleri.
+- **Gerçek cihaz doğrulaması bekliyor:** beta6'da uygulama kapat/aç ile Band 8 kaydı korunmadı; beta7 bunun için deneme sürümüdür.
+
 ## v0.13.0-beta6 | 18 Kasım 2026
 **Düzeltme (geliştirme dalı)**
 - Saat listesi diske yazılamazsa RAM önbelleğinin hatalı biçimde güncellenmesi önlendi.
