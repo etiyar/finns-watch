@@ -103,15 +103,22 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             // Band 8 bazı firmware sürümlerinde farklı adla yayın yapabilir.
             // Bu yüzden yalnızca modele göre filtrelemiyoruz. Cihazın FE95 servisi
             // bağlantı sonrasında doğrulanır; başka bir saate komut gönderilmez.
-            val services = result.scanRecord?.serviceUuids
-            val advertisedFe95 = services?.any { it.uuid == serviceId } == true
-            val name = result.scanRecord?.deviceName ?: result.device.name
-            // İsimsiz cihazları da yalnızca Xiaomi servis kimliği görünüyorsa listele.
-            if (name.isNullOrBlank() && !advertisedFe95) return
+            val record = result.scanRecord
+            val advertisedFe95 = record?.serviceUuids?.any { it.uuid == serviceId } == true ||
+                record?.serviceData?.keys?.any { it.uuid == serviceId } == true
+            val name = record?.deviceName ?: result.device.name
+            // Bazı saatler adsız yayın yapar. Yakın adsız cihazları sınırlı sayıda gösterip
+            // seçildiklerinde FE95 servislerini salt-okunur biçimde doğrularız.
+            if (name.isNullOrBlank() && !advertisedFe95 && result.rssi < -85) return
             main.post {
                 if (!scanning || released || !seen.add(result.device.address)) return@post
+                if (name.isNullOrBlank() && !advertisedFe95 && scanResults >= 12) return@post
                 scanResults++
-                val label = if (advertisedFe95) "${name ?: "İsimsiz Xiaomi BLE cihazı"} · FE95" else name!!
+                val label = when {
+                    advertisedFe95 -> "${name?.takeIf { it.isNotBlank() } ?: "Xiaomi BLE cihazı"} · FE95"
+                    !name.isNullOrBlank() -> name
+                    else -> "İsimsiz Bluetooth cihazı · …${result.device.address.takeLast(5)}"
+                }
                 listener.onFound(result.device, label, result.rssi)
                 listener.onStatus("$scanResults Bluetooth cihazı bulundu; Band 8 olduğunu doğrula")
             }
@@ -284,7 +291,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         val key = SecretStore.get(context, watchId)
         if (key == null || key.size != 16) {
             key?.fill(0)
-            listener.onStatus("Band 8 doğrulandı; kimlik anahtarı gerekli")
+            listener.onStatus("Xiaomi FE95 servisi bulundu; Band 8 anahtarı gerekli")
             listener.onKeyRequired()
             return
         }
