@@ -1857,7 +1857,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             return
         }
         val box = ui.dialogBox()
-        ui.add(box, ui.caption("Önceki Bluetooth bağlantı kaydındaki 6 baytlık adresi yaz. Örnek biçim: AA:BB:CC:DD:EE:FF. Eşleşme değiştirilmez."), topDp = 8)
+        ui.add(box, ui.caption("Önceki Bluetooth bağlantı kaydındaki 6 baytlık adresi yaz. Örnek biçim: XX:XX:XX:XX:XX:XX. Eşleşme değiştirilmez."), topDp = 8)
         val input = ui.field("Bluetooth adresi")
         input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or
             InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
@@ -1873,7 +1873,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val address = input.text.toString().trim().uppercase(java.util.Locale.ROOT)
                 if (!BluetoothAdapter.checkBluetoothAddress(address)) {
-                    act.toast("Geçerli Bluetooth adresi gir. Biçim: AA:BB:CC:DD:EE:FF")
+                    act.toast("Geçerli Bluetooth adresi gir. Biçim: XX:XX:XX:XX:XX:XX")
                     return@setOnClickListener
                 }
                 input.text.clear()
