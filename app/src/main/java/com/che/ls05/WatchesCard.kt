@@ -2,6 +2,7 @@ package com.che.ls05
 
 import android.app.AlertDialog
 import android.text.InputType
+import com.che.ls05.protocol.SecretEnvelope
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -11,7 +12,7 @@ import com.che.ls05.protocol.WatchType
 
 /**
  * Saat sekmesinin en üstündeki "Saatlerim" listesi: saat ekle, etkin yap, yeniden adlandır, sil.
- * Bu sürümde yalnızca LS05 eklenebilir; kayıt Band 8 türünü de taşır.
+ * Band 8 eklenirken kimlik anahtarı telefonda şifreli saklanır.
  */
 class WatchesCard(private val act: MainActivity) {
 
@@ -24,7 +25,7 @@ class WatchesCard(private val act: MainActivity) {
         const val BAND8_HINT = "Band 8 bağlıyken Mi Fitness ve Notify kapalı olmalı."
 
         /** "Saat ekle"de sunulan türler. Band 8, sürücüsü gelince eklenir. */
-        val ADDABLE = listOf(WatchType.LS05)
+        val ADDABLE = listOf(WatchType.LS05, WatchType.BAND8)
     }
 
     init {
@@ -121,7 +122,7 @@ class WatchesCard(private val act: MainActivity) {
         d.show()
     }
 
-    /** Tür seçimi (bu sürümde yalnızca LS05), ad, sonra etkin yapma ve kurulum. */
+    /** Saat türü ve ad seçimi; Band 8 anahtarı doğrulanmadan etkin yapılmaz. */
     private fun add() {
         val types = ADDABLE
         val d = AlertDialog.Builder(act)
@@ -130,11 +131,10 @@ class WatchesCard(private val act: MainActivity) {
                 val type = types[which]
                 nameDialog("Saat adı", type.label) { name ->
                     val rec = WatchRegistry.add(act, type, name)
-                    val err = WatchManager.switchTo(act, rec.id)
-                    if (err != null) {
-                        act.toast(err)
+                    if (type == WatchType.BAND8) {
+                        enterBandKey(rec)
                     } else {
-                        act.toast("Şimdi Ayarlar > Saat bağlantısı'ndan Tara ile saati seç.")
+                        activate(rec)
                     }
                     refresh()
                 }
@@ -144,4 +144,44 @@ class WatchesCard(private val act: MainActivity) {
         act.track(d)
         d.show()
     }
+    private fun activate(rec: WatchRecord) {
+        val err = WatchManager.switchTo(act, rec.id)
+        if (err != null) act.toast(err)
+        else act.toast("Ayarlar > Saat bağlantısı > Tara ile cihazı seç.")
+        refresh()
+    }
+
+    private fun enterBandKey(rec: WatchRecord) {
+        val box = ui.dialogBox()
+        ui.add(box, ui.caption("Mi Fitness eşleştirmesinden alınan 32 haneli anahtarı gir. Anahtar yalnızca telefonda şifreli tutulur."), topDp = 8)
+        val field = ui.field("Band 8 anahtarı (32 hane)")
+        field.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        field.filters = arrayOf(android.text.InputFilter.LengthFilter(34))
+        ui.add(box, field, topDp = 12)
+        val dialog = AlertDialog.Builder(act)
+            .setTitle("Band 8 kimlik doğrulama")
+            .setView(box)
+            .setPositiveButton("Kaydet", null)
+            .setNegativeButton("Vazgeç", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val value = field.text.toString().trim()
+                if (SecretEnvelope.parseKeyHex(value) == null) {
+                    act.toast("32 haneli onaltılık anahtar gerekli.")
+                    return@setOnClickListener
+                }
+                if (!SecretStore.putHex(act, rec.id, value)) {
+                    act.toast("Anahtar güvenli şekilde saklanamadı.")
+                    return@setOnClickListener
+                }
+                field.text.clear()
+                dialog.dismiss()
+                activate(rec)
+            }
+        }
+        act.track(dialog)
+        dialog.show()
+    }
+
 }
