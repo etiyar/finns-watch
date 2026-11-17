@@ -202,6 +202,8 @@ class WatchService : Service(), Ls05Ble.Listener {
             }
             ACTION_CONNECT_NEW -> {
                 val address = intent.getStringExtra(EXTRA_ADDRESS)
+                // İlk kurulumda etkin saat yoksa öneksiz LS05 kaydı etkin olur (v0.11'deki gibi tek adım).
+                WatchRegistry.ensureActive(this)
                 if (address != null) Prefs.setAddress(this, address)
                 Prefs.setServiceEnabled(this, true)
                 stopping = false

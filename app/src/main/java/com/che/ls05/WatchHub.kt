@@ -205,7 +205,7 @@ object WatchHub {
             s.nudgeReconnect()
             return@onMain
         }
-        if (Prefs.serviceEnabled(context) && Prefs.address(context) != null) {
+        if (Prefs.serviceEnabled(context) && WatchRegistry.hasActive(context)) {
             log("Saat servisi çalışmıyor; başlatılıyor.")
             if (!WatchService.start(context)) {
                 log("Servis arka planda başlatılamadı. Kuyruk uygulama açılınca gönderilir; pil kısıtlamasını kapat.")

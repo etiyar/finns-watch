@@ -11,12 +11,19 @@ import com.che.ls05.protocol.UteCommand
 object Prefs {
     private fun p(c: Context): SharedPreferences = c.getSharedPreferences("ls05", Context.MODE_PRIVATE)
 
-    fun userIdText(c: Context): String = p(c).getString("userId", "") ?: ""
-    fun setUserIdText(c: Context, value: String) = p(c).edit().putString("userId", value.trim()).apply()
+    /**
+     * Saate ait anahtar: etkin saatin öneki + ad. Göç edilen LS05'te önek boştur (v0.11 anahtarları).
+     * Saate ait olanlar: adres, kimlik, profil onayı, son eşitleme, alarm notu/görünürlüğü/hatırlatma günü,
+     * kadran, kopma zamanı, son görülen yer. Diğerleri telefona ait ve ortaktır.
+     */
+    private fun k(c: Context, name: String): String = WatchRegistry.ns(c) + name
+
+    fun userIdText(c: Context): String = p(c).getString(k(c, "userId"), "") ?: ""
+    fun setUserIdText(c: Context, value: String) = p(c).edit().putString(k(c, "userId"), value.trim()).apply()
     fun userIdBytes(c: Context): ByteArray? = UteCommand.parseUserId(userIdText(c))
 
-    fun address(c: Context): String? = p(c).getString("address", null)
-    fun setAddress(c: Context, value: String) = p(c).edit().putString("address", value).apply()
+    fun address(c: Context): String? = p(c).getString(k(c, "address"), null)
+    fun setAddress(c: Context, value: String) = p(c).edit().putString(k(c, "address"), value).apply()
 
     /** Kullanıcı "Durdur" demediyse servis açılışta ve güncellemeden sonra yeniden başlar. */
     fun serviceEnabled(c: Context): Boolean = p(c).getBoolean("serviceEnabled", false)
@@ -67,12 +74,12 @@ object Prefs {
     fun setProfileDraftText(c: Context, value: String) = p(c).edit().putString("profileDraft", value).apply()
 
     /** Saat profil paketini en az bir kez onayladı mı. O zamana kadar profil yalnızca elle gönderilir. */
-    fun profileVerified(c: Context): Boolean = p(c).getBoolean("profileVerified", false)
-    fun setProfileVerified(c: Context, value: Boolean) = p(c).edit().putBoolean("profileVerified", value).apply()
+    fun profileVerified(c: Context): Boolean = p(c).getBoolean(k(c, "profileVerified"), false)
+    fun setProfileVerified(c: Context, value: Boolean) = p(c).edit().putBoolean(k(c, "profileVerified"), value).apply()
 
     /** Son başarılı adım geçmişi okuması (ms); 0 = hiç. */
-    fun lastSync(c: Context): Long = p(c).getLong("lastSync", 0L)
-    fun setLastSync(c: Context, at: Long) = p(c).edit().putLong("lastSync", at).apply()
+    fun lastSync(c: Context): Long = p(c).getLong(k(c, "lastSync"), 0L)
+    fun setLastSync(c: Context, at: Long) = p(c).edit().putLong(k(c, "lastSync"), at).apply()
 
     /** Tema seçimi: sistem, koyu ya da açık. */
     const val THEME_SYSTEM = 0
@@ -82,28 +89,28 @@ object Prefs {
     fun setThemeMode(c: Context, value: Int) = p(c).edit().putInt("themeMode", value).apply()
 
     /** Alarm hatırlatma notu (en çok 40 karakter). Yalnızca telefonda; saate ve loga gitmez. */
-    fun alarmNote(c: Context, slot: Int): String = p(c).getString("alarmNote$slot", "") ?: ""
-    fun setAlarmNote(c: Context, slot: Int, value: String) = p(c).edit().putString("alarmNote$slot", value).apply()
+    fun alarmNote(c: Context, slot: Int): String = p(c).getString(k(c, "alarmNote$slot"), "") ?: ""
+    fun setAlarmNote(c: Context, slot: Int, value: String) = p(c).edit().putString(k(c, "alarmNote$slot"), value).apply()
 
     /** Bu yuvanın notunun en son gönderildiği yerel gün (ör. 2026-11-14). Aynı gün tekrarını engeller. */
-    fun reminderSentDay(c: Context, slot: Int): String = p(c).getString("reminderDay$slot", "") ?: ""
-    fun setReminderSentDay(c: Context, slot: Int, day: String) = p(c).edit().putString("reminderDay$slot", day).apply()
+    fun reminderSentDay(c: Context, slot: Int): String = p(c).getString(k(c, "reminderDay$slot"), "") ?: ""
+    fun setReminderSentDay(c: Context, slot: Int, day: String) = p(c).edit().putString(k(c, "reminderDay$slot"), day).apply()
 
     /** Alarm yuvası Saat ekranında görünsün mü (v0.11: kurulan alarmlar görünür, silinen gizlenir). */
-    fun alarmVisible(c: Context, slot: Int): Boolean = p(c).getBoolean("alarmVisible$slot", false)
-    fun setAlarmVisible(c: Context, slot: Int, value: Boolean) = p(c).edit().putBoolean("alarmVisible$slot", value).apply()
+    fun alarmVisible(c: Context, slot: Int): Boolean = p(c).getBoolean(k(c, "alarmVisible$slot"), false)
+    fun setAlarmVisible(c: Context, slot: Int, value: Boolean) = p(c).edit().putBoolean(k(c, "alarmVisible$slot"), value).apply()
 
     /** v0.11 yuva göçü yapıldı mı (bir kez: ayarı olan yuvalar görünür yapılır). */
-    fun alarmSlotsMigrated(c: Context): Boolean = p(c).getBoolean("alarmSlotsV11", false)
-    fun setAlarmSlotsMigrated(c: Context) = p(c).edit().putBoolean("alarmSlotsV11", true).apply()
+    fun alarmSlotsMigrated(c: Context): Boolean = p(c).getBoolean(k(c, "alarmSlotsV11"), false)
+    fun setAlarmSlotsMigrated(c: Context) = p(c).edit().putBoolean(k(c, "alarmSlotsV11"), true).apply()
 
     /**
      * v0.10.1 alarm deneyinden silinmeden kalmış yuva (0: yok). Okununca kayıt silinir.
      * Deney kaldırıldı; bu yalnızca güncelleme anında yarım kalan denemeyi temizlemek için.
      */
     fun takeLegacyExperimentSlot(c: Context): Int {
-        val slot = p(c).getInt("alarmExperimentSlot", 0)
-        if (slot != 0) p(c).edit().remove("alarmExperimentSlot").apply()
+        val slot = p(c).getInt(k(c, "alarmExperimentSlot"), 0)
+        if (slot != 0) p(c).edit().remove(k(c, "alarmExperimentSlot")).apply()
         return slot
     }
 
@@ -122,8 +129,8 @@ object Prefs {
     fun setWeatherSentAt(c: Context, at: Long) = p(c).edit().putLong("weatherSentAt", at).apply()
 
     /** Saate en son başarıyla yüklenen kadranın kimliği (Kadranlarım). */
-    fun currentFace(c: Context): String = p(c).getString("currentFace", "") ?: ""
-    fun setCurrentFace(c: Context, id: String) = p(c).edit().putString("currentFace", id).apply()
+    fun currentFace(c: Context): String = p(c).getString(k(c, "currentFace"), "") ?: ""
+    fun setCurrentFace(c: Context, id: String) = p(c).edit().putString(k(c, "currentFace"), id).apply()
 
     /** Bildirim metninde ı/İ sadeleştirilsin mi (varsayılan kapalı). Küme: TurkishFold.DEFAULT. */
     fun foldTurkish(c: Context): Boolean = p(c).getBoolean("foldTurkish", false)
@@ -142,19 +149,20 @@ object Prefs {
     fun setLostSnoozeUntil(c: Context, at: Long) = p(c).edit().putLong("lostSnoozeUntil", at).apply()
 
     /** Bekleyen kopmanın zamanı (ms); 0 = bekleyen yok. */
-    fun lostSince(c: Context): Long = p(c).getLong("lostSince", 0L)
-    fun setLostSince(c: Context, at: Long) = p(c).edit().putLong("lostSince", at).apply()
+    fun lostSince(c: Context): Long = p(c).getLong(k(c, "lostSince"), 0L)
+    fun setLostSince(c: Context, at: Long) = p(c).edit().putLong(k(c, "lostSince"), at).apply()
 
     // Son görülen yer: yalnızca son kayıt tutulur, geçmiş yok, loga yazılmaz.
     fun lastSeenEnabled(c: Context): Boolean = p(c).getBoolean("lastSeenOn", false)
     fun setLastSeenEnabled(c: Context, value: Boolean) {
         val e = p(c).edit().putBoolean("lastSeenOn", value)
-        if (!value) e.remove("lastSeen")
+        // Kapatılınca bütün saatlerin son görülen yeri silinir.
+        if (!value) WatchRegistry.allNamespaces(c).forEach { e.remove(it + "lastSeen") }
         e.apply()
     }
-    fun lastSeen(c: Context): SeenFix? = LastSeenRules.decode(p(c).getString("lastSeen", null))
+    fun lastSeen(c: Context): SeenFix? = LastSeenRules.decode(p(c).getString(k(c, "lastSeen"), null))
     fun setLastSeen(c: Context, f: SeenFix?) =
-        if (f == null) p(c).edit().remove("lastSeen").apply() else p(c).edit().putString("lastSeen", LastSeenRules.encode(f)).apply()
+        if (f == null) p(c).edit().remove(k(c, "lastSeen")).apply() else p(c).edit().putString(k(c, "lastSeen"), LastSeenRules.encode(f)).apply()
 
 
     // Alarm ve rahatsız etme ayarları SettingsStore'a taşındı. Eski "alarm1".."alarm3" ve "dnd"

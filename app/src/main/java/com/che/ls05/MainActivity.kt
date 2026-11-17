@@ -127,7 +127,7 @@ class MainActivity : Activity(), WatchHub.Observer {
     override fun onResume() {
         super.onResume()
         // Servis arka planda başlatılamadıysa (ör. kaydırma sonrası) kuyruktaki bildirimler şimdi gitsin.
-        if (WatchHub.service == null && Prefs.serviceEnabled(this) && Prefs.address(this) != null && hasBlePermissions()) {
+        if (WatchHub.service == null && Prefs.serviceEnabled(this) && WatchRegistry.hasActive(this) && hasBlePermissions()) {
             WatchService.start(this)
         }
         // Servis arka planda başladıysa konum türü eklenememiş olabilir; uygulama öndeyken yeniden kurulur.

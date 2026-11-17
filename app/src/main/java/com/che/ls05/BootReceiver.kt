@@ -14,7 +14,7 @@ class BootReceiver : BroadcastReceiver() {
         val action = intent.action ?: return
         when (action) {
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> {
-                if (Prefs.serviceEnabled(context) && Prefs.address(context) != null) {
+                if (Prefs.serviceEnabled(context) && WatchRegistry.hasActive(context)) {
                     WatchService.start(context)
                 }
                 Reminders.reschedule(context)
