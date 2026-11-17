@@ -382,15 +382,36 @@ Saatteki kadran (`1a 01`):
 
 ---
 
+## Son kabul sonuçları ve kritik düzeltme önceliği | 18 Kasım 2026
+
+**v0.13.0-beta6 gerçek cihaz sonucu:** LS05 kadran aktarımı **GEÇTİ**; Band 8 uygulama durdurulup yeniden açılınca kayıt kalıcılığı **BAŞARISIZ**; telefonun tamamen yeniden başlatılması **TEST EDİLMEDİ**. Bluetooth kapat/aç ve saat geçişi önceki beta testlerinde başarılıydı.
+
+### Öncelik 0: saat kaybını gidermek
+1. Kayıp türünü ayır: Band 8 **Saatlerim** listesinden tamamen mi siliniyor, yoksa listede kalıp yalnızca etkin saat seçimi / kayıtlı Bluetooth adresi / şifreli anahtar mı kayboluyor? Bu ayrım olmadan kayıt verisi silme veya göç davranışını değiştirme.
+2. Cihazda yalnızca hassas olmayan teşhis bilgilerini kaydet: `WatchRegistry.list` yükleme kaynağı (`LOADED`, `MIGRATED`, `REBUILT`), saat sayısı, etkin saat türü, `SharedPreferences.commit()` başarı durumu, anahtar varlığı (değeri değil). Tam MAC adresi veya anahtar loglanmaz.
+3. Uygulamayı kapat/aç, Android uygulamasından **Durdur** ve gerçek **Zorla durdur** işlemlerini ayrı senaryolar olarak incele. Uygulamayı silme veya verilerini temizleme test kapsamına girmez.
+4. `WatchRegistry` kayıt dosyası okunamadığında eski LS05'dan yeniden oluşturma yolunu ve `WatchList.serialize/deserialize` uyumunu hedefli regresyon testlerine al; geçersiz kayıtların otomatik yeniden yazılması yerine korunmasını doğrula.
+5. `Band8Driver` başlangıcındaki etkin saat kimliği, `WatchManager.switchTo` ve `Prefs.address` saat-başına anahtar alanları yeniden başlatmadan sonra tutarlı mı incele. Kayıt listesi ile şifreli `SecretStore` farklı depolarda olduğundan hem kayıt hem anahtar ayrı kontrol edilmeli.
+6. Düzeltme önce geliştirme dalında uygulanacak; CI ve gerçek cihazda en az iki ardışık kapat/aç denemesi geçmeden v0.13.0 tamamlanmış veya `main` ile birleştirilmiş sayılmaz.
+
+**Not:** Mevcut `WatchRegistry` disk yazımı kontrolleri ve bozuk kayıt yedeği sorunu tamamen çözdüğünü kanıtlamadı. Kesin kök neden bulunmadı. LS05 kadran uyarısı düzeltmesi artık gerçek cihazda başarılı olduğundan tekrar aynı testi isteme.
+
+### Sonrasında
+- Saat kaydı kalıcılığı geçtikten sonra telefonu tamamen yeniden başlatıp kayıt, etkin saat ve otomatik yeniden bağlanmayı test et.
+- Band 8 bildirim, arama, müzik ve sağlık özelliklerine **v0.13.1** aşamasında geç.
+- Takip dosyaları sadece `CHANGELOG.md`, `docs/TEST_RESULTS.md`, `docs/PLAN.md`. Ayrı devir veya hata belgesi oluşturma.
+
+---
+
 ## Güncel durum ve sıradaki işler | 18 Kasım 2026
 
 Bu bölüm en güncel operasyonel özettir. Eski bölümlerin deney kayıtları korunur. Geçmiş için `CHANGELOG.md`, cihaz kabul sonuçları için `docs/TEST_RESULTS.md` kullanılır.
 
 ### Aktif sürüm
-- **v0.13.0-beta5**, geliştirme dalı `dev/v0.13-band8-connection`. `main` henüz birleştirilmedi.
+- **v0.13.0-beta6**, geliştirme dalı `dev/v0.13-band8-connection`. `main` henüz birleştirilmedi.
 - Band 8 bilinen Bluetooth adresi üzerinden gerçek cihazda bağlandı ve pil yüzdesi doğru göründü.
 - Band 8 şifreli anahtar saklama, FE95 servis keşfi, pil ve cihaz bilgisi okuma kodu mevcut.
-- LS05 için hatalı kadran uyarısının yazılım düzeltmesi yapıldı; düzeltmenin gerçek cihaz doğrulaması bekliyor.
+- LS05 için hatalı kadran uyarısı düzeltildi ve v0.13.0-beta6 gerçek cihaz testinde **GEÇTİ**.
 - `docs/BAND8_PROTOKOL.md`, `docs/COKLU_SAAT_TASARIM.md` ve `docs/V12_BAND8_PLAN.md` mevcut teknik başvuru belgeleridir; yeni sürüm özeti için ayrı belge oluşturulmayacak.
 
 ### Öncelik 1: v0.13 bağlantı kabul kapısı
@@ -425,6 +446,6 @@ Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan 
 - **GEÇTİ:** Band 8 Bluetooth kapat/aç sonrası otomatik yeniden bağlandı.
 - **GEÇTİ:** Saat değiştirildiğinde bağlantı kuruldu.
 - **AÇIK HATA:** 'Doğrulama durdu' mesajı ve uygulamanın yeniden açılmasında Band 8 kaydının görünmediği bir olay bildirildi. Kök neden belirlenmedi. `WatchRegistry` geçersiz seri kayıt yedeğini cihazda koruyacak ve başarılı disk yazımı olmadan RAM önbelleğini değiştirmeyecek şekilde sertleştirildi. Doğrulama uyarısı daha açık hâle getirildi. Bu kod düzeltmeleri cihazda henüz denenmedi.
-- **BEKLEYEN:** Telefon tamamen yeniden başlatıldıktan sonra saat kaydı / yeniden bağlanma; uygulamayı yeniden başlatma sonrası saat listesi; LS05 kadran düzeltmesinin cihaz doğrulaması.
+- **BAŞARISIZ (beta6):** Uygulamayı durdurup açınca Band 8 kaydı korunmadı. **TEST EDİLMEDİ:** Telefon tamamen yeniden başlatma. **GEÇTİ (beta6):** LS05 kadran aktarımı yanlış uyarısız çalıştı.
 - **ÖNEMLİ:** Band 8 için sağlık komutları bu sürümde bulunmuyor. Bugün sekmesinde Band 8 adım, uyku ve nabzının 'Veri yok' olması normaldir, LS05 sağlık verilerinin silindiğine tek başına kanıt değildir.
 - Tam MAC adresi veya doğrulama anahtarı belgelere eklenmez.

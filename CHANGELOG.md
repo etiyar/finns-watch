@@ -9,7 +9,8 @@ Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihaz
 - Saat listesi diske yazılamazsa RAM önbelleğinin hatalı biçimde güncellenmesi önlendi.
 - Okunamayan mevcut saat listesi, yeniden oluşturulmadan önce uygulamanın özel yerel yedeğinde saklanıyor.
 - Band 8 kimlik doğrulama durması daha anlaşılır ve yeniden deneme yönlendirmeli gösteriliyor.
-- Cihaz kayıt kaybının kesin kök nedeni belirlenmedi; bu sürümün gerçek cihaz kabulü bekleniyor.
+- **Gerçek cihaz testi (18 Kasım):** Uygulama yeniden açıldığında Band 8 kaydı korunmadı (**BAŞARISIZ**). LS05 kadranı yanlış uyarı olmadan yüklendi (**GEÇTİ**). Telefon yeniden başlatma testi yapılmadı.
+- Cihaz kayıt kaybının kesin kök nedeni belirlenmedi. v0.13.0-beta6 kabul edilmedi; ek hata incelemesi gerekiyor.
 
 ## v0.13.0-beta5 | 18 Kasım 2026
 **Eklenen**
