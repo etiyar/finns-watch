@@ -40,3 +40,10 @@ Kaynak: kullanıcının doğrudan bildirdiği denemeler. CI derlemesi burada ayr
 - Sonuçlar: GEÇTİ, KISMEN GEÇTİ, BAŞARISIZ, DOĞRULANMADI.
 - Gerçek cihaz kanıtı kullanıcı bildirimi veya güvenli, maskelenmiş hata özeti olmalı.
 - Parola, kimlik anahtarı, tam MAC adresi, kişisel sağlık verisi veya ham Bluetooth dökümü commit edilmez.
+
+## v0.13.0-beta7 | 18 Kasım 2026 ekran görüntüsü gözlemi
+- **GÖZLENDİ:** İlk görüntüde Saatlerim listesinde yalnızca LS05 bulunuyor ve bağlı (%85) görünüyor.
+- **GÖZLENDİ:** Sonraki görüntüde LS05 ile Xiaomi Smart Band 8 birlikte listeleniyor; Band 8 etkin ve bağlı (%98) görünüyor.
+- **GÖZLENDİ:** Aynı Band 8 ekranında 'Ayarlar > Saat bağlantısı > Tara ile cihazı seç. Band 8 anahtarı doğrulam...' şeklinde kesilmiş bir uyarı/toast bulunuyor.
+- **AÇIK / ERTELENDİ:** Bağlı görünmesine rağmen yeniden cihaz seçimi veya anahtar doğrulaması isteyen uyarının tutarsızlığı. Görüntüler tek başına kaydın yeniden başlatma sonrasında korunduğunu veya silindiğini kanıtlamaz.
+- **BEKLEYEN:** Beta7 uygulama kapat/aç kalıcılığı, telefon yeniden başlatma ve doğrulama durumunun gerçek cihazda ayrı test edilmesi. Kullanıcı bu konuyu daha sonra incelemeyi istedi.
