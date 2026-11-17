@@ -57,6 +57,8 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     private val notifications = ArrayDeque<B8Char>()
     private val seen = HashSet<String>()
     private var scanning = false
+    private var scanResults = 0
+    private var scanSession = 0
     private var ready = false
     private var userDisconnect = false
     private var released = false
@@ -71,33 +73,50 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         val scanner = adapter?.bluetoothLeScanner ?: run { listener.onStatus("Bluetooth taraması başlatılamadı"); return }
         if (scanning || released) return
         seen.clear()
+        scanResults = 0
         scanning = true
+        val session = ++scanSession
         try {
             scanner.startScan(scanCallback)
-            listener.onStatus("Band 8 aranıyor…")
-            main.postDelayed({ stopScan() }, 10_000)
+            listener.onStatus("Bluetooth cihazları aranıyor…")
+            main.postDelayed({ if (scanning && session == scanSession) stopScan() }, 10_000)
         } catch (e: Exception) {
             scanning = false
-            listener.onStatus("Bluetooth tarama izni kontrol edilmeli")
+            listener.onStatus("Bluetooth taraması başlatılamadı; izinleri kontrol et")
         }
     }
 
     fun stopScan() {
         if (!scanning) return
         scanning = false
+        ++scanSession
         try { adapter?.bluetoothLeScanner?.stopScan(scanCallback) } catch (_: Exception) {}
+        if (!isConnected && !released) {
+            listener.onStatus(if (scanResults == 0) "Cihaz bulunamadı; Band 8'in Bluetooth'unu kontrol et"
+                              else "$scanResults Bluetooth cihazı bulundu; listeden Band 8'i seç")
+        }
     }
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
+            // Band 8 bazı firmware sürümlerinde farklı adla yayın yapabilir.
+            // Bu yüzden yalnızca modele göre filtrelemiyoruz. Cihazın FE95 servisi
+            // bağlantı sonrasında doğrulanır; başka bir saate komut gönderilmez.
             val name = result.scanRecord?.deviceName ?: result.device.name ?: return
-            if (!name.contains("Smart Band 8", true) && !name.contains("Xiaomi Band 8", true) &&
-                !name.contains("M2239B1", true)) return
-            if (!seen.add(result.device.address)) return
-            main.post { if (!released) listener.onFound(result.device, name, result.rssi) }
+            main.post {
+                if (!scanning || released || !seen.add(result.device.address)) return@post
+                scanResults++
+                listener.onFound(result.device, name, result.rssi)
+                listener.onStatus("$scanResults Bluetooth cihazı bulundu; Band 8'i listeden seç")
+            }
         }
         override fun onScanFailed(errorCode: Int) {
-            main.post { scanning = false; listener.onStatus("Tarama başarısız (kod $errorCode)") }
+            main.post {
+                if (!scanning) return@post
+                scanning = false
+                ++scanSession
+                listener.onStatus("Tarama başarısız (kod $errorCode)")
+            }
         }
     }
 
