@@ -1,8 +1,14 @@
 # LS05 Controller: Durum, Plan ve Risk İncelemesi
 
-Tarih: 12 Kasım 2026. Bu belge projenin tek gerçek kaynağıdır. Önceki devir notları (v1-v6) ve sohbetlerdeki özetler bununla çelişirse bu belge geçerlidir.
+Güncel operasyonel durum, açık hatalar ve sıradaki işler için belgenin sonundaki **18 Kasım 2026** bölümünü kullanın. Bu belgenin eski tarihli bölümleri tarihsel araştırma ve cihaz testi notlarıdır. Tamamlanan sürüm değişiklikleri `CHANGELOG.md`, gerçek cihaz testleri `docs/TEST_RESULTS.md` içindedir.
 
-Durum özeti: Kendi Android uygulamamız Haylou uygulaması olmadan saate bağlanıyor, doğrulamadan geçiyor, pil ve firmware okuyor, Türkçe bildirim gönderiyor ve saati titretiyor. Projenin "yapılabilir mi" sorusu kapandı. Sıradaki iş, bunu günlük kullanılabilir ve kayıp saati bulabilen bir uygulamaya çevirmek.
+**Güncel özet:** LS05 işlevleri geliştirilmiş durumda. Xiaomi Smart Band 8, doğrudan Bluetooth bağlantısıyla cihazda doğrulandı; pil ve firmware okunuyor. Bluetooth kapat/aç ve saatler arasında geçiş başarılı. Band 8'in sağlık verisi ve bildirim işlevleri henüz uygulanmadı. Kayıt kalıcılığı ve doğrulama uyarısı hakkında açık sorun var.
+
+---
+
+## Tarihsel çalışma notları (12-17 Kasım 2026)
+
+İlk proje hedefi Haylou uygulaması olmadan bağımsız LS05 bağlantısı, doğrulama, pil ve firmware okuma, Türkçe bildirim ve titreşim sağlamaktı. Aşağıdaki bulgular o tarihlerdeki araştırma durumunu anlatır.
 
 ---
 
