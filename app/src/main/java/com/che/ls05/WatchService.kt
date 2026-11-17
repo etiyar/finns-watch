@@ -242,8 +242,10 @@ class WatchService : Service(), DriverListener {
     }
 
     /** Ayarlar ekranından çağrılır. Başlatılamazsa nedeni döner. */
-    fun startFace(file: com.che.ls05.protocol.FaceFile, id: String): String? =
-        ls05?.startFace(file, id) ?: "Bu saatte kadran yüklenemez."
+    fun startFace(file: com.che.ls05.protocol.FaceFile, id: String): String? {
+        val watch = ls05 ?: return "Bu saatte kadran yüklenemez."
+        return watch.startFace(file, id)
+    }
 
     /** Saat ekranındaki deneme bildirimi (sadeleştirme yok, genel tür). */
     fun sendTestNotification(title: String, message: String): Boolean =
