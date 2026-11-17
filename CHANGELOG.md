@@ -4,6 +4,12 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.13.1-alpha1 | 18 Kasım 2026
+
+- Band 8'e normal Android bildirimleri, mevcut uygulama filtresiyle iletilir. Türkçe metin ve kaynak uygulama bilgisi korunur. Cihaz testi bekliyor.
+- Band 8 bağlıyken Gelişmiş ve log bölümünde elle başlatma ve durdurma denetimleri bulunur. Durdurma komutu ve bileklikten kapatma davranışı cihazda doğrulanmayı bekliyor.
+- Gelen ve cevapsız aramalar, müzik ve sağlık eşitlemesi sonraki işlerdir.
+
 ## v0.13.0-beta8 | 18 Kasım 2026
 
 - Saatlerim, kaydı bulunmayan Haylou LS05 ve Xiaomi Smart Band 8 modellerini kurulum kısayolu olarak gösterir.

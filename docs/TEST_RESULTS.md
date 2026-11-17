@@ -2,6 +2,13 @@
 
 Kaynak: kullanıcının doğrudan bildirdiği denemeler. CI derlemesi burada ayrıca belirtilir; gerçek cihazda denenmemiş bir işlevi başarılı saymayız.
 
+## Beta8 ve v0.13.1-alpha1 | Bekleyen denemeler
+
+- **Beta8, kurulum:** Temiz profilde iki modelin kurulumu açılır. Mevcut uygulamanın üzerine güncellemede önceki saat kartları, etkin seçim ve sağlık geçmişi korunur.
+- **Beta8, bağlantı:** Band 8 etkinken zorla durdur/aç iki kez. Ardından bağlantı servisi etkinken telefonu yeniden başlat ve uygulamayı elle açmadan bağlantının kurulmasını gözle. Anahtar yeniden istenirse veya kayıt kaybolursa maskeli kayıt tanılamasını kontrol et.
+- **Alpha1, bildirim:** Band 8 ekranında Türkçe test bildirimi görünür. Telefon kilitliyken açık uygulama iletilir, filtreden kapalı uygulama iletilmez. Uzun metin ve LS05 ↔ Band 8 geçişi ayrıca denenir.
+- **Alpha1, saati bul:** Ayarlar > Gelişmiş ve log > Band 8 saati bul testi ile titreşimi başlat ve uygulamadan durdur. İkinci denemede bileklikten durdur; fiziksel sonucu ve varsa yalnızca sayısal durum yanıtını kaydet.
+
 | Tarih | Sürüm / cihaz | Deneme | Sonuç | Not |
 |---|---|---|---|---|
 | 18.11.2026 | v0.13.0-beta6 / Xiaomi Smart Band 8 | Uygulamayı durdurup yeniden açtıktan sonra saat kaydını koruma | **BAŞARISIZ** | Kullanıcı testinde Band 8 kayıtlı kalmadı. Kayıt listesi mi, etkin seçim mi yoksa anahtar mı etkilendiği belirlenmedi. |
