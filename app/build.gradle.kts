@@ -11,8 +11,8 @@ android {
         applicationId = "com.che.ls05"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "0.13.0-beta4"
+        versionCode = 29
+        versionName = "0.13.0-beta5"
     }
 
     // Sabit imza: CI anahtarı .signing/ altında üretir ve önbellekte tutar (depoya girmez, .gitignore).
