@@ -125,3 +125,9 @@ Her adım arasında onay. Adım 1 yalnızca belge üretir: kod, çalışan uygul
 - Notify for Xiaomi APK: yalnızca protokol başvurusu, kod kopyalanmaz.
 - Gadgetbridge: yalnızca herkese açık belgeler ve davranış; AGPL kodu kopyalanmaz.
 - 17 Kasım Bluetooth HCI kaydı (Notify + Band 8, ~16 dk): repo dışında tutulur, MAC ve içerik belgeye yazılmaz.
+
+### Adım 7 (17 Kasım, onaylandı): Sleep as Android ve Health Connect
+- Sleep as Android "Wearables" eklentisi (DIY seçeneği) ile entegrasyon: canlı nabız, gece hareket verisi, akıllı alarm titreşimi. Önce Band 8; LS05'in nabız gönderip gönderemeyeceği ayrıca denenir.
+- Health Connect'e birleşik sağlık verisinin yazılması (Android 14+ sistem API'si, ek kütüphane yok).
+- Küçük Band 8 ayarları 6. adıma eklenir: duş modu (kaldırınca uyanma kapalı), hareketsizlik uyarısı.
+- Kapsam dışı: bellenim güncelleme, Google Fit, Sheets, Home Assistant, Tasker.
