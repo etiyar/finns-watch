@@ -59,6 +59,10 @@ class WatchesCard(private val act: MainActivity) {
             labels += "Bu saati tak (etkin yap)"
             doers += { switchTo(w) }
         }
+        if (active && w.type == WatchType.BAND8) {
+            labels += "Kimlik anahtarını değiştir"
+            doers += { act.showBandKeyEditor() }
+        }
         labels += "Yeniden adlandır"
         doers += { rename(w) }
         if (!active) {
