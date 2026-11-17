@@ -103,3 +103,25 @@ Her aşamanın sonunda Che telefonda test eder.
 5. Band 8 için Gadgetbridge belgelerinde bilinen sorunlar ya da sınırlar.
 6. Lisans açısından risk: kapalı kaynak bir uygulamayı protokol için incelemek.
 7. Atlanan bir aşama ya da daha verimli bir yol.
+
+## 8. Revizyon (gözden geçirme sonrası, 17 Kasım, onaylandı)
+
+Gözden geçiricinin mimari önerileri kabul edildi: WatchManager (etkin saat, yaşam döngüsü, geçiş durum makinesi), ayrı sürücüler (LS05, Band 8), küçük bir Capabilities modeli, cihazdan bağımsız ortak servisler. Yeni Gradle modülü yok. Auth key Android Keystore'da. Göç ve gerileme testleri zorunlu. Eski veri okunabilir kalır.
+
+### Sağlık birleştirme kuralları
+- **Adım:** Saatlik bazda kaynakların en büyüğü. Band 8 yalnızca günlük toplam veriyorsa ve saatlik fark çıkarılamıyorsa günlük toplam ayrı tutulur. Uydurma saatlik dağılım yok.
+- **Nabız:** Saat değişim zamanları kaydedilir. Aynı dakikada etkin saat kullanılır. Değilse iki ham okuma da tutulur ve sabit öncelik uygulanır (önce LS05).
+- **Uyku:** Oturum bazında. Daha ayrıntılı ve bütün olan seçilir (derin/hafif ayrımı, boşluksuz). Eşitlikte uzun oturum.
+
+### Uygulama düzeni: 2 kalıcı ajan
+| Ajan | Adımlar |
+|---|---|
+| A: Band 8 | 1. docs/BAND8_PROTOKOL.md → 3-4. bağlantı, auth, temel işlevler → 6. alarm, rahatsız etme, hava |
+| B: Çekirdek | 1. docs/COKLU_SAAT_TASARIM.md → 2. altyapı ve LS05'in taşınması → 5. birleşik sağlık verisi |
+
+Her adım arasında onay. Adım 1 yalnızca belge üretir: kod, çalışan uygulama, sağlık verisi ve saat ayarları değişmez.
+
+### Kaynaklar
+- Notify for Xiaomi APK: yalnızca protokol başvurusu, kod kopyalanmaz.
+- Gadgetbridge: yalnızca herkese açık belgeler ve davranış; AGPL kodu kopyalanmaz.
+- 17 Kasım Bluetooth HCI kaydı (Notify + Band 8, ~16 dk): repo dışında tutulur, MAC ve içerik belgeye yazılmaz.
