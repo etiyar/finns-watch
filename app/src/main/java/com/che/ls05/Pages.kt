@@ -2,6 +2,9 @@ package com.che.ls05
 
 import android.app.AlertDialog
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.pm.PackageManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.ApplicationInfo
@@ -1323,6 +1326,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private val theme: Segmented = ui.segmented(listOf("Sistem", "Koyu", "Açık"), Prefs.themeMode(act)) { act.setThemeMode(it) }
     private val idRow: NavRow = ui.navRow(null, "Kimlik", null, "") { editId() }
     private val deviceBox: LinearLayout = ui.vertical()
+    private val directConnectButtons: LinearLayout = ui.vertical()
     private var scanCandidates = 0
     private var scanGeneration = 0
     private var bandKeyDialog: AlertDialog? = null
@@ -1398,6 +1402,9 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(btns, ui.secondary("Durdur") { WatchService.start(act, WatchService.ACTION_STOP) },
             width = 0, weight = 1f, leftDp = 8)
         ui.add(w, btns, topDp = 4)
+        ui.add(directConnectButtons, ui.row("Kayıtlı Bluetooth cihazlarından seç", "Tarama gerektirmez; mevcut eşleşmeler", onClick = { showBondedDevices() }))
+        ui.add(directConnectButtons, ui.row("Bluetooth adresiyle bağlan", "Önceki bağlantı kaydındaki adresi kullan", onClick = { enterKnownBluetoothAddress() }))
+        ui.add(w, directConnectButtons, topDp = 6)
         ui.add(w, deviceBox, topDp = 8)
         ui.add(w, ui.divider(), height = ui.dp(1))
         ui.add(w, autoTime.view)
@@ -1572,6 +1579,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         weatherInfo.text = WeatherSync.summary(act)
         val band = WatchRegistry.active(act)?.type == WatchType.BAND8
         idRow.view.visibility = if (band) View.GONE else View.VISIBLE
+        directConnectButtons.visibility = if (band) View.VISIBLE else View.GONE
         autoTime.view.visibility = if (band) View.GONE else View.VISIBLE
         idRow.value.text = if (hasId()) "Kayıtlı" else "Girilmedi"
         autoTime.toggle.set(Prefs.autoTime(act))
@@ -1803,6 +1811,93 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         }
         deviceBox.removeAllViews()
         WatchService.start(act, WatchService.ACTION_CONNECT_NEW, device.address)
+    }
+
+    /** Sadece Android'in zaten eşleştirdiği cihazları göster; yeni bond oluşturmaz. */
+    @Suppress("MissingPermission")
+    private fun showBondedDevices() {
+        if (WatchRegistry.active(act)?.type != WatchType.BAND8) return
+        if (!act.hasBlePermissions()) {
+            act.requestBlePermissions()
+            return
+        }
+        val adapter = act.getSystemService(BluetoothManager::class.java)?.adapter
+        if (adapter?.isEnabled != true) {
+            act.toast("Bluetooth'u aç ve tekrar dene.")
+            return
+        }
+        val devices = try { adapter.bondedDevices.orEmpty().sortedBy { it.name ?: "" } }
+            catch (_: SecurityException) {
+                act.toast("Kayıtlı Bluetooth cihazları için izin gerekli.")
+                return
+            }
+        if (devices.isEmpty()) {
+            act.toast("Android'de kayıtlı Bluetooth cihazı bulunamadı. Adresle bağlantıyı dene.")
+            return
+        }
+        val names = devices.map { device ->
+            val name = device.name?.takeIf { it.isNotBlank() } ?: "İsimsiz kayıtlı cihaz"
+            "$name · …${device.address.takeLast(5)}"
+        }
+        val d = AlertDialog.Builder(act)
+            .setTitle("Kayıtlı Bluetooth cihazları")
+            .setMessage("Band 8'i seç. Bağlantı kurulursa Xiaomi FE95 servisi doğrulanır; eşleşmeler silinmez.")
+            .setItems(names.toTypedArray()) { _, index -> connectKnownDevice(devices[index].address) }
+            .setNegativeButton("Vazgeç", null)
+            .create()
+        act.track(d)
+        d.show()
+    }
+
+    /** Kullanıcı girer. Tam adres ekranda, logda veya GitHub'da gösterilmez. */
+    private fun enterKnownBluetoothAddress() {
+        if (WatchRegistry.active(act)?.type != WatchType.BAND8) return
+        if (!act.hasBlePermissions()) {
+            act.requestBlePermissions()
+            return
+        }
+        val box = ui.dialogBox()
+        ui.add(box, ui.caption("Önceki Bluetooth bağlantı kaydındaki 6 baytlık adresi yaz. Örnek biçim: AA:BB:CC:DD:EE:FF. Eşleşme değiştirilmez."), topDp = 8)
+        val input = ui.field("Bluetooth adresi")
+        input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or
+            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        input.filters = arrayOf(android.text.InputFilter.LengthFilter(17))
+        ui.add(box, input, topDp = 12)
+        val d = AlertDialog.Builder(act)
+            .setTitle("Bilinen adrese bağlan")
+            .setView(box)
+            .setPositiveButton("Bağlan", null)
+            .setNegativeButton("Vazgeç", null)
+            .create()
+        d.setOnShowListener {
+            d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val address = input.text.toString().trim().uppercase(java.util.Locale.ROOT)
+                if (!BluetoothAdapter.checkBluetoothAddress(address)) {
+                    act.toast("Geçerli Bluetooth adresi gir. Biçim: AA:BB:CC:DD:EE:FF")
+                    return@setOnClickListener
+                }
+                input.text.clear()
+                d.dismiss()
+                connectKnownDevice(address)
+            }
+        }
+        act.track(d)
+        d.show()
+    }
+
+    /** Tarama olmadan GATT bağlantısını dener; FE95 kontrolü Band8Ble'de kalır. */
+    private fun connectKnownDevice(address: String) {
+        if (WatchRegistry.active(act)?.type != WatchType.BAND8) return
+        if (!act.hasBlePermissions()) {
+            act.requestBlePermissions()
+            return
+        }
+        ++scanGeneration
+        deviceBox.removeAllViews()
+        ui.add(deviceBox, ui.caption("Bilinen Bluetooth adresine bağlanılıyor. Xiaomi FE95 servisi doğrulanacak…"), topDp = 8)
+        if (!WatchService.start(act, WatchService.ACTION_CONNECT_NEW, address)) {
+            act.toast("Saat servisi başlatılamadı. Uygulamadan tekrar dene.")
+        }
     }
 
     /** İlk GATT servis doğrulamasından sonra istenir; anahtar kullanıcıya geri gösterilmez. */
