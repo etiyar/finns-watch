@@ -159,6 +159,17 @@ object WatchHub {
         observers.toList().forEach { it.onFrame(f) }
     }
 
+    /** Band 8 cevapları ortak kartlarla paylaşılır; kimlik veya seri numarası kaydedilmez. */
+    fun bandBattery(percent: Int) = onMain {
+        battery = percent
+        settingsChanged()
+    }
+
+    fun bandFirmware(version: String) = onMain {
+        firmware = version
+        settingsChanged()
+    }
+
     /** Saat değişti: eski saatin pil ve firmware bilgisi atılır. */
     fun resetDevice() = onMain {
         battery = null
