@@ -1,74 +1,30 @@
 # Finn's Watch
 
-**Haylou Solar LS05 ve Xiaomi Smart Band 8 için geliştirilen, yerel Bluetooth bağlantısını esas alan açık kaynak Android uygulaması.**
+Haylou Solar LS05 ve Xiaomi Smart Band 8 için geliştirilen açık kaynak Android uygulaması. Saatlerle yerel Bluetooth bağlantısı kurar; resmî üretici uygulaması değildir.
 
-Finn's Watch, birden fazla saati tek uygulamadan yönetmeyi hedefleyen bağımsız bir projedir. LS05 için mevcut günlük kullanım işlevlerini sürdürürken Xiaomi Smart Band 8 desteği aşamalı olarak geliştirilmektedir. Bulut hesabı veya üreticinin uygulaması, Finn's Watch'ın temel LS05 işlevleri için gerekli değildir.
+## Sürümler ve destek
 
-## Proje durumu
+**`main`: v0.12.0.** LS05 bağlantısı, bildirimler, aramalar, alarmlar, rahatsız etmeme, sağlık geçmişi, cihaz bulma ve kadran aktarımı bu sürümün temel işlevleridir. Çoklu saat altyapısı vardır. Xiaomi Smart Band 8 için günlük kullanım desteği bu kararlı sürümün kapsamı değildir.
 
-| Bileşen | Durum | Açıklama |
-| --- | --- | --- |
-| Haylou Solar LS05 | Kullanımda | Bağlantı, bildirim, arama, alarm, DND, sağlık geçmişi, cihaz bulma ve kadran aktarımı için mevcut işlevler |
-| Xiaomi Smart Band 8 | **Beta** | Bluetooth bağlantısı, kimlik doğrulama, pil yüzdesi ve firmware bilgisi gerçek cihazda doğrulandı |
-| Çoklu saat yönetimi | **Beta** | Etkin saat değiştirme ve Bluetooth kapat/aç sonrasında yeniden bağlantı kullanıcı testinde çalıştı |
-| Band 8 günlük özellikleri | Geliştirmede | Bildirim, arama, müzik, sağlık senkronizasyonu ve saat ayarları henüz tamamlanmadı |
+**[Geliştirme dalı: v0.13.1-beta1](https://github.com/etiyar/ls05-controller/tree/dev/v0.13.1-band8-daily).** Band 8 bağlantısı, pil/cihaz bilgisi, WhatsApp ve test bildirimleri ile bilekliği bulma kullanıcı tarafından gerçek cihazda denendi. Gerçek gelen arama, müzik ve sağlık eşitlemesi tamamlanmadı. Bazı oturumlarda komut `ACK` almasına rağmen bileklikte tepki görülmedi; beklenmedik yeniden doğrulama [#16](https://github.com/etiyar/ls05-controller/issues/16) kapsamında inceleniyor. Bu dal kararlı sürüm olarak yayımlanmadı.
 
-**Sürümler:** `main` üzerinde **v0.12.0** bulunur. **v0.13.0-beta6**, [ayrı geliştirme dalındadır](https://github.com/etiyar/ls05-controller/tree/dev/v0.13-band8-connection); kararlı sürüm olarak yayımlanmamıştır.
+## APK ve kaynak kodu
 
-> **Bilinen açık sorun:** Band 8 için bir test oturumunda doğrulama durdu ve uygulama yeniden açıldığında saat kaydı listede görünmedi. Koruyucu kod değişiklikleri geliştirme dalına eklendi; kesin kök neden ve gerçek cihaz testi bekleniyor. Sağlık verileri Band 8 için henüz eşitlenmediğinden ilgili ekranda veri görünmemesi bu aşamada normaldir.
+[Releases](https://github.com/etiyar/ls05-controller/releases) sayfasındaki test derlemeleri ön sürümdür. APK'nın hangi commit'ten üretildiğini ve gerçek cihaz sonuçlarını [geliştirme test kayıtlarında](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/docs/TEST_RESULTS.md) kontrol edin. GitHub Actions geçmesi, bir özelliğin bileklikte çalıştığını tek başına kanıtlamaz.
 
-## Özellikler
-
-**Haylou Solar LS05**
-- Arka planda Bluetooth bağlantısı ve uygun olduğunda yeniden bağlanma.
-- Türkçe bildirimler, gelen ve cevapsız arama bilgisi.
-- Alarm, rahatsız etmeme, saat ve profil ayarları.
-- Adım, nabız ve uyku geçmişi ile yerel grafikler.
-- Saati bulma, son görülen konum ve desteklenen telefon kumandaları.
-- Özel kadran yükleme ve kadran araçları.
-
-**Xiaomi Smart Band 8 (beta)**
-- FE95 üzerinden Bluetooth bağlantısı ve kimlik doğrulama.
-- Pil yüzdesi ve firmware sürümünü okuma.
-- Bluetooth taraması, kayıtlı cihazlardan seçim veya bilinen adresle bağlantı.
-- Kimlik anahtarını Android Keystore aracılığıyla koruma.
-- LS05 ile etkin saat arasında geçiş.
-
-Band 8 için LS05 ile aynı özellik kapsamı **henüz sunulmaz**. Destek yalnızca gerçek cihaz testleriyle doğrulandıkça genişletilir.
-
-## Kurulum ve geliştirme
-
-Bu depo Android kaynak kodunu ve GitHub Actions testlerini içerir. Deneme APK'ları [Actions](https://github.com/etiyar/ls05-controller/actions) çıktılarından alınabilir. Beta sürümler yalnızca ilgili geliştirme dalından derlenir.
-
-Yerel derleme için Android SDK ve JDK 17 gerekir:
+Yerel geliştirme için JDK 17 ve Android SDK gerekir:
 
 ```bash
 ./gradlew :protocol:test
 ./gradlew :app:assembleDebug
 ```
 
-Paket kimliği `com.che.ls05` olarak korunmaktadır. **Mevcut uygulamayı kaldırmadan önce imza uyumluluğunu ve verilerin korunmasını doğrulayın.** Saat eşleşmesini silmek veya saati sıfırlamak, kurulumun bir parçası değildir.
+Paket kimliği `com.che.ls05` korunur. Mevcut uygulamanın üzerine kurulum ve veri koruma henüz [yayın kabulünde](https://github.com/etiyar/ls05-controller/issues/8) sınanmaktadır; saati sıfırlamayın veya eşleşmesini silmeyin.
 
-## Mimari
+## Proje belgeleri
 
-- `protocol/`: Saat protokolleri, komutlar, ayrıştırıcılar, şifreleme ve birim testleri.
-- `app/`: Android arayüzü, Bluetooth sürücüleri, saat yönetimi ve yerel veri depolama.
-- `docs/`: Teknik incelemeler, mevcut yol haritası ve cihaz testleri.
+- [Güncel plan ve açık işler](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/docs/PLAN.md)
+- [Gerçek cihaz testleri](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/docs/TEST_RESULTS.md)
+- [Sürüm geçmişi](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/CHANGELOG.md)
 
-Tasarım ilkesi, çalışan LS05 işlevlerini koruyarak saat başına ayrı sürücüler üzerinden ilerlemektir.
-
-## Geliştirme ve test takibi
-
-Güncel belgeler [v0.13 geliştirme dalında](https://github.com/etiyar/ls05-controller/tree/dev/v0.13-band8-connection) tutulur:
-
-- [CHANGELOG.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/CHANGELOG.md): Sürüm değişiklikleri.
-- [TEST_RESULTS.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/docs/TEST_RESULTS.md): Gerçek cihaz ve CI test sonuçları.
-- [PLAN.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/docs/PLAN.md): Mevcut durum, açık sorunlar ve sonraki adımlar.
-
-CI derlemesinin geçmesi, ilgili özelliğin gerçek saatte doğrulandığı anlamına gelmez. Bu iki durum ayrı takip edilir.
-
-## Gizlilik ve güvenlik
-
-Saat bağlantıları yerel Bluetooth üzerinden yürütülür. Kimlik anahtarları kaynak koduna veya GitHub'a eklenmez. Tam Bluetooth adresleri, kişisel sağlık kayıtları ve ham cihaz günlükleri sürüm belgelerine yazılmaz. Uygulama geliştirme aşamasındadır; özellikle beta özellikleri için veri saklama ve geri yükleme henüz tam olarak doğrulanmamıştır.
-
-**Not:** Finn's Watch bağımsız bir topluluk/kişisel geliştirme projesidir. Haylou veya Xiaomi tarafından yayımlanan resmî bir uygulama değildir.
+Saat kimlik anahtarları, tam Bluetooth adresleri, bildirim içerikleri ve kişisel sağlık kayıtları depoya eklenmez. LS05 ve Band 8 sağlık verileri cihaz kaynağına göre ayrı tutulur.
