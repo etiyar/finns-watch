@@ -1502,17 +1502,11 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(body, adv.view, topDp = 20)
 
         // Hakkında
-        val footer = ui.caption("Finn's Watch ${versionName()}")
+        val footer = ui.caption(BuildIdentity.label)
         footer.setGravity(Gravity.CENTER)
         ui.add(body, footer, topDp = 20)
 
         refreshLog()
-    }
-
-    private fun versionName(): String = try {
-        act.packageManager.getPackageInfo(act.packageName, 0).versionName ?: "0.6.0"
-    } catch (e: Exception) {
-        "0.6.0"
     }
 
     override fun refresh() {
@@ -2006,20 +2000,21 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     }
 
     private fun refreshLog() {
-        val lines = WatchHub.logLines.toList().takeLast(logShown)
+        val lines = WatchHub.logForSharing(logShown)
         logCount = lines.size
         logView.text = if (lines.isEmpty()) "" else lines.joinToString("\n", postfix = "\n")
     }
 
     private fun clearLog() {
         WatchHub.logLines.clear()
-        logView.text = ""
-        logCount = 0
+        WatchHub.logLines.addLast(BuildIdentity.label)
+        logView.text = BuildIdentity.label + "\n"
+        logCount = 1
     }
 
     private fun copyLog() {
         val cm = act.getSystemService(ClipboardManager::class.java)
-        val lines = WatchHub.logLines.toList().takeLast(400)
+        val lines = WatchHub.logForSharing()
         cm.setPrimaryClip(ClipData.newPlainText("LS05 log", lines.joinToString("\n")))
         act.toast("Son ${lines.size} satır kopyalandı (bildirim içerikleri gizli, MAC maskeli).")
     }

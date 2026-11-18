@@ -3,6 +3,13 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+val ciRunId = System.getenv("GITHUB_RUN_ID") ?: "yerel"
+val ciRunAttempt = System.getenv("GITHUB_RUN_ATTEMPT") ?: "1"
+val ciCommit = System.getenv("GITHUB_SHA")?.take(7) ?: "yerel"
+val ciBranch = System.getenv("BUILD_SOURCE_BRANCH") ?: "yerel"
+fun buildString(value: String) = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 android {
     namespace = "com.che.ls05"
     compileSdk = 35
@@ -11,9 +18,15 @@ android {
         applicationId = "com.che.ls05"
         minSdk = 26
         targetSdk = 35
-        versionCode = 34
+        versionCode = ciRunNumber?.let { 1000 + it } ?: 34
         versionName = "0.13.1-beta1"
+        buildConfigField("String", "BUILD_NUMBER", buildString(ciRunNumber?.toString() ?: "yerel"))
+        buildConfigField("String", "BUILD_RUN", buildString(if (ciRunNumber == null) "yerel" else "$ciRunId-$ciRunAttempt"))
+        buildConfigField("String", "BUILD_COMMIT", buildString(ciCommit))
+        buildConfigField("String", "BUILD_BRANCH", buildString(ciBranch))
     }
+
+    buildFeatures { buildConfig = true }
 
     // Sabit imza: CI anahtarı .signing/ altında üretir ve önbellekte tutar (depoya girmez, .gitignore).
     // Dosya yoksa (ör. yerel Android Studio) varsayılan test anahtarı kullanılır.

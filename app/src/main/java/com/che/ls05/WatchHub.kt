@@ -77,7 +77,7 @@ object WatchHub {
     private val observers = LinkedHashSet<Observer>()
     private val fmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
-    val logLines = ArrayDeque<String>()
+    val logLines = ArrayDeque<String>().apply { addLast(BuildIdentity.label) }
     val pending = ArrayDeque<Note>()
 
     var status: String = "Bağlı değil"
@@ -105,6 +105,9 @@ object WatchHub {
         while (logLines.size > MAX_LOG) logLines.removeFirst()
         observers.toList().forEach { it.onLog(stamped) }
     }
+
+    fun logForSharing(limit: Int = 400): List<String> =
+        listOf(BuildIdentity.label) + logLines.filter { it != BuildIdentity.label }.takeLast(limit)
 
     fun setStatus(s: String) = onMain {
         status = s
