@@ -2,6 +2,16 @@
 
 Kaynak: kullanıcının doğrudan bildirdiği denemeler. CI derlemesi burada ayrıca belirtilir; gerçek cihazda denenmemiş bir işlevi başarılı saymayız.
 
+## 18 Kasım 2026 | Band 8 bildirim ve saati bul denemesi
+
+| Deneme | Sonuç | Kanıt ve sınır |
+|---|---|---|
+| WhatsApp bildirimi | **BAŞARISIZ** | Kullanıcı uygulama iletimini açıp denedi; bileklikte bildirim görünmedi. Bu denemenin filtre, BLE yazımı veya protokol onayı logu paylaşılmadı. [#2](https://github.com/etiyar/ls05-controller/issues/2) |
+| Bildirim testi uygulaması | **BAŞARISIZ** | Kullanıcı uygulama ayarını açıp denedi; bileklikte bildirim görünmedi. Telefon bildirim dinleyicisine ulaşıp ulaşmadığı henüz ayrıştırılmadı. [#2](https://github.com/etiyar/ls05-controller/issues/2) |
+| Band 8 saati bul: başlatma | **BAŞARISIZ** | Ayarlar ekranı `Bağlı` gösterirken `Band 8 komutu gönderilemedi. Biraz bekleyip tekrar dene.` uyarısı çıktı. Bu uyarı komutun yerel koşullarca reddedildiğini gösterir; cihaz ACK'i veya titreşim kanıtı değildir. [#3](https://github.com/etiyar/ls05-controller/issues/3) |
+
+Önceki sürümde bileklikten **telefonu bul** denemesinde telefonun titremesi, telefondan **bilekliği bul** komutunun çalıştığını göstermez. Aynı BLE hattı arızası olasıdır, fakat ortak kök neden henüz kanıtlanmadı.
+
 ## 18 Kasım 2026 | Tek satırlı saat kaydı düzeltmesi
 
 | Deneme | Sonuç | Kanıt ve sınır |
