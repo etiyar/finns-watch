@@ -21,6 +21,7 @@ import com.che.ls05.protocol.band8.B8Char
 import com.che.ls05.protocol.band8.B8Channel
 import com.che.ls05.protocol.band8.B8Command
 import com.che.ls05.protocol.band8.B8DeviceInfo
+import com.che.ls05.protocol.band8.B8Frame
 import com.che.ls05.protocol.band8.B8Incoming
 import com.che.ls05.protocol.band8.B8Messages
 import com.che.ls05.protocol.band8.B8Notification
@@ -73,6 +74,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     private var nextFindTestAt = 0L
     private val commandTimeout = Runnable {
         if (ready && channel.pending > 0) {
+            listener.onLog("Band 8 komut zaman aşımı: bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}, yazıyor=$writing; bağlantı yenileniyor")
             listener.onStatus("Band 8 aktarım onayı zaman aşımına uğradı")
             close(false, -1)
         }
@@ -82,7 +84,11 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     val isReady: Boolean get() = ready
 
     fun sendAppNotification(note: B8Notification): Boolean {
-        if (!ready || released || gatt == null || channel.pending >= MAX_PENDING_COMMANDS) return false
+        if (!ready || released || gatt == null || channel.pending >= MAX_PENDING_COMMANDS) {
+            listener.onLog("Band 8 bildirim reddi: hazır=$ready, serbest=${!released}, gatt=${gatt != null}, bekleyen=${channel.pending}")
+            return false
+        }
+        listener.onLog("Band 8 bildirim komutu sıraya giriyor: bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}")
         sendAuthenticated(B8Messages.notification(note))
         return ready
     }
@@ -179,6 +185,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     }
 
     private fun close(byUser: Boolean, status: Int) {
+        if (gatt != null) listener.onLog("Band 8 bağlantı kapanıyor: kullanıcı=$byUser, durum=$status, hazır=$ready, bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}")
         generation++
         main.removeCallbacks(commandTimeout)
         val hadGatt = gatt != null
@@ -206,9 +213,11 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             main.post {
                 if (gatt !== g || released) return@post
                 if (state == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
+                    listener.onLog("Band 8 GATT bağlandı; kimlik doğrulama bekleniyor")
                     listener.onStatus("Band 8 servisleri aranıyor…")
                     if (!g.requestMtu(247)) g.discoverServices()
                 } else if (state == BluetoothProfile.STATE_DISCONNECTED || status != BluetoothGatt.GATT_SUCCESS) {
+                    listener.onLog("Band 8 GATT koptu: durum=$status")
                     close(userDisconnect, status)
                 }
             }
@@ -247,9 +256,13 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
                 if (gatt !== g || !writing) return@post
                 writing = false
                 if (status != BluetoothGatt.GATT_SUCCESS) {
+                    listener.onLog("Band 8 BLE yazım sonucu: hata=$status")
                     listener.onStatus("Band 8 yazma hatası")
                     close(false, status)
-                } else main.postDelayed({ drainWrites() }, 15)
+                } else {
+                    listener.onLog("Band 8 BLE yazım sonucu: kabul, yazımKuyruğu=${writes.size}")
+                    main.postDelayed({ drainWrites() }, 15)
+                }
             }
         }
     }
@@ -330,12 +343,27 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     /** Durdurma komutu cihazda doğrulanana kadar yalnızca elle denenir. */
     fun testFindBand(start: Boolean): Boolean {
         val now = SystemClock.elapsedRealtime()
-        if (!ready || released || gatt == null || channel.session == null ||
-            channel.pending != 0 || channel.counter >= 0xFFFF ||
-            writing || writes.isNotEmpty() || now < nextFindTestAt
-        ) return false
+        val reason = when {
+            !ready -> "hazır değil"
+            released -> "sürücü kapalı"
+            gatt == null -> "GATT yok"
+            channel.session == null -> "oturum yok"
+            channel.pending != 0 -> "bekleyen komut"
+            channel.counter >= 0xFFFF -> "sayaç sınırı"
+            writing -> "BLE yazımı sürüyor"
+            writes.isNotEmpty() -> "BLE yazım kuyruğu dolu"
+            now < nextFindTestAt -> "bir saniyelik bekleme"
+            else -> null
+        }
+        if (reason != null) {
+            listener.onLog("Band 8 bulma testi reddi: $reason; bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}, yazıyor=$writing, oturum=${channel.session != null}")
+            return false
+        }
         val frames = channel.send(B8Messages.findBand(start))
-        if (frames.isEmpty()) return false
+        if (frames.isEmpty()) {
+            listener.onLog("Band 8 bulma testi reddi: komut çerçevesi üretilmedi")
+            return false
+        }
         nextFindTestAt = now + 1_000L
         enqueue(frames)
         armCommandTimeout()
@@ -352,7 +380,10 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     private fun sendAuthenticated(command: ByteArray) {
         if (!ready) return
         val wasIdle = channel.pending == 0
-        enqueue(channel.send(command))
+        val frames = channel.send(command)
+        val parsed = B8Command.parse(command)
+        listener.onLog("Band 8 komut kuyruğu: tür=${parsed?.type ?: -1}, altTür=${parsed?.subtype ?: -1}, bekleyen=${channel.pending}, çerçeve=${frames.size}")
+        enqueue(frames)
         if (wasIdle) armCommandTimeout()
     }
 
@@ -386,6 +417,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         // Bazı Android yığınları yanıtsız yazma callback'i göndermiyor.
         main.postDelayed({
             if (serial == generation && writing && writeAttempt == attempt) {
+                listener.onLog("Band 8 BLE yanıtsız yazım callback'i gelmedi; sıradaki pakete geçiliyor")
                 writing = false
                 drainWrites()
             }
@@ -394,7 +426,18 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
 
     private fun received(ch: BluetoothGattCharacteristic, value: ByteArray) {
         val id = B8Char.values().firstOrNull { chars[it] === ch } ?: return
+        val before = channel.pending
+        val control = if (id == B8Char.CMD_OUT) when (val ev = B8Frame.decode(value)) {
+            is B8Frame.Event.Ack -> "ACK"
+            is B8Frame.Event.Ready -> "READY"
+            is B8Frame.Event.AllReceived -> "ALL_RECEIVED"
+            is B8Frame.Event.Nack -> "NACK(${ev.code})"
+            is B8Frame.Event.Rejected -> "REJECTED"
+            is B8Frame.Event.Resend -> "RESEND(${ev.indexes.size})"
+            else -> null
+        } else null
         val result = channel.onNotify(id, value)
+        if (control != null) listener.onLog("Band 8 protokol yanıtı: $control, bekleyen=$before→${channel.pending}, yazılacak=${result.writes.size}")
         enqueue(result.writes)
         if (id == B8Char.CMD_OUT && (result.writes.isNotEmpty() || !channel.busy)) armCommandTimeout()
         for (event in result.incoming) {
@@ -408,7 +451,11 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     }
 
     private fun processCommand(plain: ByteArray, encrypted: Boolean) {
-        val command = B8Command.parse(plain) ?: return
+        val command = B8Command.parse(plain) ?: run {
+            listener.onLog("Band 8 gelen komut çözümlenemedi; şifreli=$encrypted")
+            return
+        }
+        listener.onLog("Band 8 gelen komut: tür=${command.type}, altTür=${command.subtype}, durum=${command.status ?: "yok"}, şifreli=$encrypted")
         val step = auth?.onCommand(command)
         if (step != null) {
             when (step) {
