@@ -126,7 +126,7 @@ object WatchRegistry {
         }.distinct().sortedBy { it.drop(1).toIntOrNull() ?: Int.MAX_VALUE }
             .filter { id ->
                 val address = settings["d.$id.address"] as? String
-                !address.isNullOrBlank() && SecretStore.has(c, id)
+                address != null && address.isNotBlank() && SecretStore.has(c, id)
             }
         if (bandIds.isEmpty()) return@synchronized 0
         val recovery = backup(c)
