@@ -2,7 +2,7 @@
 
 Güncel operasyonel durum, açık hatalar ve sıradaki işler için belgenin sonundaki **18 Kasım 2026** bölümünü kullanın. Bu belgenin eski tarihli bölümleri tarihsel araştırma ve cihaz testi notlarıdır. Tamamlanan sürüm değişiklikleri `CHANGELOG.md`, gerçek cihaz testleri `docs/TEST_RESULTS.md` içindedir.
 
-**Güncel özet (18 Kasım):** LS05 işlevleri geliştirilmiş durumda. Xiaomi Smart Band 8 doğrudan bağlanıyor ve cihaz bilgisi okunuyor. Tek satırlı kayıt düzeltmesiyle uygulama yeniden açma ve telefon yeniden başlatma testleri kullanıcı bildirimine göre geçti. Tanılama APK'sıyla WhatsApp ve test bildirimi saatte göründü; bilekliği bul başlatma ve iki durdurma yolu kullanıcı testinde çalıştı. Önceki başarısızlığın kök nedeni belirlenmedi. Telefon açılışında uygulama elle açılmadan otomatik bağlantı ve bağlantı sonrası işlevlerin dayanıklılığı ayrıca doğrulanmadı. Band 8 sağlık eşitlemesi henüz yok.
+**Güncel özet (18 Kasım):** LS05 işlevleri geliştirilmiş durumda. Xiaomi Smart Band 8 doğrudan bağlanıyor ve cihaz bilgisi okunuyor. Kayıt kalıcılığı, WhatsApp ve test bildirimi, bilekliği bul, ekran kilitliyken bildirim, Bluetooth kapat/aç sonrası işlevler ve LS05 bildirim kontrolü kullanıcı testinde geçti. Önceki başarısızlığın kök nedeni belirlenmedi. Uygulamayı elle açmadan telefon başlangıcında otomatik bağlantı ve kapalı uygulama filtresi ayrıca doğrulanmadı. Band 8 arama, müzik ve sağlık eşitlemesi henüz yok.
 
 ---
 
@@ -495,3 +495,11 @@ Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan 
 - Önceki başarısızlık yeniden üretilemedi; tanılama kodu işlev davranışını değiştirmediğinden kök nedeni çözüldü sayma. [#2](https://github.com/etiyar/ls05-controller/issues/2) ve [#3](https://github.com/etiyar/ls05-controller/issues/3) içindeki birincil cihaz denemelerini başarılı olarak kaydet, dayanıklılık maddelerini açık tut.
 - Sıradaki kısa cihaz kabulü: ekran kilitliyken WhatsApp ve test bildirimi; uygulama filtresi kapalıyken iletilmeme; Bluetooth kapat/aç veya menzil dışı sonrası yeniden bağlanınca bildirim ve bulma; ardından LS05'ye geçip bildirim ve saati bul gerileme kontrolü. Telefon açılışında uygulamayı elle açmadan otomatik bağlanma ayrıca gözlenmeli.
 - Bu kapılar geçerse geliştirme dalı için sürüm kararı al. `main` dalını veya sürüm başlıklarını yalnızca mevcut ACK loguna dayanarak değiştirme. Band 8 sağlık verileri LS05 verileriyle toplanmaz.
+
+### 18 Kasım | Dayanıklılık kabulü sonrası sıra
+
+1. **Kabul kaydı:** Kullanıcı kilitli ekranda bildirim, Bluetooth kapat/aç sonrası bildirim ve saati bul, LS05 bildirim kontrolü testlerinin tümünün başarılı olduğunu bildirdi. Ayrı cihaz logu paylaşılmadı; sonucu bu sınırla kaydet. #3 kapanabilir; #2 içindeki kapalı uygulama filtresi ayrıca doğrulanır. Eski arızanın kesin nedeni bulundu deneme.
+2. **Sürüm hazırlığı:** `dev/v0.13.1-band8-daily` ile `main` farkını gözden geçir. Sürüm adı ve README'deki eski dal/beta başlıklarını güncelle. LS05 kadranı ve iki saatli kayıt kalıcılığına dair mevcut başarılı testleri koru. Tamamlanmamış Band 8 arama, müzik ve sağlık işlevlerini yayın notunda açık yaz. Yeni APK ve güncelleme kurulumunu ayrıca doğrulamadan kararlı sürüm ilan etme.
+3. **Band 8 arama ve müzik:** `Band8Driver` içindeki gelen arama, arama bitirme ve müzik durumu/kumanda boşluklarını, mevcut protokol kaydıyla doğrulanabilen komutlardan başlayarak ayrı PR'larda uygula. Cevapsız arama da `MESSAGE` yolunun dışında kaldığından ayrı test ister. Her komut için CI ve fiziksel saat sonucu kaydet.
+4. **Band 8 sağlık:** v0.13.2 kapsamında adım ve nabzı doğrulanmış alanlarla oku. Uyku ancak paket biçimi ve saat ekranı karşılaştırmasıyla doğrulanınca eklenir. Her kaydın cihaz kaynağını sakla; LS05 ve Band 8 adımlarını toplama.
+5. **Kalan güvenilirlik kontrolleri:** Kapalı uygulama filtresi, telefon açılışında uygulamayı elle açmadan bağlantı ve önceki tek seferlik komut reddinin yeniden ortaya çıkıp çıkmadığı izlenir. Hata tekrarlarsa maskeli aşama loguyla yeniden açılır.
