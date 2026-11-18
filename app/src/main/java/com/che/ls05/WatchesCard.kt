@@ -33,6 +33,10 @@ class WatchesCard(private val act: MainActivity) {
     fun refresh() {
         list.removeAllViews()
         val l = WatchRegistry.list(act)
+        if (WatchRegistry.needsRecovery(act)) {
+            ui.add(list, ui.row("Saat kayıtlarını kurtar", "Eski yerel kayıtlardan geri yükle") { confirmRecovery() })
+            ui.add(list, ui.divider(), height = ui.dp(1))
+        }
         for ((i, w) in l.watches.withIndex()) {
             if (i > 0) ui.add(list, ui.divider(), height = ui.dp(1))
             val active = w.id == l.activeId
@@ -162,6 +166,21 @@ class WatchesCard(private val act: MainActivity) {
             return
         }
         setUp(rec)
+    }
+
+    private fun confirmRecovery() {
+        val d = AlertDialog.Builder(act)
+            .setTitle("Saat kayıtlarını kurtar")
+            .setMessage("Saat listesi okunamıyor. Telefonda adresi ve şifreli anahtarı kalan Band 8 kayıtları geri alınacak. Bozuk listenin iki kopyası da saklanacak. Eksik saatler yeniden kurulmak zorunda kalabilir.")
+            .setPositiveButton("Kurtar") { _, _ ->
+                val count = WatchRegistry.recoverLocalDevices(act)
+                act.toast(if (count > 0) "$count Band 8 kaydı geri alındı. Saati seçip bağlantıyı dene." else "Kurtarılabilir Band 8 kaydı bulunamadı; veriler değiştirilmedi.")
+                refresh()
+            }
+            .setNegativeButton("Vazgeç", null)
+            .create()
+        act.track(d)
+        d.show()
     }
 
     private fun setUp(rec: WatchRecord) {

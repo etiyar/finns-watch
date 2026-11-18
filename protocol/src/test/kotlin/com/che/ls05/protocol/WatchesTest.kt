@@ -96,6 +96,20 @@ class WatchesTest {
     }
 
     @Test
+    fun encodedRegistrySurvivesReloadAndLegacyStillReads() {
+        val (legacy, _) = RegistryMigration.load(null, "legacy", null, now)
+        val (withBand, band) = legacy.add(WatchType.BAND8, "Xiaomi Smart Band 8", now)
+        val selected = withBand.withActive(band.id)
+        val stored = WatchListStorage.encode(selected)
+        assertFalse(stored.contains('\n'))
+        assertFalse(stored.contains('\t'))
+        assertEquals(selected, WatchListStorage.parse(stored))
+        assertEquals(selected, RegistryRecovery.load(stored, "corrupt", "legacy", null, now).list)
+        assertEquals(selected, WatchListStorage.parse(selected.serialize()))
+        assertNull(WatchListStorage.parse("b64.v1:!"))
+    }
+
+    @Test
     fun recoveryDoesNotSilentlyPersistCorruptRecordsAsFreshInstall() {
         val result = RegistryRecovery.load("corrupt", "also corrupt", "legacy", null, now)
         assertEquals(RegistryRecovery.Source.CORRUPT, result.source)

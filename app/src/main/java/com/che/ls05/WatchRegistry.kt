@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import com.che.ls05.protocol.Capabilities
 import com.che.ls05.protocol.RegistryRecovery
 import com.che.ls05.protocol.WatchList
+import com.che.ls05.protocol.WatchListStorage
 import com.che.ls05.protocol.WatchRecord
 import com.che.ls05.protocol.WatchType
 
@@ -49,7 +50,7 @@ object WatchRegistry {
                     WatchHub.log("Saat listesi yerel kurtarma kopyasından geri alındı.")
                     // Bozuk kaydı üzerine yazmadan önce özel cihaz alanında koru.
                     if (primary != null) p(c).edit().putString("invalid_list_backup", primary).commit()
-                    if (!p(c).edit().putString(KEY, l.serialize()).commit())
+                    if (!p(c).edit().putString(KEY, WatchListStorage.encode(l)).commit())
                         WatchHub.log("Kurtarılan saat listesi diske yazılamadı.")
                 }
                 RegistryRecovery.Source.MIGRATED -> {
@@ -64,8 +65,8 @@ object WatchRegistry {
             }
             // İlk başarılı okumadan sonra yedek eksikse, mevcut geçerli veriyi kaydet.
             if (result.source == RegistryRecovery.Source.PRIMARY &&
-                WatchList.deserialize(fallback) == null) {
-                backup(c).edit().putString(BACKUP_KEY, l.serialize()).commit()
+                WatchListStorage.parse(fallback) == null) {
+                backup(c).edit().putString(BACKUP_KEY, WatchListStorage.encode(l)).commit()
             }
             cached = l
             return l
@@ -74,7 +75,11 @@ object WatchRegistry {
 
     /** Yedek ilk yazılır; diskteki son iyi liste bir hata halinde geri alınabilir. */
     private fun persist(c: Context, l: WatchList): Boolean {
-        val content = l.serialize()
+        val content = WatchListStorage.encode(l)
+        if (WatchListStorage.parse(content) != l) {
+            WatchHub.log("Saat listesi oluşturuldu ancak yeniden ayrıştırılamadı; kayıt değiştirilmedi.")
+            return false
+        }
         val backupWritten = backup(c).edit().putString(BACKUP_KEY, content).commit()
         if (!backupWritten) {
             WatchHub.log("Saat kurtarma kopyası yazılamadı; kayıt değiştirilmedi.")
@@ -82,7 +87,14 @@ object WatchRegistry {
         }
         val primaryWritten = p(c).edit().putString(KEY, content).commit()
         if (!primaryWritten) WatchHub.log("Saat listesi yazılamadı; kurtarma kopyası korundu.")
-        return primaryWritten
+        if (!primaryWritten) return false
+        val primaryReadback = WatchListStorage.parse(p(c).getString(KEY, null)) == l
+        val backupReadback = WatchListStorage.parse(backup(c).getString(BACKUP_KEY, null)) == l
+        if (!primaryReadback || !backupReadback) {
+            WatchHub.log("Saat kaydı yazma kontrolü başarısız: ana=$primaryReadback, yedek=$backupReadback.")
+            return false
+        }
+        return true
     }
 
     private fun save(c: Context, l: WatchList): Boolean = synchronized(this) {
@@ -97,17 +109,58 @@ object WatchRegistry {
     fun diagnosticSummary(c: Context): String {
         val l = list(c)
         val active = l.active
-        val primaryValid = WatchList.deserialize(p(c).getString(KEY, null)) != null
-        val backupValid = WatchList.deserialize(backup(c).getString(BACKUP_KEY, null)) != null
+        val primaryStored = p(c).getString(KEY, null)
+        val backupStored = backup(c).getString(BACKUP_KEY, null)
+        val primaryValid = WatchListStorage.parse(primaryStored) != null
+        val backupValid = WatchListStorage.parse(backupStored) != null
         val hasAddress = active != null && Prefs.address(c, active.ns) != null
         val bandKey = if (active?.type == WatchType.BAND8) SecretStore.has(c, active.id) else null
         return "Saat kaydı: kaynak=${loadSource.name}, adet=${l.watches.size}, etkin tür=${active?.type?.name ?: "yok"}, " +
             "adres kayıtlı=$hasAddress, Band 8 anahtar zarfı=${bandKey ?: "uygulanmaz"}, " +
-            "ana kayıt=${if (primaryValid) "geçerli" else "yok/bozuk"}, " +
-            "yedek=${if (backupValid) "geçerli" else "yok/bozuk"}"
+            "ana kayıt=${if (primaryValid) "geçerli" else "yok/bozuk"} (${primaryStored?.length ?: 0}), " +
+            "yedek=${if (backupValid) "geçerli" else "yok/bozuk"} (${backupStored?.length ?: 0})"
     }
 
     fun active(c: Context): WatchRecord? = list(c).active
+
+    fun needsRecovery(c: Context): Boolean {
+        list(c)
+        return loadSource == RegistryRecovery.Source.CORRUPT
+    }
+
+    /** Restore only devices backed by both an address and a stored Band 8 key envelope.
+     * Keep the unreadable registry bytes before replacing either copy. No key is decrypted here.
+     */
+    fun recoverLocalDevices(c: Context): Int = synchronized(this) {
+        val current = list(c)
+        if (loadSource != RegistryRecovery.Source.CORRUPT) return@synchronized 0
+        val settings = legacy(c).all
+        val bandIds = settings.keys.mapNotNull { key ->
+            Regex("^d\\.(w[0-9]+)\\.address$").matchEntire(key)?.groupValues?.get(1)
+        }.distinct().sortedBy { it.drop(1).toIntOrNull() ?: Int.MAX_VALUE }
+            .filter { id ->
+                val address = settings["d.$id.address"] as? String
+                address != null && address.isNotBlank() && SecretStore.has(c, id)
+            }
+        if (bandIds.isEmpty()) return@synchronized 0
+        val recovery = backup(c)
+        val primaryRaw = p(c).getString(KEY, null)
+        val backupRaw = recovery.getString(BACKUP_KEY, null)
+        val archived = recovery.edit()
+        if (primaryRaw != null) archived.putString("invalid_primary_before_recovery", primaryRaw)
+        if (backupRaw != null) archived.putString("invalid_backup_before_recovery", backupRaw)
+        if (!archived.commit()) return@synchronized 0
+        val restored = bandIds.map { id ->
+            WatchRecord(id, WatchType.BAND8, WatchType.BAND8.label, "d.$id.", System.currentTimeMillis())
+        }
+        val next = maxOf(current.next, (bandIds.mapNotNull { it.drop(1).toIntOrNull() }.maxOrNull() ?: 1) + 1)
+        val updated = current.copy(watches = current.watches + restored, next = next)
+        if (!persist(c, updated)) return@synchronized 0
+        cached = updated
+        loadSource = RegistryRecovery.Source.PRIMARY
+        WatchHub.log("Saat kurtarma sonrası: ${diagnosticSummary(c)}")
+        restored.size
+    }
 
     /** Etkin saatin ayar öneki. Etkin saat yoksa v0.11 anahtarları (önek boş). */
     fun ns(c: Context): String = active(c)?.ns ?: ""
@@ -155,7 +208,11 @@ object WatchRegistry {
     }
 
     /** Etkin saati değiştirir (yalnızca kayıt). Bağlantıyı WatchService.switchTo yönetir. */
-    fun setActive(c: Context, id: String?): Boolean = save(c, list(c).withActive(id))
+    fun setActive(c: Context, id: String?): Boolean {
+        val saved = save(c, list(c).withActive(id))
+        WatchHub.log("Saat seçimi ${if (saved) "kaydedildi" else "kaydedilemedi"}: ${diagnosticSummary(c)}")
+        return saved
+    }
 
     /**
      * Kurulumdan yeni LS05 bağlanacak ama etkin saat yok (ilk kurulum): öneksiz LS05 kaydı etkin yapılır.
