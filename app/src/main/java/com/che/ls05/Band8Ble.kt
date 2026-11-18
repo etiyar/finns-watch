@@ -65,6 +65,10 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     private var scanResults = 0
     private var scanSession = 0
     private var ready = false
+    private var linkEstablished = false
+    private var authComplete = false
+    private var batteryConfirmed = false
+    private var deviceInfoConfirmed = false
     private var userDisconnect = false
     private var released = false
     private var writing = false
@@ -164,6 +168,13 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         listener.onStatus("Band 8 bağlanıyor…")
         try {
             gatt = device.connectGatt(context, autoConnect, callback, BluetoothDevice.TRANSPORT_LE)
+            val attempt = gatt
+            if (!autoConnect && attempt != null) main.postDelayed({
+                if (gatt === attempt && !linkEstablished) {
+                    listener.onLog("Band 8 doğrudan bağlantı kurulamadı; yeniden denenecek")
+                    close(false, -1)
+                }
+            }, 20_000)
         } catch (e: Exception) {
             close(false, -1)
         }
@@ -191,6 +202,10 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         val hadGatt = gatt != null
         val wasReady = ready
         ready = false
+        linkEstablished = false
+        authComplete = false
+        batteryConfirmed = false
+        deviceInfoConfirmed = false
         val g = gatt
         gatt = null
         try { g?.close() } catch (_: Exception) {}
@@ -213,6 +228,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             main.post {
                 if (gatt !== g || released) return@post
                 if (state == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
+                    linkEstablished = true
                     listener.onLog("Band 8 GATT bağlandı; kimlik doğrulama bekleniyor")
                     listener.onStatus("Band 8 servisleri aranıyor…")
                     if (!g.requestMtu(247)) g.discoverServices()
@@ -333,7 +349,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         enqueue(channel.beginAuth(auth!!.start()))
         val serial = generation
         main.postDelayed({
-            if (generation == serial && !ready && gatt != null) {
+            if (generation == serial && !authComplete && gatt != null) {
                 listener.onAuthFailed("Band 8 doğrulaması zaman aşımına uğradı")
                 close(false, -1)
             }
@@ -474,7 +490,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         // Saat aynı GATT bağlantısında yeni kimlik doğrulaması başlatabiliyor.
         // Eski oturum anahtarıyla gelen sonraki paketler çözülemez; mevcut B8Auth
         // DONE durumunda yeni 1/26 ve 1/27 yanıtlarını işleyemez.
-        if (ready && !encrypted && command.type == B8Type.AUTH &&
+        if (authComplete && !encrypted && command.type == B8Type.AUTH &&
             (command.subtype == B8Sub.AUTH_NONCE || command.subtype == B8Sub.AUTH_PROOF)
         ) {
             listener.onLog("Band 8 oturum yenileme isteği; bağlantı yeniden kuruluyor")
@@ -489,11 +505,18 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
                     enqueue(channel.setSession(step.session))
                     authKey?.fill(0)
                     authKey = null
-                    ready = true
-                    listener.onReady(true)
-                    listener.onStatus("Band 8 bağlı")
-                    sendAuthenticated(B8Messages.batteryRequest())
-                    sendAuthenticated(B8Messages.deviceInfoRequest())
+                    authComplete = true
+                    // Doğrulama sonucu tek başına saatle çalışan bir oturum kanıtı değildir.
+                    // Servis bekleyen bildirimleri ancak iki şifreli yanıt geldikten sonra boşaltsın.
+                    enqueue(channel.send(B8Messages.batteryRequest()))
+                    enqueue(channel.send(B8Messages.deviceInfoRequest()))
+                    val serial = generation
+                    main.postDelayed({
+                        if (generation == serial && authComplete && !ready && gatt != null) {
+                            listener.onLog("Band 8 şifreli cihaz sorgusu zaman aşımı; otomatik yeniden bağlanılıyor")
+                            close(false, -1)
+                        }
+                    }, 8_000)
                 }
                 is B8Auth.Step.Failed -> {
                     listener.onAuthFailed("Band 8 kimlik doğrulaması başarısız: ${step.reason.name}")
@@ -503,13 +526,30 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             return
         }
         when {
-            command.matches(2, 1) -> B8Messages.parseBattery(command)?.let(listener::onBattery)
-            command.matches(2, 2) -> B8Messages.parseDeviceInfo(command)?.let(listener::onDeviceInfo)
+            encrypted && command.matches(2, 1) -> B8Messages.parseBattery(command)?.let {
+                listener.onBattery(it)
+                batteryConfirmed = true
+                finishHandshakeIfReady()
+            }
+            encrypted && command.matches(2, 2) -> B8Messages.parseDeviceInfo(command)?.let {
+                listener.onDeviceInfo(it)
+                deviceInfoConfirmed = true
+                finishHandshakeIfReady()
+            }
             ready && encrypted && command.matches(B8Type.SYSTEM, B8Sub.SYS_FIND_BAND) -> {
                 val state = command.body(B8Type.F_SYSTEM)?.int(5)
                 listener.onLog("Band 8 bulma yanıtı: durum=${state ?: "yok"}")
             }
         }
+    }
+
+    private fun finishHandshakeIfReady() {
+        if (ready || !batteryConfirmed || !deviceInfoConfirmed || channel.session == null) return
+        ready = true
+        listener.onLog("Band 8 şifreli pil ve cihaz bilgisi yanıtları alındı; komutların fiziksel sonucu ayrıca doğrulanmalı")
+        listener.onReady(true)
+        listener.onStatus("Band 8 bağlı")
+        if (channel.pending > 0) armCommandTimeout()
     }
 
     private companion object {
