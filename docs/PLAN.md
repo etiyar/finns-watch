@@ -503,3 +503,9 @@ Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan 
 3. **Band 8 arama ve müzik:** `Band8Driver` içindeki gelen arama, arama bitirme ve müzik durumu/kumanda boşluklarını, mevcut protokol kaydıyla doğrulanabilen komutlardan başlayarak ayrı PR'larda uygula. Cevapsız arama da `MESSAGE` yolunun dışında kaldığından ayrı test ister. Her komut için CI ve fiziksel saat sonucu kaydet.
 4. **Band 8 sağlık:** v0.13.2 kapsamında adım ve nabzı doğrulanmış alanlarla oku. Uyku ancak paket biçimi ve saat ekranı karşılaştırmasıyla doğrulanınca eklenir. Her kaydın cihaz kaynağını sakla; LS05 ve Band 8 adımlarını toplama.
 5. **Kalan güvenilirlik kontrolleri:** Kapalı uygulama filtresi, telefon açılışında uygulamayı elle açmadan bağlantı ve önceki tek seferlik komut reddinin yeniden ortaya çıkıp çıkmadığı izlenir. Hata tekrarlarsa maskeli aşama loguyla yeniden açılır.
+
+### 18 Kasım | Arama ekranı kontrollü cihaz denemesi
+
+- [Taslak PR #13](https://github.com/etiyar/ls05-controller/pull/13) ile iki arama ekranı açma ve 15 saniye sonunda kapatma komutu `ACK` aldı; kullanıcı sorun bildirmedi. Bileklikten gelen `7/2` olayı görüldü. Bu paket olası reddetme eylemi olarak ayrıca incelenmeli; gerçek telefon araması gönderilmedi.
+- Uygulamadaki **elle kapat** düğmesi bu logda denenmedi. Bir sonraki kısa testte açıp 15 saniye dolmadan uygulamadan kapat; bilekliğin fiziksel ekranını gözle ve ilgili maskeli logu kaydet.
+- Bu test geçse bile gelen arama bildirimini otomatik bağlamak için gerçek arama akışının kaydı, saatte reddetme/cevaplama davranışı ve arama bittiğinde kapanma testi gerekir. Müzik komutu için de ayrı birincil kayıt gerekir. CI başarısı bunların yerine geçmez.
