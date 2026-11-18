@@ -2,6 +2,17 @@
 
 Kaynak: kullanıcının doğrudan bildirdiği denemeler. CI derlemesi burada ayrıca belirtilir; gerçek cihazda denenmemiş bir işlevi başarılı saymayız.
 
+## 18 Kasım 2026 | Tek satırlı saat kaydı düzeltmesi
+
+| Deneme | Sonuç | Kanıt ve sınır |
+|---|---|---|
+| Bozuk listeden Band 8 kurtarma ve etkin seçim | **GEÇTİ** | Kurtarma sonrası ana kayıt ve yedek geçerliydi, iki saat vardı, Band 8 etkin ve anahtar zarfı mevcuttu. |
+| Önceki çok satırlı kayıtla uygulamayı zorla durdurup açma | **BAŞARISIZ** | 08:51'de geçerli okunan iki kopya, 08:52 açılışında `CORRUPT` göründü. Kesin kök neden doğrulanmadı. |
+| Tek satırlı kodlanmış kayıtla uygulamayı yeniden açma | **GEÇTİ (bir deneme)** | 09:48 açılışında `PRIMARY`, iki saat, Band 8 etkin, adres ve anahtar zarfı mevcut, ana ve yedek kayıt geçerli (her biri 147 karakter). Band 8 cihaz bilgisi okundu. |
+| İkinci zorla durdur/aç ve telefonun tamamen yeniden başlatılması | **BEKLENİYOR** | Cihazda kalıcı bağlantı kabulü için ayrı doğrulanacak. |
+
+Bu sonuç bağlantı ve kayıt kalıcılığı için tek yeniden açma denemesidir. Band 8 sağlık eşitlemesi, bildirimlerin saatte görünmesi ve saati bulma işlevi bu logla doğrulanmadı.
+
 ## Beta8 ve v0.13.1-alpha1 | Bekleyen denemeler
 
 - **Beta8, kurulum:** Temiz profilde iki modelin kurulumu açılır. Mevcut uygulamanın üzerine güncellemede önceki saat kartları, etkin seçim ve sağlık geçmişi korunur.
