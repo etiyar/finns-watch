@@ -105,7 +105,7 @@ class WatchService : Service(), DriverListener {
     /** Gecikmeli işler (onay denetimi, geçmiş istekleri) için ortak etiket; servis kapanınca hepsi iptal edilir. */
     private val delayedToken = Any()
 
-    private val reconnectRunnable = Runnable { connectSaved(autoConnect = driver.type != WatchType.BAND8) }
+    private val reconnectRunnable = Runnable { reconnectSaved() }
 
     /** Bu bağlantı doğrulanıp hazır oldu mu. Hiç hazır olmamış bağlantı denemesinin kopması uyarı kurmaz. */
     private var wasReady = false
@@ -219,7 +219,7 @@ class WatchService : Service(), DriverListener {
                     driver.forceClose("yeni bağlantı isteği")
                     restarting = false
                 }
-                connectSaved(autoConnect = false)
+                connectSaved(autoConnect = false, rebuildBandDriver = true)
             }
             else -> {
                 stopping = false
@@ -331,7 +331,12 @@ class WatchService : Service(), DriverListener {
         return null
     }
 
-    private fun connectSaved(autoConnect: Boolean) {
+    private fun reconnectSaved() {
+        val band = driver.type == WatchType.BAND8
+        connectSaved(autoConnect = !band, rebuildBandDriver = band)
+    }
+
+    private fun connectSaved(autoConnect: Boolean, rebuildBandDriver: Boolean = false) {
         if (stopping || driver.isConnected) return
         if (!hasConnectPermission()) {
             updateStatus("Bluetooth izni yok")
@@ -362,6 +367,12 @@ class WatchService : Service(), DriverListener {
             updateStatus("Kayıtlı saat adresi geçersiz")
             return
         }
+        if (rebuildBandDriver && driver.type == WatchType.BAND8) {
+            // Saat değişimindeki temiz sürücü başlangıcını kayıtlı saati değiştirmeden uygula.
+            driver.release("Band 8 yeniden bağlanıyor")
+            driver = WatchManager.driverFor(WatchType.BAND8, applicationContext, this)
+            WatchHub.log("Band 8 sürücüsü yenilendi; kayıtlı bilekliğe bağlanılıyor.")
+        }
         if (autoConnect) WatchHub.log("Saat menzile girince bağlanılacak (otomatik bağlantı).")
         driver.connect(device, autoConnect)
     }
@@ -377,7 +388,7 @@ class WatchService : Service(), DriverListener {
         lastNudge = now
         WatchHub.log("Bekleyen bildirim var; yeniden bağlanma öne alındı.")
         main.removeCallbacks(reconnectRunnable)
-        connectSaved(autoConnect = false)
+        connectSaved(autoConnect = false, rebuildBandDriver = true)
     }
 
     private fun scheduleReconnect() {
