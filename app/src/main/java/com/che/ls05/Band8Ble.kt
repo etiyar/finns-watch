@@ -372,6 +372,21 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         return true
     }
 
+    /** Kayıtta arama olmadığı için yalnızca Gelişmiş ekranındaki kontrollü deneme. */
+    fun testCallScreen(start: Boolean, timestamp: String): Boolean {
+        if (!ready || released || gatt == null || channel.session == null ||
+            channel.pending >= MAX_PENDING_COMMANDS ||
+            (start && (channel.pending != 0 || writing || writes.isNotEmpty()))
+        ) {
+            listener.onLog("Band 8 arama ekranı testi reddi: hazır=$ready, bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}")
+            return false
+        }
+        val message = if (start) B8Messages.incomingCall("Test araması", "", timestamp) else B8Messages.callEnded()
+        sendAuthenticated(message)
+        listener.onLog("Band 8 arama ekranı denemesi sıraya alındı: ${if (start) "aç" else "kapat"}")
+        return ready
+    }
+
     private fun enqueue(list: List<B8Write>) {
         for (w in list) writes.addLast(w)
         drainWrites()

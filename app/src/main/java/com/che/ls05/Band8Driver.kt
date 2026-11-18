@@ -2,6 +2,8 @@ package com.che.ls05
 
 import android.bluetooth.BluetoothDevice
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import com.che.ls05.protocol.AuthOutcome
 import com.che.ls05.protocol.UteWeather
 import com.che.ls05.protocol.WatchType
@@ -27,6 +29,14 @@ class Band8Driver(
         ?: error("Band 8 için etkin saat kaydı bulunamadı")
     private val ble = Band8Ble(context, this, watchId)
     private val packageName = context.packageName
+    private val main = Handler(Looper.getMainLooper())
+    private var callTestActive = false
+    private val stopCallTest = Runnable {
+        if (callTestActive) {
+            listener.onLog("Band 8 arama ekranı testi: 15 saniyelik güvenlik süresi doldu")
+            testCallScreen(start = false)
+        }
+    }
 
     override val isConnected: Boolean get() = ble.isConnected
     override val isReady: Boolean get() = ble.isReady
@@ -36,11 +46,28 @@ class Band8Driver(
 
     fun testFindBand(start: Boolean): Boolean = ble.testFindBand(start)
 
+    fun testCallScreen(start: Boolean): Boolean {
+        val accepted = ble.testCallScreen(start, notificationTime(System.currentTimeMillis()))
+        if (!accepted) return false
+        main.removeCallbacks(stopCallTest)
+        callTestActive = start
+        if (start) main.postDelayed(stopCallTest, CALL_TEST_MAX_MS)
+        return true
+    }
+
+    private fun clearCallTest() {
+        main.removeCallbacks(stopCallTest)
+        callTestActive = false
+    }
+
     override fun startScan() = ble.scan()
     override fun connect(device: BluetoothDevice, autoConnect: Boolean) = ble.connect(device, autoConnect)
-    override fun disconnect() = ble.disconnect()
-    override fun forceClose(reason: String) = ble.forceClose()
-    override fun release(reason: String) = ble.release()
+    override fun disconnect() { clearCallTest(); ble.disconnect() }
+    override fun forceClose(reason: String) { clearCallTest(); ble.forceClose() }
+    override fun release(reason: String) {
+        clearCallTest()
+        ble.release()
+    }
 
     override fun sendNotification(title: String, body: String, vibrate: Boolean, type: Int): Boolean {
         val now = System.currentTimeMillis()
@@ -82,12 +109,15 @@ class Band8Driver(
         listener.onDeviceFound(device, name, rssi)
 
     override fun onReady(ready: Boolean) {
+        if (!ready) clearCallTest()
         if (ready) listener.onAuth(AuthOutcome(AuthOutcome.Kind.OK))
         listener.onReadyChanged(ready)
     }
 
-    override fun onDisconnected(userInitiated: Boolean, status: Int) =
+    override fun onDisconnected(userInitiated: Boolean, status: Int) {
+        clearCallTest()
         listener.onDisconnected(userInitiated, status)
+    }
 
     override fun onKeyRequired() = listener.onBandKeyRequired()
 
@@ -107,6 +137,7 @@ class Band8Driver(
     }
 
     private companion object {
+        const val CALL_TEST_MAX_MS = 15_000L
         val NOTIFICATION_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("uuuuMMdd'T'HHmmss", Locale.ROOT)
     }
 }
