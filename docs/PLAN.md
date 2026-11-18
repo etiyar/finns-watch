@@ -5,7 +5,7 @@
 | İş | Takip | Sahip/dal | Yayın kapısı |
 | --- | --- | --- | --- |
 | APK kimliği ve elle test adayı yayımlama | [#20](https://github.com/etiyar/ls05-controller/issues/20), [PR #21](https://github.com/etiyar/ls05-controller/pull/21) | `feat/apk-build-identity` | CI ve eski kurulum üstüne veri koruma cihaz testi |
-| Belgeleri ve açık kabul listesini düzenleme | Ayrı belge PR'ı | `docs/current-project-status` | Eski protokol ve plan bilgisi kaybolmaz |
+| Belgeleri ve açık kabul listesini düzenleme | [#22](https://github.com/etiyar/ls05-controller/issues/22), [PR #23](https://github.com/etiyar/ls05-controller/pull/23) | `docs/current-project-status` | Eski protokol ve plan bilgisi kaybolmaz |
 | Band 8 aralıklı komut/yeniden doğrulama | [#16](https://github.com/etiyar/ls05-controller/issues/16), [taslak PR #18](https://github.com/etiyar/ls05-controller/pull/18) | `fix/band8-unexpected-reauth` | Test APK kimliği önceden kaydedilir; beklenmedik 1/26 veya 1/27 olayı görülürse toparlanma ayrıca doğrulanır |
 | Band 8 bildirim dayanıklılığı | [#2](https://github.com/etiyar/ls05-controller/issues/2) | Issue üzerinden atanacak | Kapalı uygulama filtresi ve telefon açılışında elle açmadan bağlantı |
 | Gerçek arama ve müzik | [#9](https://github.com/etiyar/ls05-controller/issues/9) | Issue üzerinden atanacak | Ayrı gerçek cihaz gözlemi; elle arama ekranı testi yeterli değildir |
@@ -15,3 +15,5 @@
 Sıradaki somut adım ve güncel kabul listesi ilgili issue içindedir. CI ile fiziksel sonuç ayrı kaydedilir. Cihaz gözlemleri [TEST_RESULTS.md](TEST_RESULTS.md), sürüm geçmişi [CHANGELOG.md](../CHANGELOG.md), ajan düzeni [AGENTS.md](../AGENTS.md) içindedir.
 
 LS05 komutları ve kadran biçimi [LS05_PROTOKOL.md](LS05_PROTOKOL.md), eski planın eksiksiz hâli [PLAN_ARSIV.md](arsiv/PLAN_ARSIV.md) içindedir.
+
+Yayın sonrasına ayrılan istekler: [Saatlerim'de kimlik #24](https://github.com/etiyar/ls05-controller/issues/24) ve [güvenli yedekleme #25](https://github.com/etiyar/ls05-controller/issues/25).
