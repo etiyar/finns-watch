@@ -2,9 +2,9 @@
 
 Kaynak: kullanıcının doğrudan bildirdiği denemeler. CI derlemesi burada ayrıca belirtilir; gerçek cihazda denenmemiş bir işlevi başarılı saymayız.
 
-## 18 Kasım 2026 | Band 8 elle arama ekranı denemesi (taslak PR #13)
+## 18 Kasım 2026 | Band 8 elle arama ekranı denemesi (PR #13 birleşti)
 
-Kullanıcı denemede sorun görmediğini bildirdi. 14:16:02 ve 14:16:21'de `7/0` açma istekleri protokol `ACK` aldı. 14:16:07'de bileklikten şifreli `7/2` komutu geldi; bu, arama reddi olayı olabilir, fakat kullanıcı eylemi ve anlamı ayrıca doğrulanmadı. Her iki denemede 15 saniyelik güvenlik süresi sonunda `7/1` kapatma isteği gönderildi ve `ACK` alındı (14:16:17, 14:16:36). Uygulamadaki **elle kapat** düğmesinin kullanıldığı bu logda görünmüyor; ayrı geçti sayılmaz. `ACK` ekranın fiziksel durumunu tek başına kanıtlamaz. Gerçek gelen arama, cevapsız arama ve müzik henüz test edilmedi. [PR #13](https://github.com/etiyar/ls05-controller/pull/13) taslak ve geliştirme dalına alınmadı.
+Kullanıcı arama ekranını açmanın ve uygulamadaki **Kapat** düğmesiyle kapatmanın bileklikte çalıştığını bildirdi. Elle kapatma için yeni zaman damgalı log paylaşılmadı; bu sonucun kanıtı kullanıcı gözlemidir. Önceki logda 14:16:02 ve 14:16:21'deki `7/0` açma istekleri protokol `ACK` aldı. Her iki denemede 15 saniyelik güvenlik süresi sonunda `7/1` kapatma isteği gönderildi ve `ACK` alındı (14:16:17, 14:16:36); kullanıcı sorun bildirmedi. 14:16:07'de bileklikten şifreli `7/2` komutu geldi; bunun reddetme eylemi olup olmadığı doğrulanmadı. `ACK` fiziksel ekran durumunun tek başına kanıtı değildir. [PR #13](https://github.com/etiyar/ls05-controller/pull/13) geliştirme dalına alındı. Gerçek gelen arama, aramayı saatten reddetme veya cevaplama, cevapsız arama ve müzik henüz test edilmedi.
 
 ## 18 Kasım 2026 | Son dayanıklılık kabulü
 

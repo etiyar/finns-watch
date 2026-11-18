@@ -506,6 +506,6 @@ Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan 
 
 ### 18 Kasım | Arama ekranı kontrollü cihaz denemesi
 
-- [Taslak PR #13](https://github.com/etiyar/ls05-controller/pull/13) ile iki arama ekranı açma ve 15 saniye sonunda kapatma komutu `ACK` aldı; kullanıcı sorun bildirmedi. Bileklikten gelen `7/2` olayı görüldü. Bu paket olası reddetme eylemi olarak ayrıca incelenmeli; gerçek telefon araması gönderilmedi.
-- Uygulamadaki **elle kapat** düğmesi bu logda denenmedi. Bir sonraki kısa testte açıp 15 saniye dolmadan uygulamadan kapat; bilekliğin fiziksel ekranını gözle ve ilgili maskeli logu kaydet.
-- Bu test geçse bile gelen arama bildirimini otomatik bağlamak için gerçek arama akışının kaydı, saatte reddetme/cevaplama davranışı ve arama bittiğinde kapanma testi gerekir. Müzik komutu için de ayrı birincil kayıt gerekir. CI başarısı bunların yerine geçmez.
+- [PR #13](https://github.com/etiyar/ls05-controller/pull/13) geliştirme dalına birleşti. İki arama ekranı açma ve 15 saniye sonunda otomatik kapatma komutu `ACK` aldı; kullanıcı sorun bildirmedi. Kullanıcı ayrıca uygulamadaki **Kapat** düğmesiyle bileklik ekranının kapandığını doğruladı. Elle kapatma için ayrı log paylaşılmadı; bu sonuç kullanıcı gözlemidir.
+- Bileklikten gelen `7/2` olayının reddetme olup olmadığı bilinmiyor. Gerçek telefon araması gönderilmedi.
+- Sıradaki iş: gerçek gelen aramanın saate otomatik iletilmesini yalnızca doğrulanmış arama akışıyla bağla; saatte cevaplama/reddetme, telefon araması bitince kapanma ve cevapsız aramayı ayrı cihaz testlerinde doğrula. Müzik için de ayrı birincil kayıt gerekir. Bu testlerin hiçbiri manuel ekran denemesinin başarısıyla tamamlanmış sayılmaz.
