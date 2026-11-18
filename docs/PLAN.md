@@ -2,7 +2,7 @@
 
 Güncel operasyonel durum, açık hatalar ve sıradaki işler için belgenin sonundaki **18 Kasım 2026** bölümünü kullanın. Bu belgenin eski tarihli bölümleri tarihsel araştırma ve cihaz testi notlarıdır. Tamamlanan sürüm değişiklikleri `CHANGELOG.md`, gerçek cihaz testleri `docs/TEST_RESULTS.md` içindedir.
 
-**Güncel özet (18 Kasım):** LS05 işlevleri geliştirilmiş durumda. Xiaomi Smart Band 8 doğrudan bağlanıyor ve cihaz bilgisi okunuyor. Tek satırlı kayıt düzeltmesiyle uygulama yeniden açma ve telefon yeniden başlatma testleri kullanıcı bildirimine göre geçti. Telefon açılışında uygulama elle açılmadan otomatik bağlantı ayrıca doğrulanmadı. Band 8 bildirim kodu geliştirme dalında, cihaz testi bekliyor; sağlık eşitlemesi henüz yok. Bağlıyken gösterilen eski doğrulama uyarısı ayrı açık sorun.
+**Güncel özet (18 Kasım):** LS05 işlevleri geliştirilmiş durumda. Xiaomi Smart Band 8 doğrudan bağlanıyor ve cihaz bilgisi okunuyor. Tek satırlı kayıt düzeltmesiyle uygulama yeniden açma ve telefon yeniden başlatma testleri kullanıcı bildirimine göre geçti. Telefon açılışında uygulama elle açılmadan otomatik bağlantı ayrıca doğrulanmadı. Band 8 WhatsApp ve test uygulaması bildirimleri saatte görünmedi; bağlı görünürken saati bul komutu gönderilemedi. Sağlık eşitlemesi henüz yok. Bağlıyken gösterilen eski doğrulama uyarısı ayrı açık sorun.
 
 ---
 
@@ -479,3 +479,12 @@ Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan 
 - **Sıradaki kısa kabul:** Telefon açılışında uygulamayı elle açmadan servis ve Band 8 bağlantısının gelmesini gözle. LS05 → Band 8 → LS05 geçişinde eski bağlantı ve sağlık kaynağını kontrol et. Bu testler kayıt kalıcılığı başarısını geri almaz; bağlantı kabulünü tamamlar.
 - **Paralel geliştirme:** Band 8 bildirim ve saati bulma kodunun gerçek saat denemesi. Gelen/cevapsız arama ile müzik, bağlantı kabulünden sonra ayrı commit ve cihaz testleriyle ilerler. Sağlık verileri v0.13.2'de saat kaynağına göre ayrı tutulur; iki saatin adımları toplanmaz.
 - **Yayın kapısı:** Kayıt kurtarma düzeltmesi geliştirme dalına alınabilir. `main` için arka plan bağlantısı, saat geçişi ve LS05 regresyonu ayrıca kontrol edilir.
+
+### 18 Kasım | Band 8 komut iletimi: sıradaki iş paketi
+
+1. **Önce gözlem:** [Bildirim #2](https://github.com/etiyar/ls05-controller/issues/2) ve [saati bul #3](https://github.com/etiyar/ls05-controller/issues/3) için tek oturumda içeriksiz aşama logları ekle. Bildirimin dinleyiciye gelmesi, filtrelenmesi, kuyruğa alınması, BLE yazımı ve protokol onayı ayrı görünsün. `testFindBand` reddinde hazır oturum, bekleyen komut, yazım kuyruğu, sayaç ve kısa bekleme koşulları ayrı görülsün.
+2. **Ortak hat sınaması:** Auth sonrası pil/cihaz bilgisi komutlarının ACK ile bitip bitmediğini ve kuyruğun boşaldığını ölç. `Bağlı` yalnızca kimlik doğrulaması demek olabilir; komutun cihaza ulaştığını göstermez. İki arızanın aynı kökten geldiği henüz varsayımdır.
+3. **Düzeltme:** Kanıtlanan filtre veya kuyruk sorunu için küçük kod değişikliği yap. Başarılı kuyruğa alma ile gerçek BLE/protokol onayını karıştırma. LS05 akışını koru; desteklenmeyen Band 8 komutlarını otomatikleştirme.
+4. **Cihaz kabulü:** WhatsApp ve test uygulaması açıkken saatte görünme, kapalı uygulamanın iletilmemesi; saati bul için başlat, uygulamadan durdur ve bileklikten durdur ayrı doğrulansın. Önceki 'telefonu bul' titreşimi farklı yöndeki işlevdir. Sonuçları `docs/TEST_RESULTS.md` içine yaz; ardından `main` yayın kararı ver.
+
+İki ajan aynı işi sürdürecekse güncel `dev/v0.13.1-band8-daily` dalını temel alsın, açık issue ve PR üzerinden sahiplik bildirsin. Ayrıntılı çalışma protokolü kök `AGENTS.md` içindedir.
