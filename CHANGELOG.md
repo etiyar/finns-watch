@@ -4,6 +4,12 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.13.1-beta1 sürüm adayı | 18 Kasım 2026
+
+- `versionCode` 34 oldu. `0.13.1-alpha1` üzerine güncelleme için APK ve imza uyumu ayrıca gerçek cihazda doğrulanacak; sürüm adayı henüz `main` üzerinde değildir.
+- Band 8 kayıt kurtarma ve kalıcılığı, pil/cihaz bilgisi, normal bildirimler ve bilekliği bul işlevleri önceki geliştirme APK'sıyla kullanıcı testinde çalıştı. Telefon kilitliyken bildirim, Bluetooth kapat/aç sonrası bildirim ve bulma, LS05 bildirim kontrolü de kullanıcı bildirimine göre geçti.
+- Band 8 gelen/cevapsız arama, müzik ve sağlık eşitlemesi bu adayda tamamlanmış değildir. Kapalı uygulama filtresi ve uygulama elle açılmadan telefon açılışı ayrı doğrulanacaktır. Önceki tek seferlik komut reddinin kök nedeni bilinmiyor.
+
 ## v0.13.1-alpha1 | 18 Kasım 2026
 
 - Geliştirme dalında saat listesini tek satırlı biçimde saklama ve eski biçimi okuma eklendi. Bozuk listeden Band 8 kurtarma, yazma kontrolü ve maskeli tanılama eklendi. Kullanıcı iki uygulama yeniden açma denemesi ve telefon yeniden başlatma sonrasında kayıt kaybı görmedi. Arka planda otomatik bağlantı ayrıca doğrulanacak.
