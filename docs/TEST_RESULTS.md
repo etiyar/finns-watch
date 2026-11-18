@@ -4,7 +4,7 @@ Yeni sonuç biçimi: **Tarih | APK kimliği | Test | Fiziksel gözlem | Logun ka
 
 | Tarih | APK kimliği | Test | Fiziksel gözlem | Logun kanıtladığı aşama | Sonuç |
 | --- | --- | --- | --- | --- | --- |
-| 18.11.2026 | Kullanıcıya verilen `0.13.1-beta1 · build 161 · run 44386438656-1 · b881509 · feat/apk-build-identity`; Ayarlar > Hakkında henüz karşılaştırılmadı | Mevcut kurulum üzerine APK yükleme | Kullanıcı "yükledim oldu" dedi. Saat kayıtları, Band 8 anahtarı ve sağlık geçmişinin korunmasına ilişkin gözlem paylaşılmadı. | [CI build 161](https://github.com/etiyar/ls05-controller/actions/runs/44386438656) başarılı; kurulumun cihazda açıldığına ilişkin log paylaşılmadı. | **KURULUM BAŞARILI (kullanıcı bildirimi); veri koruma ve kimlik eşleşmesi DOĞRULANMADI** |
+| 18.11.2026 | `0.13.1-beta1 · build 161 · run 44386438656-1 · b881509 · feat/apk-build-identity`; kullanıcı Ayarlar > Hakkında kimliğini doğruladı | Mevcut kurulum üzerine APK yükleme ve kalıcılık | Kullanıcı kurulumun başarılı olduğunu, iki saate bağlandığını ve önceki verilerin durduğunu bildirdi. Band 8 anahtarının içerik/bütünlüğü ayrıca incelenmedi. | [CI build 161](https://github.com/etiyar/ls05-controller/actions/runs/44386438656) başarılı. Cihaz logu paylaşılmadı; sonuç kullanıcının fiziksel gözlemi. | **GEÇTİ (kullanıcı bildirimi): kimlik, kurulum, saat bağlantıları ve önceki veriler** |
 
 ## 18 Kasım 2026 | Band 8 uzun oturum, 19:50–20:36
 
