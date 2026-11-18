@@ -9,13 +9,13 @@ Finn's Watch, birden fazla saati tek uygulamadan yönetmeyi hedefleyen bağıms�
 | Bileşen | Durum | Açıklama |
 | --- | --- | --- |
 | Haylou Solar LS05 | Kullanımda | Bağlantı, bildirim, arama, alarm, DND, sağlık geçmişi, cihaz bulma ve kadran aktarımı için mevcut işlevler |
-| Xiaomi Smart Band 8 | **Beta** | Bluetooth bağlantısı, kimlik doğrulama, pil yüzdesi ve firmware bilgisi gerçek cihazda doğrulandı |
-| Çoklu saat yönetimi | **Beta** | Etkin saat değiştirme ve Bluetooth kapat/aç sonrasında yeniden bağlantı kullanıcı testinde çalıştı |
-| Band 8 günlük özellikleri | Geliştirmede | Bildirim, arama, müzik, sağlık senkronizasyonu ve saat ayarları henüz tamamlanmadı |
+| Xiaomi Smart Band 8 | **Beta** | Bağlantı, doğrulama, pil ve cihaz bilgisi, normal bildirim ve bilekliği bul gerçek cihazda denendi |
+| Çoklu saat yönetimi | **Beta** | Etkin saat değiştirme, kayıt kalıcılığı ve Bluetooth kapat/aç sonrasında yeniden bağlantı kullanıcı testinde çalıştı |
+| Band 8 günlük özellikleri | Kısmi | WhatsApp ve test bildirimi ile bilekliği bul doğrulandı; arama, müzik, sağlık eşitlemesi ve saat ayarları henüz tamamlanmadı |
 
-**Sürümler:** `main` üzerinde **v0.12.0** bulunur. **v0.13.0-beta6**, [ayrı geliştirme dalındadır](https://github.com/etiyar/ls05-controller/tree/dev/v0.13-band8-connection); kararlı sürüm olarak yayımlanmamıştır.
+**Sürümler:** `main` üzerinde **v0.12.0** bulunur. **v0.13.1-beta1 sürüm adayı** [geliştirme dalında](https://github.com/etiyar/ls05-controller/tree/dev/v0.13.1-band8-daily) hazırlanır. Kurulum ve regresyon testi geçmeden kararlı sürüm olarak yayımlanmaz.
 
-> **Bilinen açık sorun:** Band 8 için bir test oturumunda doğrulama durdu ve uygulama yeniden açıldığında saat kaydı listede görünmedi. Koruyucu kod değişiklikleri geliştirme dalına eklendi; kesin kök neden ve gerçek cihaz testi bekleniyor. Sağlık verileri Band 8 için henüz eşitlenmediğinden ilgili ekranda veri görünmemesi bu aşamada normaldir.
+> **Bilinen sınırlar:** Önceki Band 8 kayıt kaybı ve tek seferlik komut reddi sonraki kullanıcı testlerinde tekrarlanmadı; kesin kök neden bilinmiyor. Band 8 sağlık verisi henüz eşitlenmez, bu nedenle ilgili ekranda veri görünmemesi beklenir. Kapalı uygulama filtresi ve telefon açılışında uygulama elle açılmadan bağlantı ayrıca doğrulanacak.
 
 ## Özellikler
 
@@ -33,6 +33,7 @@ Finn's Watch, birden fazla saati tek uygulamadan yönetmeyi hedefleyen bağıms�
 - Bluetooth taraması, kayıtlı cihazlardan seçim veya bilinen adresle bağlantı.
 - Kimlik anahtarını Android Keystore aracılığıyla koruma.
 - LS05 ile etkin saat arasında geçiş.
+- Normal Android bildirimleri ve elle bilekliği bulma. WhatsApp, test bildirimi, iki durdurma yolu ve Bluetooth kapat/aç sonrası kullanım kullanıcı testinde çalıştı.
 
 Band 8 için LS05 ile aynı özellik kapsamı **henüz sunulmaz**. Destek yalnızca gerçek cihaz testleriyle doğrulandıkça genişletilir.
 
@@ -59,11 +60,11 @@ Tasarım ilkesi, çalışan LS05 işlevlerini koruyarak saat başına ayrı sür
 
 ## Geliştirme ve test takibi
 
-Güncel belgeler [v0.13 geliştirme dalında](https://github.com/etiyar/ls05-controller/tree/dev/v0.13-band8-connection) tutulur:
+Güncel belgeler [v0.13.1 geliştirme dalında](https://github.com/etiyar/ls05-controller/tree/dev/v0.13.1-band8-daily) tutulur:
 
-- [CHANGELOG.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/CHANGELOG.md): Sürüm değişiklikleri.
-- [TEST_RESULTS.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/docs/TEST_RESULTS.md): Gerçek cihaz ve CI test sonuçları.
-- [PLAN.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/docs/PLAN.md): Mevcut durum, açık sorunlar ve sonraki adımlar.
+- [CHANGELOG.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/CHANGELOG.md): Sürüm değişiklikleri.
+- [TEST_RESULTS.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/docs/TEST_RESULTS.md): Gerçek cihaz ve CI test sonuçları.
+- [PLAN.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/docs/PLAN.md): Mevcut durum, açık sorunlar ve sonraki adımlar.
 
 CI derlemesinin geçmesi, ilgili özelliğin gerçek saatte doğrulandığı anlamına gelmez. Bu iki durum ayrı takip edilir.
 
