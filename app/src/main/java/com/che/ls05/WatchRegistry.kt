@@ -109,6 +109,44 @@ object WatchRegistry {
 
     fun active(c: Context): WatchRecord? = list(c).active
 
+    fun needsRecovery(c: Context): Boolean {
+        list(c)
+        return loadSource == RegistryRecovery.Source.CORRUPT
+    }
+
+    /** Restore only devices backed by both an address and a stored Band 8 key envelope.
+     * Keep the unreadable registry bytes before replacing either copy. No key is decrypted here.
+     */
+    fun recoverLocalDevices(c: Context): Int = synchronized(this) {
+        val current = list(c)
+        if (loadSource != RegistryRecovery.Source.CORRUPT) return@synchronized 0
+        val settings = legacy(c).all
+        val bandIds = settings.keys.mapNotNull { key ->
+            Regex("^d\\.(w[0-9]+)\\.address$").matchEntire(key)?.groupValues?.get(1)
+        }.distinct().sortedBy { it.drop(1).toIntOrNull() ?: Int.MAX_VALUE }
+            .filter { id ->
+                val address = settings["d.$id.address"] as? String
+                !address.isNullOrBlank() && SecretStore.has(c, id)
+            }
+        if (bandIds.isEmpty()) return@synchronized 0
+        val recovery = backup(c)
+        val primaryRaw = p(c).getString(KEY, null)
+        val backupRaw = recovery.getString(BACKUP_KEY, null)
+        val archived = recovery.edit()
+        if (primaryRaw != null) archived.putString("invalid_primary_before_recovery", primaryRaw)
+        if (backupRaw != null) archived.putString("invalid_backup_before_recovery", backupRaw)
+        if (!archived.commit()) return@synchronized 0
+        val restored = bandIds.map { id ->
+            WatchRecord(id, WatchType.BAND8, WatchType.BAND8.label, "d.$id.", System.currentTimeMillis())
+        }
+        val next = maxOf(current.next, (bandIds.mapNotNull { it.drop(1).toIntOrNull() }.maxOrNull() ?: 1) + 1)
+        val updated = current.copy(watches = current.watches + restored, next = next)
+        if (!persist(c, updated)) return@synchronized 0
+        cached = updated
+        loadSource = RegistryRecovery.Source.PRIMARY
+        restored.size
+    }
+
     /** Etkin saatin ayar öneki. Etkin saat yoksa v0.11 anahtarları (önek boş). */
     fun ns(c: Context): String = active(c)?.ns ?: ""
 
