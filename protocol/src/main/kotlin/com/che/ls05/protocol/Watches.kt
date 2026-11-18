@@ -177,6 +177,25 @@ data class WatchList(
     }
 }
 
+/** Single-line SharedPreferences representation. Legacy plain-text lists remain readable. */
+object WatchListStorage {
+    private const val PREFIX = "b64.v1:"
+
+    fun encode(list: WatchList): String = PREFIX + java.util.Base64.getEncoder()
+        .encodeToString(list.serialize().toByteArray(Charsets.UTF_8))
+
+    fun parse(stored: String?): WatchList? {
+        if (stored == null) return null
+        if (!stored.startsWith(PREFIX)) return WatchList.deserialize(stored)
+        return try {
+            val decoded = java.util.Base64.getDecoder().decode(stored.removePrefix(PREFIX))
+            WatchList.deserialize(String(decoded, Charsets.UTF_8))
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+}
+
 /** Saate ait ayar anahtarı: önek + ad. Öneksiz kayıtta anahtar v0.11 ile aynıdır. */
 object PrefKeys {
     fun key(ns: String, name: String): String = ns + name
@@ -223,8 +242,8 @@ object RegistryRecovery {
     data class Result(val list: WatchList, val source: Source)
 
     fun load(primary: String?, mirror: String?, legacyAddress: String?, legacyUserId: String?, now: Long): Result {
-        WatchList.deserialize(primary)?.let { return Result(it, Source.PRIMARY) }
-        WatchList.deserialize(mirror)?.let { return Result(it, Source.BACKUP) }
+        WatchListStorage.parse(primary)?.let { return Result(it, Source.PRIMARY) }
+        WatchListStorage.parse(mirror)?.let { return Result(it, Source.BACKUP) }
         if (primary == null && mirror == null) {
             return Result(RegistryMigration.fromLegacy(legacyAddress, legacyUserId, now), Source.MIGRATED)
         }
