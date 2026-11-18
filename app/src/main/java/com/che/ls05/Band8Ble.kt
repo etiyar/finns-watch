@@ -471,6 +471,16 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             return
         }
         listener.onLog("Band 8 gelen komut: tür=${command.type}, altTür=${command.subtype}, durum=${command.status ?: "yok"}, şifreli=$encrypted")
+        // Saat aynı GATT bağlantısında yeni kimlik doğrulaması başlatabiliyor.
+        // Eski oturum anahtarıyla gelen sonraki paketler çözülemez; mevcut B8Auth
+        // DONE durumunda yeni 1/26 ve 1/27 yanıtlarını işleyemez.
+        if (ready && !encrypted && command.type == B8Type.AUTH &&
+            (command.subtype == B8Sub.AUTH_NONCE || command.subtype == B8Sub.AUTH_PROOF)
+        ) {
+            listener.onLog("Band 8 oturum yenileme isteği; bağlantı yeniden kuruluyor")
+            close(false, -1)
+            return
+        }
         val step = auth?.onCommand(command)
         if (step != null) {
             when (step) {
