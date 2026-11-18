@@ -1,6 +1,6 @@
 # Finn's Watch | Güncel plan
 
-**18 Kasım 2026:** Kararlı dal `main` v0.12.0; Band 8 geliştirme dalı `dev/v0.13.1-band8-daily` v0.13.1-beta1. Build 170'te bildirimler ve bilekliği bul ilk oturumda çalıştı; Bluetooth kapat/aç sonrası yeniden bağlantı ve kimlik doğrulama gerçekleştiği hâlde bileklik fiziksel tepki vermedi. Beklenmedik kimlik doğrulama ve fiziksel tepkisiz `ACK` olayları [#16](https://github.com/etiyar/ls05-controller/issues/16) kapsamında açık. Band 8 sağlık verisi ve gerçek gelen arama/müzik entegrasyonu tamamlanmadı.
+**19 Kasım 2026:** Kararlı dal `main` v0.12.0; Band 8 geliştirme dalı `dev/v0.13.1-band8-daily` v0.13.1-beta1. Build 170 Bluetooth dönüşü başarısızdı. Build 173 için kullanıcı ilk bağlantı ve Bluetooth kapat/aç sonrası WhatsApp ile bilekliği bulun saatte çalıştığını, boş sağlık yenilemesinin dönmediğini bildirdi. Tek test turu başarılı; uzun oturum, beklenmedik yeniden doğrulama ve LS05 regresyonu ayrıca doğrulanacak. Kesin kök neden [#16](https://github.com/etiyar/ls05-controller/issues/16) kapsamında açık. Band 8 sağlık verisi ve gerçek gelen arama/müzik entegrasyonu tamamlanmadı.
 
 | İş | Takip | Sahip/dal | Yayın kapısı |
 | --- | --- | --- | --- |
