@@ -2,7 +2,7 @@
 
 Güncel operasyonel durum, açık hatalar ve sıradaki işler için belgenin sonundaki **18 Kasım 2026** bölümünü kullanın. Bu belgenin eski tarihli bölümleri tarihsel araştırma ve cihaz testi notlarıdır. Tamamlanan sürüm değişiklikleri `CHANGELOG.md`, gerçek cihaz testleri `docs/TEST_RESULTS.md` içindedir.
 
-**Güncel özet:** LS05 işlevleri geliştirilmiş durumda. Xiaomi Smart Band 8, doğrudan Bluetooth bağlantısıyla cihazda doğrulandı; pil ve firmware okunuyor. Bluetooth kapat/aç ve saatler arasında geçiş başarılı. Band 8'in sağlık verisi ve bildirim işlevleri henüz uygulanmadı. Kayıt kalıcılığı ve doğrulama uyarısı hakkında açık sorun var.
+**Güncel özet (18 Kasım):** LS05 işlevleri geliştirilmiş durumda. Xiaomi Smart Band 8 doğrudan bağlanıyor ve cihaz bilgisi okunuyor. Tek satırlı saat kaydı düzeltmesiyle Band 8 kaydı bir uygulama yeniden açma denemesinde korundu. İkinci tekrar ve telefon yeniden başlatma testi bekliyor. Band 8 bildirim kodu ayrı geliştirme dalında, cihazda görünme testi bekliyor; sağlık eşitlemesi henüz yok. Bağlıyken gösterilen eski doğrulama uyarısı ayrı açık sorun.
 
 ---
 
@@ -472,3 +472,10 @@ Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan 
 2. Mevcut kurulumun üzerine güncelleme: mevcut adlar, etkin saat, sağlık geçmişi ve kayıtlı Band 8 anahtarı korunur; aynı model için ikinci kurulum kartı çıkmaz.
 3. Band 8 etkinken zorla durdur/aç işlemini iki kez yap. Kayıt ve etkin seçim korunmalı, anahtar tekrar istenmeden pil bilgisi okunmalı.
 4. Servis etkinken telefonu yeniden başlat. Uygulamayı açmadan otomatik bağlantının geldiğini doğrula. LS05 ↔ Band 8 geçişinde eski durum ve pil bilgisi görünmemeli.
+
+### 18 Kasım | Kayıt kalıcılığında güncel kabul durumu
+
+- **Cihazda geçti, bir tekrar:** Tek satırlı kodlanmış kaydı kullanan geliştirme APK'sında uygulama yeniden açıldığında ana ve yedek kayıt geçerli, iki saat listede, Band 8 etkin ve anahtar zarfı mevcut. Band 8 cihaz bilgisi yeniden okundu. Önceki çok satırlı kayıt, aynı denemede yeniden açılınca `CORRUPT` oluyordu. Bu karşılaştırma düzeltmeyi destekler; eski bozulmanın kesin nedenini kanıtlamaz.
+- **Sıradaki kabul:** Band 8 etkinken ikinci zorla durdur/aç. Ardından telefon tamamen yeniden başlatıldığında uygulamayı elle açmadan servis ve bağlantı toparlanması. Sonra LS05 → Band 8 → LS05 geçişinde eski bağlantı ve sağlık kaynağı kontrolü.
+- **Paralel geliştirme:** Band 8 bildirim ve saati bulma kodunun gerçek saat denemesi. Gelen/cevapsız arama ile müzik, bağlantı kabulünden sonra ayrı commit ve cihaz testleriyle ilerler. Sağlık verileri v0.13.2'de saat kaynağına göre ayrı tutulur; iki saatin adımları toplanmaz.
+- **Yayın kapısı:** Bir kayıt testi `main` için yeterli değil. Taslak kurtarma PR'ı, ikinci yeniden açma ve telefon açılışı testleri geçene kadar açık kalır.
