@@ -1,5 +1,9 @@
 # Finn's Watch | Gerçek cihaz test sonuçları
 
+## 18 Kasım 2026 | Band 8 uzun oturum, 19:50–20:36
+
+Kullanıcı bu oturumda Band 8'in iyi çalıştığını ve bildirimlerin geldiğini bildirdi. 19:50:35–19:50:38 bilekliği bul başlat/durdur komutları `ACK` aldı. 19:50:50–20:36:12 arasında birçok WhatsApp `MESSAGE` bildirimi algılandı, Band 8 kuyruğuna alındı, BLE yazımı kabul gördü ve protokol `ACK` aldı. Grup özeti ve tekrar filtresi atlamaları beklenendi. Paylaşılan aralıkta yeni auth, şifre çözme hatası veya oturum yenileme satırı yok. **Sonuç: bu oturumda kullanıcı gözlemine göre çalıştı.** Hangi APK'nın yüklü olduğu ve [PR #18](https://github.com/etiyar/ls05-controller/pull/18) içindeki beklenmedik auth sonrası toparlanma yolu bu kesitle doğrulanmaz. [#16](https://github.com/etiyar/ls05-controller/issues/16) açık kalır.
+
 ## 18 Kasım 2026 | Band 8 bildirim kısa oturum tekrarı (17:55)
 
 Kullanıcı 17:55:39'da Band 8'i etkinleştirdi. 17:55:43'te cihaz bilgisi okundu. 17:55:59'da WhatsApp bildirimi dinleyicide algılandı (`Android anahtarı=true`), Band 8 için `tür=7, altTür=0` komutu kuyruğa girdi, BLE yazımı kabul gördü ve 17:55:59.482'de `ACK` ile bekleyen komut 1→0 oldu. Kullanıcı bildirimin **Band 8 ekranında göründüğünü** doğruladı. Grup özeti beklendiği gibi atlandı. **Sonuç: GEÇTİ (tek bildirim, yeni oturum).** Önceki oturumdaki `ACK` alıp bileklikte tepki oluşturmayan komutlar ve birkaç dakika sonra kayıp bildirim şikâyeti açıklanmadı. Aynı oturumda süreli tekrar kabulü henüz yapılmadı. [#16](https://github.com/etiyar/ls05-controller/issues/16)
