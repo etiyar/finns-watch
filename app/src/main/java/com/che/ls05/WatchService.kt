@@ -454,6 +454,8 @@ class WatchService : Service(), DriverListener {
                     val what = if (note.kind == WatchHub.NoteKind.MISSED_CALL) "Cevapsız arama" else note.appLabel
                     if (isBand) WatchHub.log("Band 8 bildirim gönderimi sıraya alındı: $what.")
                     else WatchHub.log("İletildi: $what (tip ${note.type}, ${note.title.length + note.body.length} karakter).")
+                } else if (isBand) {
+                    WatchHub.log("Band 8 bildirim iletilmedi: tür=${note.kind}, hazır=${driver.isReady}.")
                 }
             }
             WatchHub.NoteKind.CALL_ALERT -> sendCallAlert(fold(note.body))
