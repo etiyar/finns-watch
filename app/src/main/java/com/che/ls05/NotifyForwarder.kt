@@ -48,28 +48,44 @@ class NotifyForwarder : NotificationListenerService() {
         val pkg = sbn.packageName ?: return
         if (pkg == packageName) return
         val n = sbn.notification ?: return
-        if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+        val selected = Prefs.forwardingEnabled(this) && Prefs.appEnabled(this, pkg)
+        if (selected) WatchHub.log("Bildirim algılandı: ${appLabel(pkg)}; Android anahtarı=${sbn.key != null}.")
+        if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) {
+            if (selected) WatchHub.log("Bildirim atlandı: grup özeti.")
+            return
+        }
         val ongoing = n.flags and (Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE) != 0
 
         val callType = if (Build.VERSION.SDK_INT >= 31) n.extras?.getInt(Notification.EXTRA_CALL_TYPE, 0) ?: 0 else 0
         val kind = CallClassifier.classify(pkg, n.category, ongoing, callType, n.fullScreenIntent != null)
         if (kind != CallKind.NONE) {
+            if (selected) WatchHub.log("Bildirim arama yoluna ayrıldı: tür=$kind.")
             handleCall(sbn, n, kind)
             return
         }
-        if (ongoing) return
+        if (ongoing) {
+            if (selected) WatchHub.log("Bildirim atlandı: kalıcı veya ön plan bildirimi.")
+            return
+        }
 
         Prefs.addSeenApp(this, pkg)
         Prefs.setLastNotified(this, pkg, System.currentTimeMillis())
-        if (!Prefs.forwardingEnabled(this) || !Prefs.appEnabled(this, pkg)) return
+        if (!selected) return
 
         val (cleanTitle, cleanText) = texts(n)
-        if (cleanTitle.isEmpty() && cleanText.isEmpty()) return
+        if (cleanTitle.isEmpty() && cleanText.isEmpty()) {
+            WatchHub.log("Bildirim atlandı: gösterilecek metin yok.")
+            return
+        }
 
         val now = System.currentTimeMillis()
-        if (isRepeat("$pkg|${cleanTitle.hashCode()}|${cleanText.hashCode()}", now)) return
+        if (isRepeat("$pkg|${cleanTitle.hashCode()}|${cleanText.hashCode()}", now)) {
+            WatchHub.log("Bildirim atlandı: tekrar filtresi.")
+            return
+        }
 
         val label = appLabel(pkg)
+        WatchHub.log("Bildirim dinleyiciden iletime geçti: $label, tür=MESSAGE.")
         WatchHub.forward(
             this,
             WatchHub.Note(
