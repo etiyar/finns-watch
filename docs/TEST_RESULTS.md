@@ -2,6 +2,10 @@
 
 Yeni sonuç biçimi: **Tarih | APK kimliği | Test | Fiziksel gözlem | Logun kanıtladığı aşama | Sonuç.** Yalnızca saat üzerinde gözlenen sonuç `GEÇTİ` sayılır. `ACK` tek başına fiziksel tepkiyi doğrulamaz. Önceki satırlarda tam APK kimliği yoksa eski sonuca yeni kimlik atanmaz; **APK kimliği yok** olarak değerlendirilir. PR #18 cihaz testi için PR'a önceden yazılan kimlik ile Ayarlar > Hakkında satırı eşleşmelidir.
 
+| Tarih | APK kimliği | Test | Fiziksel gözlem | Logun kanıtladığı aşama | Sonuç |
+| --- | --- | --- | --- | --- | --- |
+| 18.11.2026 | Kullanıcıya verilen `0.13.1-beta1 · build 161 · run 44386438656-1 · b881509 · feat/apk-build-identity`; Ayarlar > Hakkında henüz karşılaştırılmadı | Mevcut kurulum üzerine APK yükleme | Kullanıcı "yükledim oldu" dedi. Saat kayıtları, Band 8 anahtarı ve sağlık geçmişinin korunmasına ilişkin gözlem paylaşılmadı. | [CI build 161](https://github.com/etiyar/ls05-controller/actions/runs/44386438656) başarılı; kurulumun cihazda açıldığına ilişkin log paylaşılmadı. | **KURULUM BAŞARILI (kullanıcı bildirimi); veri koruma ve kimlik eşleşmesi DOĞRULANMADI** |
+
 ## 18 Kasım 2026 | Band 8 uzun oturum, 19:50–20:36
 
 Kullanıcı bu oturumda Band 8'in iyi çalıştığını ve bildirimlerin geldiğini bildirdi. 19:50:35–19:50:38 bilekliği bul başlat/durdur komutları `ACK` aldı. 19:50:50–20:36:12 arasında birçok WhatsApp `MESSAGE` bildirimi algılandı, Band 8 kuyruğuna alındı, BLE yazımı kabul gördü ve protokol `ACK` aldı. Grup özeti ve tekrar filtresi atlamaları beklenendi. Paylaşılan aralıkta yeni auth, şifre çözme hatası veya oturum yenileme satırı yok. **Sonuç: bu oturumda kullanıcı gözlemine göre çalıştı.** Hangi APK'nın yüklü olduğu ve [PR #18](https://github.com/etiyar/ls05-controller/pull/18) içindeki beklenmedik auth sonrası toparlanma yolu bu kesitle doğrulanmaz. [#16](https://github.com/etiyar/ls05-controller/issues/16) açık kalır.
