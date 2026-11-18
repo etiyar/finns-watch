@@ -50,8 +50,14 @@ class Band8Driver(
     }
 
     override fun sendAppNotification(note: WatchHub.Note, vibrate: Boolean): Boolean {
-        val key = note.androidKey ?: return false
-        if (note.kind != WatchHub.NoteKind.MESSAGE) return false
+        val key = note.androidKey ?: run {
+            listener.onLog("Band 8 bildirim atlandı: Android anahtarı yok, tür=${note.kind}")
+            return false
+        }
+        if (note.kind != WatchHub.NoteKind.MESSAGE) {
+            listener.onLog("Band 8 bildirim atlandı: tür=${note.kind}")
+            return false
+        }
         return ble.sendAppNotification(B8Notification(
             note.pkg, note.appLabel, note.title, note.body, notificationTime(note.at), note.androidId, key,
         ))
