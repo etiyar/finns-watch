@@ -7,8 +7,8 @@ Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihaz
 ## v0.13.1-alpha1 | 18 Kasım 2026
 
 - Geliştirme dalında saat listesini tek satırlı biçimde saklama ve eski biçimi okuma eklendi. Bozuk listeden Band 8 kurtarma, yazma kontrolü ve maskeli tanılama eklendi. Kullanıcı iki uygulama yeniden açma denemesi ve telefon yeniden başlatma sonrasında kayıt kaybı görmedi. Arka planda otomatik bağlantı ayrıca doğrulanacak.
-- Band 8'e normal Android bildirimleri, mevcut uygulama filtresiyle iletilir. Türkçe metin ve kaynak uygulama bilgisi korunur. Cihaz testi bekliyor.
-- Band 8 bağlıyken Gelişmiş ve log bölümünde elle başlatma ve durdurma denetimleri bulunur. Durdurma komutu ve bileklikten kapatma davranışı cihazda doğrulanmayı bekliyor.
+- Band 8'e normal Android bildirimleri, mevcut uygulama filtresiyle iletilir. Türkçe metin ve kaynak uygulama bilgisi korunur. WhatsApp ve test bildirimi saatte görüldü; ekran kilitli ve Bluetooth kapat/aç sonrası bildirim denemeleri kullanıcı bildirimine göre geçti. Kapalı uygulama filtresi ayrıca doğrulanacak.
+- Band 8 bağlıyken Gelişmiş ve log bölümünde elle başlatma ve durdurma denetimleri bulunur. Uygulamadan ve bileklikten durdurma, Bluetooth kapat/aç sonrası saati bul ve LS05 bildirim kontrolü kullanıcı testinde geçti. Önceki tek seferlik başarısızlığın kök nedeni bilinmiyor.
 - Gelen ve cevapsız aramalar, müzik ve sağlık eşitlemesi sonraki işlerdir.
 
 ## v0.13.0-beta8 | 18 Kasım 2026
