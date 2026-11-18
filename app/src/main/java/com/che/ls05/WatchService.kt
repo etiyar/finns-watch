@@ -260,6 +260,8 @@ class WatchService : Service(), DriverListener {
 
     fun testBandFind(start: Boolean): Boolean = (driver as? Band8Driver)?.testFindBand(start) ?: false
 
+    fun testBandCallScreen(start: Boolean): Boolean = (driver as? Band8Driver)?.testCallScreen(start) ?: false
+
     /** Kullanıcı doğrulama anahtarını girmekten vazgeçtiğinde bağlantıyı sonlandır. */
     fun cancelBandSetup() { (driver as? Band8Driver)?.disconnect() }
 
