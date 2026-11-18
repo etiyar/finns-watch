@@ -2,6 +2,10 @@
 
 Kaynak: kullanıcının doğrudan bildirdiği denemeler. CI derlemesi burada ayrıca belirtilir; gerçek cihazda denenmemiş bir işlevi başarılı saymayız.
 
+## 18 Kasım 2026 | Son dayanıklılık kabulü
+
+Kullanıcı, önceki turda istenen **telefon kilitliyken bildirim**, **Bluetooth kapat/aç sonrası Band 8 bildirimi ve saati bul**, **LS05 bildirim kontrolü** testlerinin tümünün başarılı olduğunu bildirdi. Bu tur için ayrı zaman damgalı log veya test başına ayrıntı paylaşılmadı; sonuç kullanıcı gözlemine dayanır. Önceki Band 8 bildirim ve bilekliği bul denemelerinin komut/ACK kanıtı aşağıdadır. Eski başarısızlığın kök nedeni belirlenmedi. Kapalı uygulama filtresi ve uygulamayı elle açmadan telefon başlangıcında otomatik bağlantı bu mesajla ayrıca doğrulanmış sayılmaz.
+
 ## 18 Kasım 2026 | Band 8 tanılama APK'sı ile tekrar test
 
 | Deneme | Sonuç | Kanıt ve sınır |
