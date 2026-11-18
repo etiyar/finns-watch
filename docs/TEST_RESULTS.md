@@ -2,6 +2,10 @@
 
 Kaynak: kullanıcının doğrudan bildirdiği denemeler. CI derlemesi burada ayrıca belirtilir; gerçek cihazda denenmemiş bir işlevi başarılı saymayız.
 
+## 18 Kasım 2026 | Band 8 elle arama ekranı denemesi (taslak PR #13)
+
+Kullanıcı denemede sorun görmediğini bildirdi. 14:16:02 ve 14:16:21'de `7/0` açma istekleri protokol `ACK` aldı. 14:16:07'de bileklikten şifreli `7/2` komutu geldi; bu, arama reddi olayı olabilir, fakat kullanıcı eylemi ve anlamı ayrıca doğrulanmadı. Her iki denemede 15 saniyelik güvenlik süresi sonunda `7/1` kapatma isteği gönderildi ve `ACK` alındı (14:16:17, 14:16:36). Uygulamadaki **elle kapat** düğmesinin kullanıldığı bu logda görünmüyor; ayrı geçti sayılmaz. `ACK` ekranın fiziksel durumunu tek başına kanıtlamaz. Gerçek gelen arama, cevapsız arama ve müzik henüz test edilmedi. [PR #13](https://github.com/etiyar/ls05-controller/pull/13) taslak ve geliştirme dalına alınmadı.
+
 ## 18 Kasım 2026 | Son dayanıklılık kabulü
 
 Kullanıcı, önceki turda istenen **telefon kilitliyken bildirim**, **Bluetooth kapat/aç sonrası Band 8 bildirimi ve saati bul**, **LS05 bildirim kontrolü** testlerinin tümünün başarılı olduğunu bildirdi. Bu tur için ayrı zaman damgalı log veya test başına ayrıntı paylaşılmadı; sonuç kullanıcı gözlemine dayanır. Önceki Band 8 bildirim ve bilekliği bul denemelerinin komut/ACK kanıtı aşağıdadır. Eski başarısızlığın kök nedeni belirlenmedi. Kapalı uygulama filtresi ve uygulamayı elle açmadan telefon başlangıcında otomatik bağlantı bu mesajla ayrıca doğrulanmış sayılmaz.
