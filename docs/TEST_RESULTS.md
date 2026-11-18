@@ -2,6 +2,17 @@
 
 Kaynak: kullanıcının doğrudan bildirdiği denemeler. CI derlemesi burada ayrıca belirtilir; gerçek cihazda denenmemiş bir işlevi başarılı saymayız.
 
+## 18 Kasım 2026 | Band 8 tanılama APK'sı ile tekrar test
+
+| Deneme | Sonuç | Kanıt ve sınır |
+|---|---|---|
+| Bilekliği bul, bileklikten durdur | **GEÇTİ (kullanıcı bildirimi)** | 12:19:04 başlatma gönderildi ve protokol `ACK` ile kuyruk sıfırlandı. Kullanıcı bileklikten durdurduğunu ve işlevin çalıştığını bildirdi. Bileklikten durdurma için ayrı bir gelen komut bu logda yok. |
+| Bilekliği bul, uygulamadan durdur | **GEÇTİ (kullanıcı bildirimi)** | 12:19:15 başlatma ve 12:19:17 durdurma istekleri ayrı `ACK` aldı, kuyruk sıfırlandı. Kullanıcı titreşimin durduğunu bildirdi. |
+| Notification Test bildirimi | **GEÇTİ (kullanıcı bildirimi)** | 12:19:32 `MESSAGE` dinleyiciden geçti, `tür=7, altTür=0` gönderildi ve `ACK` alındı. Kullanıcı saatte gördüğünü bildirdi. |
+| WhatsApp bildirimi | **GEÇTİ (kullanıcı bildirimi)** | 12:19:56 `MESSAGE` dinleyiciden geçti, `tür=7, altTür=0` gönderildi ve `ACK` alındı. Kullanıcı saatte gördüğünü bildirdi. Grup özeti beklenen şekilde atlandı. |
+
+Bu tekrar testi [tanılama PR #5](https://github.com/etiyar/ls05-controller/pull/5) APK'sıyla yapıldı. Kod yalnızca olay logları ekledi; önceki başarısızlığın kök nedeni belirlenmedi. Bu oturumda simge isteği (`tür=7, altTür=15`), kuyruk takılması veya zaman aşımı görünmedi. Ekran kapalı ve yeniden bağlanma sonrası tekrarlama, kapalı uygulama filtresi ve LS05 gerileme kontrolü henüz yapılmadı. `ACK`, fiziksel görüntüleme kanıtı değildir; saatte görünme kullanıcı gözlemidir.
+
 ## 18 Kasım 2026 | Band 8 bildirim ve saati bul denemesi
 
 | Deneme | Sonuç | Kanıt ve sınır |

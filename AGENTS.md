@@ -4,7 +4,7 @@
 
 - Güncel geliştirme tabanı `dev/v0.13.1-band8-daily`; `main` kararlı sürüm içindir. İşe başlarken uzak dalın güncel commit'ini ve açık PR/issue listesini kontrol et. Eski yerel kopyaya güvenme.
 - Açık hata ve kabul ölçütü GitHub issue'da; cihazda gerçekten gözlenen sonuç `docs/TEST_RESULTS.md` içinde; sıradaki sıra `docs/PLAN.md` içinde; yayınlanan değişiklik `CHANGELOG.md` içinde. Aynı bilgiyi başka devir belgesine çoğaltma.
-- Son cihaz kanıtı: Band 8 kaydı uygulama yeniden açma ve telefon yeniden başlatmada korundu. WhatsApp ve test uygulaması bildirimleri görünmedi ([#2](https://github.com/etiyar/ls05-controller/issues/2)); bağlı görünürken saati bul başlatması yerel olarak reddedildi ([#3](https://github.com/etiyar/ls05-controller/issues/3)). İki arızanın ortak nedeni kanıtlanmadı.
+- Son cihaz kanıtı: Band 8 kaydı uygulama yeniden açma ve telefon yeniden başlatmada korundu. Tanılama APK'sıyla WhatsApp ve test uygulaması bildirimleri saatte göründü ([#2](https://github.com/etiyar/ls05-controller/issues/2)); bilekliği bul başlatması ve iki durdurma yolu çalıştı ([#3](https://github.com/etiyar/ls05-controller/issues/3)). Önceki başarısızlığın kök nedeni bilinmiyor; kalan dayanıklılık testleri `docs/PLAN.md` sonunda.
 
 ## İş alma ve devretme
 

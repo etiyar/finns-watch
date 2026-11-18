@@ -2,7 +2,7 @@
 
 Güncel operasyonel durum, açık hatalar ve sıradaki işler için belgenin sonundaki **18 Kasım 2026** bölümünü kullanın. Bu belgenin eski tarihli bölümleri tarihsel araştırma ve cihaz testi notlarıdır. Tamamlanan sürüm değişiklikleri `CHANGELOG.md`, gerçek cihaz testleri `docs/TEST_RESULTS.md` içindedir.
 
-**Güncel özet (18 Kasım):** LS05 işlevleri geliştirilmiş durumda. Xiaomi Smart Band 8 doğrudan bağlanıyor ve cihaz bilgisi okunuyor. Tek satırlı kayıt düzeltmesiyle uygulama yeniden açma ve telefon yeniden başlatma testleri kullanıcı bildirimine göre geçti. Telefon açılışında uygulama elle açılmadan otomatik bağlantı ayrıca doğrulanmadı. Band 8 WhatsApp ve test uygulaması bildirimleri saatte görünmedi; bağlı görünürken saati bul komutu gönderilemedi. Sağlık eşitlemesi henüz yok. Bağlıyken gösterilen eski doğrulama uyarısı ayrı açık sorun.
+**Güncel özet (18 Kasım):** LS05 işlevleri geliştirilmiş durumda. Xiaomi Smart Band 8 doğrudan bağlanıyor ve cihaz bilgisi okunuyor. Tek satırlı kayıt düzeltmesiyle uygulama yeniden açma ve telefon yeniden başlatma testleri kullanıcı bildirimine göre geçti. Tanılama APK'sıyla WhatsApp ve test bildirimi saatte göründü; bilekliği bul başlatma ve iki durdurma yolu kullanıcı testinde çalıştı. Önceki başarısızlığın kök nedeni belirlenmedi. Telefon açılışında uygulama elle açılmadan otomatik bağlantı ve bağlantı sonrası işlevlerin dayanıklılığı ayrıca doğrulanmadı. Band 8 sağlık eşitlemesi henüz yok.
 
 ---
 
@@ -488,3 +488,10 @@ Tek geliştirme akışı ve bağımsız son kontrol. Aynı dosyaya paralel ajan 
 4. **Cihaz kabulü:** WhatsApp ve test uygulaması açıkken saatte görünme, kapalı uygulamanın iletilmemesi; saati bul için başlat, uygulamadan durdur ve bileklikten durdur ayrı doğrulansın. Önceki 'telefonu bul' titreşimi farklı yöndeki işlevdir. Sonuçları `docs/TEST_RESULTS.md` içine yaz; ardından `main` yayın kararı ver.
 
 İki ajan aynı işi sürdürecekse güncel `dev/v0.13.1-band8-daily` dalını temel alsın, açık issue ve PR üzerinden sahiplik bildirsin. Ayrıntılı çalışma protokolü kök `AGENTS.md` içindedir.
+
+### 18 Kasım | Tanılama APK'sı gerçek cihaz sonucu ve kalan kapı
+
+- [PR #5](https://github.com/etiyar/ls05-controller/pull/5) logları eklendi, CI protokol testi ve APK derlemesi geçti. Kullanıcı aynı APK ile WhatsApp ve Notification Test bildirimlerini saatte gördü; bilekliği bul başlatmasını, bileklikten ve uygulamadan durdurmayı doğruladı. Komutların `ACK` yanıtından sonra kuyruk sıfırlandı. Simge isteği bu denemede gözlenmedi.
+- Önceki başarısızlık yeniden üretilemedi; tanılama kodu işlev davranışını değiştirmediğinden kök nedeni çözüldü sayma. [#2](https://github.com/etiyar/ls05-controller/issues/2) ve [#3](https://github.com/etiyar/ls05-controller/issues/3) içindeki birincil cihaz denemelerini başarılı olarak kaydet, dayanıklılık maddelerini açık tut.
+- Sıradaki kısa cihaz kabulü: ekran kilitliyken WhatsApp ve test bildirimi; uygulama filtresi kapalıyken iletilmeme; Bluetooth kapat/aç veya menzil dışı sonrası yeniden bağlanınca bildirim ve bulma; ardından LS05'ye geçip bildirim ve saati bul gerileme kontrolü. Telefon açılışında uygulamayı elle açmadan otomatik bağlanma ayrıca gözlenmeli.
+- Bu kapılar geçerse geliştirme dalı için sürüm kararı al. `main` dalını veya sürüm başlıklarını yalnızca mevcut ACK loguna dayanarak değiştirme. Band 8 sağlık verileri LS05 verileriyle toplanmaz.
