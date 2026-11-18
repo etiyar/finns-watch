@@ -1,5 +1,7 @@
 # Finn's Watch | Gerçek cihaz test sonuçları
 
+Yeni sonuç biçimi: **Tarih | APK kimliği | Test | Fiziksel gözlem | Logun kanıtladığı aşama | Sonuç.** Yalnızca saat üzerinde gözlenen sonuç `GEÇTİ` sayılır. `ACK` tek başına fiziksel tepkiyi doğrulamaz. Önceki satırlarda tam APK kimliği yoksa eski sonuca yeni kimlik atanmaz; **APK kimliği yok** olarak değerlendirilir. PR #18 cihaz testi için PR'a önceden yazılan kimlik ile Ayarlar > Hakkında satırı eşleşmelidir.
+
 ## 18 Kasım 2026 | Band 8 uzun oturum, 19:50–20:36
 
 Kullanıcı bu oturumda Band 8'in iyi çalıştığını ve bildirimlerin geldiğini bildirdi. 19:50:35–19:50:38 bilekliği bul başlat/durdur komutları `ACK` aldı. 19:50:50–20:36:12 arasında birçok WhatsApp `MESSAGE` bildirimi algılandı, Band 8 kuyruğuna alındı, BLE yazımı kabul gördü ve protokol `ACK` aldı. Grup özeti ve tekrar filtresi atlamaları beklenendi. Paylaşılan aralıkta yeni auth, şifre çözme hatası veya oturum yenileme satırı yok. **Sonuç: bu oturumda kullanıcı gözlemine göre çalıştı.** Hangi APK'nın yüklü olduğu ve [PR #18](https://github.com/etiyar/ls05-controller/pull/18) içindeki beklenmedik auth sonrası toparlanma yolu bu kesitle doğrulanmaz. [#16](https://github.com/etiyar/ls05-controller/issues/16) açık kalır.

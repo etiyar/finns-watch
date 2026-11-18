@@ -15,7 +15,7 @@ Finn's Watch, birden fazla saati tek uygulamadan yönetmeyi hedefleyen bağıms�
 
 **Sürümler:** `main` üzerinde **v0.12.0** bulunur. **v0.13.1-beta1 sürüm adayı** [geliştirme dalında](https://github.com/etiyar/ls05-controller/tree/dev/v0.13.1-band8-daily) hazırlanır. Kurulum ve regresyon testi geçmeden kararlı sürüm olarak yayımlanmaz.
 
-> **Bilinen sınırlar:** Önceki Band 8 kayıt kaybı ve tek seferlik komut reddi sonraki kullanıcı testlerinde tekrarlanmadı; kesin kök neden bilinmiyor. Band 8 sağlık verisi henüz eşitlenmez, bu nedenle ilgili ekranda veri görünmemesi beklenir. Kapalı uygulama filtresi ve telefon açılışında uygulama elle açılmadan bağlantı ayrıca doğrulanacak.
+> **Bilinen sınırlar:** Bazı Band 8 oturumlarında `ACK` alındığı hâlde bileklikte fiziksel tepki görülmedi. Beklenmedik doğrulama ve şifre çözme hatalarının ardından toparlanma [#16](https://github.com/etiyar/ls05-controller/issues/16) kapsamında açık. Band 8 sağlık verisi henüz eşitlenmez. Kapalı uygulama filtresi ve telefon açılışında uygulama elle açılmadan bağlantı ayrıca doğrulanacak.
 
 ## Özellikler
 
@@ -39,7 +39,7 @@ Band 8 için LS05 ile aynı özellik kapsamı **henüz sunulmaz**. Destek yalnı
 
 ## Kurulum ve geliştirme
 
-Bu depo Android kaynak kodunu ve GitHub Actions testlerini içerir. Deneme APK'ları [Actions](https://github.com/etiyar/ls05-controller/actions) çıktılarından alınabilir. Beta sürümler yalnızca ilgili geliştirme dalından derlenir.
+Bu depo Android kaynak kodunu ve GitHub Actions testlerini içerir. Telefondan indirilecek test adayları [Releases](https://github.com/etiyar/ls05-controller/releases) sayfasında açıkça adlandırılır; her CI derlemesi [Actions](https://github.com/etiyar/ls05-controller/actions) çıktısında kalır. Aday testinde Ayarlar > Hakkında satırındaki APK kimliği kaydedilir.
 
 Yerel derleme için Android SDK ve JDK 17 gerekir:
 
@@ -64,7 +64,7 @@ Güncel belgeler [v0.13.1 geliştirme dalında](https://github.com/etiyar/ls05-c
 
 - [CHANGELOG.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/CHANGELOG.md): Sürüm değişiklikleri.
 - [TEST_RESULTS.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/docs/TEST_RESULTS.md): Gerçek cihaz ve CI test sonuçları.
-- [PLAN.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/docs/PLAN.md): Mevcut durum, açık sorunlar ve sonraki adımlar.
+- [PLAN.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13.1-band8-daily/docs/PLAN.md): Güncel durum ve açık issue bağlantıları.
 
 CI derlemesinin geçmesi, ilgili özelliğin gerçek saatte doğrulandığı anlamına gelmez. Bu iki durum ayrı takip edilir.
 
