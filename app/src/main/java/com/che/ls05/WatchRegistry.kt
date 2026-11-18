@@ -75,6 +75,10 @@ object WatchRegistry {
     /** Yedek ilk yazılır; diskteki son iyi liste bir hata halinde geri alınabilir. */
     private fun persist(c: Context, l: WatchList): Boolean {
         val content = l.serialize()
+        if (WatchList.deserialize(content) != l) {
+            WatchHub.log("Saat listesi oluşturuldu ancak yeniden ayrıştırılamadı; kayıt değiştirilmedi.")
+            return false
+        }
         val backupWritten = backup(c).edit().putString(BACKUP_KEY, content).commit()
         if (!backupWritten) {
             WatchHub.log("Saat kurtarma kopyası yazılamadı; kayıt değiştirilmedi.")
@@ -82,7 +86,14 @@ object WatchRegistry {
         }
         val primaryWritten = p(c).edit().putString(KEY, content).commit()
         if (!primaryWritten) WatchHub.log("Saat listesi yazılamadı; kurtarma kopyası korundu.")
-        return primaryWritten
+        if (!primaryWritten) return false
+        val primaryReadback = WatchList.deserialize(p(c).getString(KEY, null)) == l
+        val backupReadback = WatchList.deserialize(backup(c).getString(BACKUP_KEY, null)) == l
+        if (!primaryReadback || !backupReadback) {
+            WatchHub.log("Saat kaydı yazma kontrolü başarısız: ana=$primaryReadback, yedek=$backupReadback.")
+            return false
+        }
+        return true
     }
 
     private fun save(c: Context, l: WatchList): Boolean = synchronized(this) {
@@ -144,6 +155,7 @@ object WatchRegistry {
         if (!persist(c, updated)) return@synchronized 0
         cached = updated
         loadSource = RegistryRecovery.Source.PRIMARY
+        WatchHub.log("Saat kurtarma sonrası: ${diagnosticSummary(c)}")
         restored.size
     }
 
@@ -193,7 +205,11 @@ object WatchRegistry {
     }
 
     /** Etkin saati değiştirir (yalnızca kayıt). Bağlantıyı WatchService.switchTo yönetir. */
-    fun setActive(c: Context, id: String?): Boolean = save(c, list(c).withActive(id))
+    fun setActive(c: Context, id: String?): Boolean {
+        val saved = save(c, list(c).withActive(id))
+        WatchHub.log("Saat seçimi ${if (saved) "kaydedildi" else "kaydedilemedi"}: ${diagnosticSummary(c)}")
+        return saved
+    }
 
     /**
      * Kurulumdan yeni LS05 bağlanacak ama etkin saat yok (ilk kurulum): öneksiz LS05 kaydı etkin yapılır.
