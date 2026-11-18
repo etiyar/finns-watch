@@ -1395,6 +1395,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private val firmwareValue: TextView = ui.text("", 15f, R.color.text2)
     private val actionButtons = ArrayList<Button>()
     private val bandFindTests = ui.vertical()
+    private val bandCallTests = ui.vertical()
     private val logView: TextView = ui.mono()
     private var setupOpened = false
 
@@ -1482,6 +1483,16 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(bandFindTests, findStop, topDp = 4)
         bandFindTests.visibility = View.GONE
         ui.add(adv.content, bandFindTests, topDp = 12)
+        ui.add(bandCallTests, ui.cardTitle("Band 8 arama ekranı denemesi"))
+        ui.add(bandCallTests, ui.caption("Deneysel: gerçek telefon araması başlatmaz. Yalnızca bileklikteki ekranı dener; bağlantı sürerse 15 saniye sonra kapatmayı dener."), topDp = 4)
+        val callStart = ui.secondary("Arama ekranını dene") { testBandCallScreen(start = true) }
+        val callStop = ui.secondary("Arama ekranını kapat") { testBandCallScreen(start = false) }
+        actionButtons += callStart
+        actionButtons += callStop
+        ui.add(bandCallTests, callStart, topDp = 8)
+        ui.add(bandCallTests, callStop, topDp = 4)
+        bandCallTests.visibility = View.GONE
+        ui.add(adv.content, bandCallTests, topDp = 12)
         ui.add(adv.content, ui.cardTitle("Log"), topDp = 20)
         val lr = ui.horizontal()
         ui.add(lr, ui.secondary("Logu kopyala") { copyLog() }, width = 0, weight = 1f)
@@ -1510,6 +1521,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         remote.view.visibility = if (caps.musicRemote || caps.findPhone) View.VISIBLE else View.GONE
         bandFindTests.visibility =
             if (WatchRegistry.active(act)?.type == WatchType.BAND8) View.VISIBLE else View.GONE
+        bandCallTests.visibility = bandFindTests.visibility
         refreshSetup()
         refreshWatchInfo()
         theme.select(Prefs.themeMode(act))
@@ -1519,6 +1531,11 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private fun testBandFind(start: Boolean) {
         val service = act.readyService() ?: return
         if (!service.testBandFind(start)) act.toast("Band 8 komutu gönderilemedi. Biraz bekleyip tekrar dene.")
+    }
+
+    private fun testBandCallScreen(start: Boolean) {
+        val service = act.readyService() ?: return
+        if (!service.testBandCallScreen(start)) act.toast("Band 8 arama denemesi gönderilemedi. Logu kontrol et.")
     }
 
     /** Özet satırı: "Her şey hazır" ya da eksik sayısı. Eksik varsa liste ilk açılışta açık gelir. */
