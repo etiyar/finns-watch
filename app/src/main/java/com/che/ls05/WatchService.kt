@@ -105,10 +105,11 @@ class WatchService : Service(), DriverListener {
     /** Gecikmeli işler (onay denetimi, geçmiş istekleri) için ortak etiket; servis kapanınca hepsi iptal edilir. */
     private val delayedToken = Any()
 
-    private val reconnectRunnable = Runnable { connectSaved(autoConnect = true) }
+    private val reconnectRunnable = Runnable { reconnectSaved() }
 
     /** Bu bağlantı doğrulanıp hazır oldu mu. Hiç hazır olmamış bağlantı denemesinin kopması uyarı kurmaz. */
     private var wasReady = false
+    private var bandReadyAt = 0L
 
     /** Geçmiş okuma kapısı: üst üste gelen istekleri ayıklar (bkz. requestHistory). */
     private val historyGate = HistoryGate()
@@ -218,7 +219,7 @@ class WatchService : Service(), DriverListener {
                     driver.forceClose("yeni bağlantı isteği")
                     restarting = false
                 }
-                connectSaved(autoConnect = false)
+                connectSaved(autoConnect = false, rebuildBandDriver = true)
             }
             else -> {
                 stopping = false
@@ -230,7 +231,8 @@ class WatchService : Service(), DriverListener {
 
     // ---------- Bağlantı yönetimi ----------
 
-    fun isWatchReady(): Boolean = driver.isReady && !driver.busy
+    fun isWatchReady(): Boolean = driver.isReady && !driver.busy &&
+        (driver.type != WatchType.BAND8 || SystemClock.uptimeMillis() >= bandReadyAt)
 
     // ---------- Kadran ----------
 
@@ -329,7 +331,12 @@ class WatchService : Service(), DriverListener {
         return null
     }
 
-    private fun connectSaved(autoConnect: Boolean) {
+    private fun reconnectSaved() {
+        val band = driver.type == WatchType.BAND8
+        connectSaved(autoConnect = !band, rebuildBandDriver = band)
+    }
+
+    private fun connectSaved(autoConnect: Boolean, rebuildBandDriver: Boolean = false) {
         if (stopping || driver.isConnected) return
         if (!hasConnectPermission()) {
             updateStatus("Bluetooth izni yok")
@@ -360,6 +367,12 @@ class WatchService : Service(), DriverListener {
             updateStatus("Kayıtlı saat adresi geçersiz")
             return
         }
+        if (rebuildBandDriver && driver.type == WatchType.BAND8) {
+            // Saat değişimindeki temiz sürücü başlangıcını kayıtlı saati değiştirmeden uygula.
+            driver.release("Band 8 yeniden bağlanıyor")
+            driver = WatchManager.driverFor(WatchType.BAND8, applicationContext, this)
+            WatchHub.log("Band 8 sürücüsü yenilendi; kayıtlı bilekliğe bağlanılıyor.")
+        }
         if (autoConnect) WatchHub.log("Saat menzile girince bağlanılacak (otomatik bağlantı).")
         driver.connect(device, autoConnect)
     }
@@ -375,7 +388,7 @@ class WatchService : Service(), DriverListener {
         lastNudge = now
         WatchHub.log("Bekleyen bildirim var; yeniden bağlanma öne alındı.")
         main.removeCallbacks(reconnectRunnable)
-        connectSaved(autoConnect = false)
+        connectSaved(autoConnect = false, rebuildBandDriver = true)
     }
 
     private fun scheduleReconnect() {
@@ -599,6 +612,10 @@ class WatchService : Service(), DriverListener {
      * İstek gönderildiyse true.
      */
     fun requestHistory(includeSleep: Boolean): Boolean {
+        if (driver.type == WatchType.BAND8) {
+            WatchHub.log("Band 8 sağlık geçmişi henüz desteklenmiyor; okuma başlatılmadı.")
+            return false
+        }
         if (driver.busy) {
             WatchHub.log("Kadran yükleniyor; geçmiş daha sonra okunacak.")
             return false
@@ -694,7 +711,11 @@ class WatchService : Service(), DriverListener {
         authTimeouts = 0
         // Band 8 yalnızca normal telefon bildirimlerini alır; LS05'e özel istekler gönderilmez.
         if (driver.type == WatchType.BAND8) {
-            flushPending()
+            bandReadyAt = SystemClock.uptimeMillis() + 1_500
+            val readySession = session
+            main.postDelayed({
+                if (driver.type == WatchType.BAND8 && driver.isReady && session == readySession) flushPending()
+            }, 1_500)
             return
         }
         if (Prefs.autoTime(this)) sendTime("otomatik saat eşitleme (04)")
@@ -717,6 +738,7 @@ class WatchService : Service(), DriverListener {
     }
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
+        bandReadyAt = 0L
         clearFind("bağlantı koptu")
         val hadLink = wasReady
         wasReady = false

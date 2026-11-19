@@ -28,6 +28,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import com.che.ls05.protocol.UteFrame
+import com.che.ls05.protocol.WatchType
 
 /**
  * v0.6 panel: sayfa başlığı ve bağlantı kapsülü, dört sekme (Bugün, Saat, Bildirimler, Ayarlar), yüzen alt menü.
@@ -355,7 +356,8 @@ class MainActivity : Activity(), WatchHub.Observer {
     private fun refreshTop() {
         if (WatchHub.ready) {
             val b = WatchHub.battery
-            ui.setPill(statusPill, if (b != null) "Bağlı · %$b" else "Bağlı", Tone.OK)
+            val label = if (WatchRegistry.active(this)?.type == WatchType.BAND8) "Oturum açık" else "Bağlı"
+            ui.setPill(statusPill, if (b != null) "$label · %$b" else label, Tone.OK)
         } else {
             val s = WatchHub.status
             val busy = s.endsWith("…") || s.startsWith("Saatte onay")

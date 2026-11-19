@@ -290,6 +290,10 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
      * Saat bağlı değilse ya da kadran yükleniyorsa readyService kısa uyarı gösterir.
      */
     private fun requestData(): Boolean {
+        if (WatchRegistry.active(act)?.type == WatchType.BAND8) {
+            act.toast("Band 8 sağlık verisi eşitlemesi henüz desteklenmiyor.")
+            return false
+        }
         val s = act.readyService() ?: return false
         if (s.requestHistory(true)) return true
         if (s.historyBusy) return true
@@ -299,7 +303,7 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
 
     /** Okuma sürerken (elle ya da bağlanınca otomatik) gösterge döner; bitince ya da kopunca gizlenir. */
     private fun refreshPullState() {
-        pull.setRefreshing(WatchHub.service?.historyBusy == true)
+        pull.setRefreshing(WatchRegistry.active(act)?.type != WatchType.BAND8 && WatchHub.service?.historyBusy == true)
     }
 
     override fun refresh() {
@@ -399,7 +403,8 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
 
         refreshTrends(view, now.toLocalDate())
 
-        syncText.text = if (last == 0L) "Son eşitleme: henüz yok" else "Son eşitleme: ${Fmt.dayMs(last)}"
+        syncText.text = if (WatchRegistry.active(act)?.type == WatchType.BAND8) "Band 8 sağlık eşitlemesi henüz yok"
+            else if (last == 0L) "Son eşitleme: henüz yok" else "Son eşitleme: ${Fmt.dayMs(last)}"
         refreshPullState()
     }
 }
