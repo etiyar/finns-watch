@@ -4,9 +4,15 @@ on:
   push:
     branches: [ '**' ]
   workflow_dispatch:
+    inputs:
+      publish_candidate:
+        description: 'Telefondan indirilebilir test adayını Releases sayfasına koy'
+        type: boolean
+        required: true
+        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -14,6 +20,19 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      - name: APK sürüm kodunu kontrol et
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$((1000 + GITHUB_RUN_NUMBER))
+          latest=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq '.[].tag_name' | awk -F- '$1 == "candidate" && $2 == "build" && $3 ~ /^[0-9]+$/ {if ($3 > max) max=$3} END {print max+0}')
+          if [ "$current" -le "$((1000 + latest))" ]; then
+            echo "versionCode $current son yayımlanan adayın kodundan büyük değil: $((1000 + latest))"
+            exit 1
+          fi
+          echo "APK versionCode=$current; son aday build=$latest"
 
       - uses: actions/setup-java@v4
         with:
@@ -53,6 +72,8 @@ jobs:
           ./gradlew --no-daemon :protocol:test
 
       - name: APK derle (debug)
+        env:
+          BUILD_SOURCE_BRANCH: ${{ github.ref_name }}
         run: ./gradlew --no-daemon :app:assembleDebug
 
       - name: İmza parmak izi
@@ -60,7 +81,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: LS05Controller-debug-apk
+          name: FinnsWatch-${{ github.run_number }}-${{ github.run_attempt }}-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
@@ -70,13 +91,32 @@ jobs:
           name: test-raporu
           path: protocol/build/reports/tests/
 
-      - name: Telefondan indirmek için Release yayınla
-        if: github.ref == 'refs/heads/main'
+  candidate:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_candidate
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: FinnsWatch-${{ github.run_number }}-${{ github.run_attempt }}-apk
+
+      - name: Test adayını yayımla
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk LS05Controller-debug.apk
-          gh release create "build-${{ github.run_number }}" LS05Controller-debug.apk \
-            --title "LS05 Controller test derlemesi ${{ github.run_number }}" \
-            --notes "Otomatik debug derlemesi, commit ${{ github.sha }}. Kurulum ve gate testi için README'ye bak." \
+          latest=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq '.[].tag_name' | awk -F- '$1 == "candidate" && $2 == "build" && $3 ~ /^[0-9]+$/ {if ($3 > max) max=$3} END {print max+0}')
+          if [ "$GITHUB_RUN_NUMBER" -le "$latest" ]; then
+            echo "Bu adaydan daha yeni bir aday yayımlanmış (build $latest)."
+            exit 1
+          fi
+          mv app-debug.apk FinnsWatch-test.apk
+          short_sha="${GITHUB_SHA:0:7}"
+          tag="candidate-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$tag" FinnsWatch-test.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Finn's Watch test adayı · ${GITHUB_REF_NAME} · ${short_sha} · build ${GITHUB_RUN_NUMBER}" \
+            --notes "Test adayı. versionCode: $((1000 + GITHUB_RUN_NUMBER)). APK: build ${GITHUB_RUN_NUMBER}, run ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}, commit ${short_sha}, dal ${GITHUB_REF_NAME}. Cihaz sonucu henüz doğrulanmadı." \
             --prerelease
