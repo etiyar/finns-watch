@@ -55,14 +55,34 @@ internal class B8Harness(key: ByteArray, val band: FakeBand, random: (Int) -> By
                 }
                 inbox.add(c)
                 fetch?.let { process(it.onCommand(c, now)) }
+                gate?.let { process(it.onCommand(c, now)) }
             }
-            is B8Incoming.ActivityPart -> fetch?.let { process(it.onActivityPart(inc.plain, now)) }
+            is B8Incoming.ActivityPart -> {
+                fetch?.let { process(it.onActivityPart(inc.plain, now)) }
+                gate?.let { process(it.onActivityPart(inc.plain, now)) }
+            }
             else -> failures.add(inc)
         }
     }
 
     fun process(outs: List<B8Fetch.Out>) {
         for (o in outs) if (o is B8Fetch.Out.Send) write(ch.send(o.plain)) else fetchOut.add(o)
+    }
+
+    /** Kapılı çekme: komutlar yalnızca kanal boşken çıkar. */
+    var gate: B8FetchGate? = null
+
+    /** Kapıyı kanal boşaldıkça yoklar. */
+    fun pumpGate() {
+        val g = gate ?: return
+        var guard = 0
+        while (true) {
+            check(guard++ < 10_000) { "kapı döngüsü bitmedi" }
+            run()
+            val outs = g.poll(now, ch.pending == 0)
+            if (outs.isEmpty()) return
+            process(outs)
+        }
     }
 
     fun authenticate() { write(ch.beginAuth(auth.start())); run() }

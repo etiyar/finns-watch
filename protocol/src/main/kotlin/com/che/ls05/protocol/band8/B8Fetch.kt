@@ -102,6 +102,15 @@ class B8Fetch(
         }
     }
 
+    /** Komut gerçekten gönderildi: bekleme süresi şimdiden başlar (kapı komutu bekletmiş olabilir). */
+    fun restartTimer(nowMs: Long) {
+        deadline = nowMs + when (phase) {
+            Phase.FETCHING -> partTimeoutMs
+            Phase.WAIT_TODAY, Phase.WAIT_PAST -> listTimeoutMs
+            else -> return
+        }
+    }
+
     /** Zaman aşımı denetimi. Çağıran düzenli aralıklarla (örnek saniyede bir) çağırır. */
     fun onTick(nowMs: Long): List<Out> {
         if (!isRunning || nowMs < deadline) return emptyList()
