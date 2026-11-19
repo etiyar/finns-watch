@@ -421,6 +421,10 @@ class MainActivity : Activity(), WatchHub.Observer {
             HealthExport.onResult(this, resultCode, data)
             return
         }
+        if (requestCode == Band8RawExport.REQ) {
+            Band8RawExport.onResult(this, resultCode, data)
+            return
+        }
         if (requestCode != REQ_FACE || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
         // .tbwf tasarım dosyası açılınca 8 MB'a kadar çıkabilir; zip de bu sınıra kadar okunur.

@@ -11,11 +11,11 @@ Finn's Watch, birden fazla saati tek uygulamadan yönetmeyi hedefleyen bağıms�
 | Haylou Solar LS05 | Kullanımda | Bağlantı, bildirim, arama, alarm, DND, sağlık geçmişi, cihaz bulma ve kadran aktarımı için mevcut işlevler |
 | Xiaomi Smart Band 8 | **Beta** | Bağlantı, doğrulama, pil ve cihaz bilgisi, normal bildirim ve bilekliği bul gerçek cihazda denendi |
 | Çoklu saat yönetimi | **Beta** | Etkin saat değiştirme, kayıt kalıcılığı ve Bluetooth kapat/aç sonrasında yeniden bağlantı kullanıcı testinde çalıştı |
-| Band 8 günlük özellikleri | Kısmi | WhatsApp ve test bildirimi ile bilekliği bul doğrulandı; arama, müzik, sağlık eşitlemesi ve saat ayarları henüz tamamlanmadı |
+| Band 8 günlük özellikleri | Kısmi | WhatsApp ve test bildirimi ile bilekliği bul doğrulandı. Sağlık dosyaları arşivlenir ama değerler gösterilmez. Arama, müzik ve saat ayarları yalnızca Gelişmiş'teki elle denemelerdedir |
 
 **Sürümler:** `main` üzerinde **v0.12.0** bulunur. **v0.13.1-beta1 sürüm adayı** [geliştirme dalında](https://github.com/etiyar/ls05-controller/tree/dev/v0.13.1-band8-daily) hazırlanır. Kurulum ve regresyon testi geçmeden kararlı sürüm olarak yayımlanmaz.
 
-> **Bilinen sınırlar:** Bazı Band 8 oturumlarında `ACK` alındığı hâlde bileklikte fiziksel tepki görülmedi. Beklenmedik doğrulama ve şifre çözme hatalarının ardından toparlanma [#16](https://github.com/etiyar/ls05-controller/issues/16) kapsamında açık. Band 8 sağlık verisi henüz eşitlenmez. Kapalı uygulama filtresi ve telefon açılışında uygulama elle açılmadan bağlantı ayrıca doğrulanacak.
+> **Bilinen sınırlar:** Band 8'e aynı anda Mi Fitness ya da Notify bağlıysa bildirimler `ACK` alır ama bileklikte görünmez ([#16](https://github.com/etiyar/ls05-controller/issues/16) kök nedeni). Bu uygulamaları kaldır ya da Bluetooth izinlerini kapat. Finn's Watch bunu fark edince uyarı gösterir ve en çok 5 dakikada bir yeniden bağlanır. Band 8 sağlık dosyaları yalnızca okunur ve telefonda arşivlenir; değerler henüz gösterilmez, bandan dosya silinmez. Kapalı uygulama filtresi ve telefon açılışında uygulama elle açılmadan bağlantı ayrıca doğrulanacak.
 
 ## Özellikler
 
@@ -34,6 +34,8 @@ Finn's Watch, birden fazla saati tek uygulamadan yönetmeyi hedefleyen bağıms�
 - Kimlik anahtarını Android Keystore aracılığıyla koruma.
 - LS05 ile etkin saat arasında geçiş.
 - Normal Android bildirimleri ve elle bilekliği bulma. WhatsApp, test bildirimi, iki durdurma yolu ve Bluetooth kapat/aç sonrası kullanım kullanıcı testinde çalıştı.
+- Bağlıyken 6 saatte bir sağlık dosyalarını okuyup yerel arşive yazma ve Gelişmiş'ten tek zip olarak dışa aktarma (cihazda doğrulanmadı).
+- Gelişmiş > Band 8 denemeleri: cevapsız arama, alarm, rahatsız etme, hava durumu, hareketsizlik uyarısı ve müzik için tek komutluk elle denemeler (cihazda doğrulanmadı).
 
 Band 8 için LS05 ile aynı özellik kapsamı **henüz sunulmaz**. Destek yalnızca gerçek cihaz testleriyle doğrulandıkça genişletilir.
 

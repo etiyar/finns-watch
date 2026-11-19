@@ -34,6 +34,7 @@ import com.che.ls05.protocol.WatchEvent
 import com.che.ls05.protocol.WatchKeys
 import com.che.ls05.protocol.WatchState
 import com.che.ls05.protocol.WatchType
+import com.che.ls05.protocol.band8.B8ForeignGuard
 import java.time.LocalDate
 import java.time.ZonedDateTime
 
@@ -68,6 +69,9 @@ class WatchService : Service(), DriverListener {
 
         /** Saati bul en çok bu kadar titretir. */
         private const val FIND_MAX_MS = 30_000L
+
+        /** Band 8'e aynı anda başka bir istemci bağlıyken gösterilen uyarı (#16). */
+        const val FOREIGN_CLIENT_WARNING = "Banda başka bir uygulama bağlı (Mi Fitness, Notify). O uygulamayı kaldır ya da Bluetooth iznini kapat."
 
         /** Başlatma isteği sisteme iletildiyse true. Arka plan kısıtı (Android 12+) gibi hatalarda false. */
         fun start(context: Context, action: String = ACTION_START, address: String? = null): Boolean {
@@ -169,6 +173,7 @@ class WatchService : Service(), DriverListener {
 
     override fun onDestroy() {
         main.removeCallbacks(reconnectRunnable)
+        main.removeCallbacks(foreignReconnect)
         main.removeCallbacks(callSafetyStop)
         main.removeCallbacks(musicStateRunnable)
         main.removeCallbacks(weatherTick)
@@ -197,6 +202,7 @@ class WatchService : Service(), DriverListener {
                 Prefs.setServiceEnabled(this, false)
                 WatchManager.setState(WatchState.STOPPED)
                 main.removeCallbacks(reconnectRunnable)
+                main.removeCallbacks(foreignReconnect)
                 WatchHub.log("Servis kullanıcı tarafından durduruluyor.")
                 LinkAlert.disarm(this, "servis durduruldu")
                 if (driver.isConnected) driver.disconnect()
@@ -211,15 +217,7 @@ class WatchService : Service(), DriverListener {
                 WatchRegistry.ensureActive(this)
                 if (address != null) Prefs.setAddress(this, address)
                 Prefs.setServiceEnabled(this, true)
-                stopping = false
-                resetAuth()
-                main.removeCallbacks(reconnectRunnable)
-                if (driver.isConnected) {
-                    restarting = true
-                    driver.forceClose("yeni bağlantı isteği")
-                    restarting = false
-                }
-                connectSaved(autoConnect = false, rebuildBandDriver = true)
+                connectFresh("yeni bağlantı isteği")
             }
             else -> {
                 stopping = false
@@ -267,6 +265,52 @@ class WatchService : Service(), DriverListener {
     /** Kullanıcı doğrulama anahtarını girmekten vazgeçtiğinde bağlantıyı sonlandır. */
     fun cancelBandSetup() { (driver as? Band8Driver)?.disconnect() }
 
+    /** Ayarlar > Saat bağlantısı > Bağlan ile aynı yol: bağlantı kapanır, Band 8 sürücüsü yenilenir. */
+    private fun connectFresh(reason: String) {
+        stopping = false
+        resetAuth()
+        main.removeCallbacks(reconnectRunnable)
+        main.removeCallbacks(foreignReconnect)
+        if (driver.isConnected) {
+            restarting = true
+            driver.forceClose(reason)
+            restarting = false
+        }
+        connectSaved(autoConnect = false, rebuildBandDriver = true)
+    }
+
+    /** Gelişmiş > Band 8 denemeleri. Gönderildiyse null, değilse kısa neden. */
+    fun bandProbe(p: Band8Probe): String? {
+        val band = driver as? Band8Driver ?: return "Band 8 etkin değil."
+        return band.probe(p)
+    }
+
+    private var lastForeignReconnectAt: Long? = null
+    private val foreignReconnect = Runnable {
+        if (stopping || driver.type != WatchType.BAND8) return@Runnable
+        lastForeignReconnectAt = SystemClock.elapsedRealtime()
+        WatchHub.log("Band 8 başka istemci uyarısı: bekleme doldu; tam yeniden bağlanılıyor")
+        connectFresh("başka istemci")
+    }
+
+    override fun onForeignClient() {
+        if (driver.type != WatchType.BAND8) return
+        WatchHub.bandForeignClient()
+        updateStatus(FOREIGN_CLIENT_WARNING)
+        val now = SystemClock.elapsedRealtime()
+        if (B8ForeignGuard.reconnectAllowed(now, lastForeignReconnectAt)) {
+            WatchHub.log("Band 8 başka istemci uyarısı: tam yeniden bağlanılıyor")
+            main.removeCallbacks(foreignReconnect)
+            // Sürücünün kendi geri çağrısının içinden kapatmamak için bir sonraki döngüde.
+            main.post(foreignReconnect)
+        } else {
+            val wait = lastForeignReconnectAt!! + B8ForeignGuard.RECONNECT_COOLDOWN_MS - now
+            WatchHub.log("Band 8 başka istemci uyarısı: son 5 dakikada yeniden bağlanıldı; ${wait / 1000} sn sonra bir kez daha denenecek")
+            main.removeCallbacks(foreignReconnect)
+            main.postDelayed(foreignReconnect, wait)
+        }
+    }
+
     private fun resetAuth() {
         authBlocked = false
         authTimeouts = 0
@@ -301,6 +345,7 @@ class WatchService : Service(), DriverListener {
         WatchHub.log("Saat değiştiriliyor (${target.type.label}).")
         // Eski saatin zamanlayıcıları.
         main.removeCallbacks(reconnectRunnable)
+        main.removeCallbacks(foreignReconnect)
         main.removeCallbacks(historyTimeout)
         main.removeCallbacks(musicStateRunnable)
         main.removeCallbacksAndMessages(delayedToken)

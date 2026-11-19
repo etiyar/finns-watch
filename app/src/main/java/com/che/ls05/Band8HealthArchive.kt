@@ -4,6 +4,7 @@ import android.content.Context
 import com.che.ls05.protocol.WatchType
 import com.che.ls05.protocol.band8.B8Activity
 import com.che.ls05.protocol.band8.B8ActivityFile
+import com.che.ls05.protocol.band8.B8ArchiveZip
 import com.che.ls05.protocol.band8.B8FileId
 import java.io.File
 import java.io.FileOutputStream
@@ -63,7 +64,10 @@ object Band8HealthArchive {
     }
 
     /** Geçersiz veya yarım dosyalar atlanır; hiçbir sağlık değeri loglanmaz. */
-    fun readAll(c: Context): List<B8ActivityFile> {
+    fun readAll(c: Context): List<B8ActivityFile> = readEntries(c).map { it.file }
+
+    /** Dışa aktarma için: dosya ve telefonda son yazıldığı an (ms). */
+    fun readEntries(c: Context): List<B8ArchiveZip.Entry> {
         val dir = directory(c) ?: return emptyList()
         return (dir.listFiles() ?: emptyArray()).asSequence()
             .filter { it.isFile && NAME.matches(it.name) }
@@ -73,11 +77,12 @@ object Band8HealthArchive {
                     val bytes = stored.readBytes()
                     val id = B8FileId.decode(bytes)
                     B8ActivityFile(id, bytes).takeIf { valid(it) && stored.name == fileName(id) }
+                        ?.let { B8ArchiveZip.Entry(it, stored.lastModified()) }
                 } catch (_: Exception) {
                     null
                 }
             }
-            .sortedBy { it.id.utcSeconds }
+            .sortedBy { it.file.id.utcSeconds }
             .toList()
     }
 }
