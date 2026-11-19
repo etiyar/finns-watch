@@ -291,7 +291,7 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
      */
     private fun requestData(): Boolean {
         if (WatchRegistry.active(act)?.type == WatchType.BAND8) {
-            act.toast("Band 8 sağlık verisi eşitlemesi henüz desteklenmiyor.")
+            act.toast("Band 8 sağlık değerleri henüz gösterilmez. Dosyalar bağlıyken 6 saatte bir arşivlenir.")
             return false
         }
         val s = act.readyService() ?: return false
@@ -403,7 +403,7 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
 
         refreshTrends(view, now.toLocalDate())
 
-        syncText.text = if (WatchRegistry.active(act)?.type == WatchType.BAND8) "Band 8 sağlık eşitlemesi henüz yok"
+        syncText.text = if (WatchRegistry.active(act)?.type == WatchType.BAND8) "Band 8 sağlık dosyaları arşivleniyor; değerler henüz gösterilmez"
             else if (last == 0L) "Son eşitleme: henüz yok" else "Son eşitleme: ${Fmt.dayMs(last)}"
         refreshPullState()
     }
@@ -1401,6 +1401,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private val actionButtons = ArrayList<Button>()
     private val bandFindTests = ui.vertical()
     private val bandCallTests = ui.vertical()
+    private val bandProbes = ui.vertical()
     private val logView: TextView = ui.mono()
     private var setupOpened = false
 
@@ -1498,6 +1499,9 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(bandCallTests, callStop, topDp = 4)
         bandCallTests.visibility = View.GONE
         ui.add(adv.content, bandCallTests, topDp = 12)
+        buildBandProbes()
+        bandProbes.visibility = View.GONE
+        ui.add(adv.content, bandProbes, topDp = 12)
         ui.add(adv.content, ui.cardTitle("Log"), topDp = 20)
         val lr = ui.horizontal()
         ui.add(lr, ui.secondary("Logu kopyala") { copyLog() }, width = 0, weight = 1f)
@@ -1521,6 +1525,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         bandFindTests.visibility =
             if (WatchRegistry.active(act)?.type == WatchType.BAND8) View.VISIBLE else View.GONE
         bandCallTests.visibility = bandFindTests.visibility
+        bandProbes.visibility = bandFindTests.visibility
         refreshSetup()
         refreshWatchInfo()
         theme.select(Prefs.themeMode(act))
@@ -1530,6 +1535,47 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private fun testBandFind(start: Boolean) {
         val service = act.readyService() ?: return
         if (!service.testBandFind(start)) act.toast("Band 8 komutu gönderilemedi. Biraz bekleyip tekrar dene.")
+    }
+
+    /** Band 8 denemeleri: her düğme tek komut gönderir, yalnızca elle. */
+    private fun buildBandProbes() {
+        ui.add(bandProbes, ui.cardTitle("Band 8 denemeleri"))
+        ui.add(bandProbes, ui.caption("Her düğme banda tek komut gönderir. Logda yalnızca komut türü ve yanıt türü görünür. Bantta ne olduğunu gözle."), topDp = 4)
+        fun group(title: String, vararg items: Pair<String, Band8Probe>) {
+            ui.add(bandProbes, ui.caption(title), topDp = 12)
+            for (row in items.toList().chunked(2)) {
+                val r = ui.horizontal()
+                row.forEachIndexed { i, (label, probe) ->
+                    val b = ui.secondary(label) { bandProbe(probe) }
+                    actionButtons += b
+                    ui.add(r, b, width = 0, weight = 1f, leftDp = if (i == 0) 0 else 8)
+                }
+                if (row.size == 1) ui.add(r, View(act), width = 0, weight = 1f, leftDp = 8)
+                ui.add(bandProbes, r, topDp = 4)
+            }
+        }
+        group("Arama (gelen arama ve kapatma yukarıdaki denemede)", "Cevapsız arama" to Band8Probe.MISSED_CALL)
+        group("Alarm: önce listeyi oku. Test alarmı 2 dakika sonra çalar.",
+            "Alarm listesini oku" to Band8Probe.ALARM_LIST, "Test alarmı kur" to Band8Probe.ALARM_CREATE,
+            "Test alarmını düzenle" to Band8Probe.ALARM_EDIT, "Test alarmını sil" to Band8Probe.ALARM_DELETE)
+        group("Rahatsız etme",
+            "Şimdi aç" to Band8Probe.DND_ON, "Şimdi kapat" to Band8Probe.DND_OFF,
+            "Zamanla 22:00–07:00" to Band8Probe.DND_SCHEDULE, "Zamanlamayı kapat" to Band8Probe.DND_SCHEDULE_OFF)
+        group("Hava durumu (Ayarlar > Hava durumu verisiyle)",
+            "Konum ekle" to Band8Probe.WEATHER_LOCATION, "Anlık hava" to Band8Probe.WEATHER_NOW,
+            "Günlük tahmin" to Band8Probe.WEATHER_FORECAST)
+        group("Hareketsizlik uyarısı: önce ayarı oku",
+            "Ayarı oku" to Band8Probe.IDLE_READ, "Aç" to Band8Probe.IDLE_ON, "Kapat" to Band8Probe.IDLE_OFF)
+        group("Müzik", "Test şarkı gönder" to Band8Probe.MUSIC)
+        group("Sağlık dosyaları (yalnızca okuma, bandan silinmez)", "Şimdi çek" to Band8Probe.FETCH_NOW)
+        val export = ui.secondary("Band 8 ham verisini dışa aktar") { Band8RawExport.start(act) }
+        ui.add(bandProbes, export, topDp = 12)
+        ui.add(bandProbes, ui.caption("Arşivdeki dosyaları ve index.txt'yi tek zip olarak kaydeder. Değerler uygulamada gösterilmez."), topDp = 4)
+    }
+
+    private fun bandProbe(p: Band8Probe) {
+        val service = act.readyService() ?: return
+        service.bandProbe(p)?.let { act.toast(it) }
     }
 
     private fun testBandCallScreen(start: Boolean) {

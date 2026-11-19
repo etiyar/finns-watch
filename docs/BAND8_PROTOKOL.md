@@ -707,3 +707,48 @@ Sleep as Android'in saat eklentisi arayüzü yayın (broadcast) mesajlarıyla ç
 - Testler: RFC 5869, RFC 3610 ve NIST SP 800-38C vektörleri, bağımsız bir Python betiğiyle TEST anahtarıyla üretilmiş altın vektörler, sentetik fikstürler ve sahte bantla akış testi.
 - `B8CaptureTest` yalnızca yerelde, `B8_AUTH_KEY` ve `B8_CAPTURE_FRAMES` varsa çalışır. Gerçek kayıtta 3 auth, bütün komutlar, yüklemeler ve tam dosyalar hatasız çözüldü. Yalnızca sayılar yazdırılır.
 - Ayrıştırıcıların çıktısı UTC saniye ve 15 dakikalık saat dilimi birimidir. Yerel saate çevirme ortak yardımcıya bırakıldı.
+
+## 16. İkinci istemci, sağlık arşivi ve elle denemeler (v0.15.0-alpha1)
+
+### 16.1 İkinci istemci (doğrulandı, #16)
+
+Android'de aynı BLE bağlantısını birden çok uygulama paylaşır. Bandın bildirimleri, karakteristiğe abone olan her uygulamaya gider. Mi Fitness ya da Notify açıksa:
+
+- Onların auth'u bandın oturum anahtarını değiştirir. Bizim komutlarımız `ACK` alır ama band çözemediği için bileklikte bir şey olmaz.
+- Onların auth yanıtları (şifresiz 1/26, 1/27) ve 0x0052'deki onayları (`ACK`, `READY`, `ALL_RECEIVED`) bize de gelir.
+
+Cihaz kanıtı (19.11.2026, build 175): Notify kaldırıldıktan sonra da istenmemiş 1/27, kuyruk boşken üçlü `ACK` ve her bildirimden sonra `READY`/`ALL_RECEIVED` görüldü. Mi Fitness kaldırılınca dört Bluetooth turunda tek temiz auth ve hiç yabancı iz yoktu; bildirimler göründü.
+
+Uygulama kuralı (`B8ForeignGuard`): bizim başlatmadığımız şifresiz 1/26 ya da 1/27 tek başına yabancı izdir ve auth durum makinesine verilmez. Kanalımızın beklemediği kontrol çerçevesi 30 saniye içinde ikinci kez gelirse yabancı izdir. Tek sapma tetiklemez. Logda yalnızca 4-6 baytlık çerçeve başlığı yazılır. Uyarı gösterilir ve en çok 5 dakikada bir tam yeniden bağlanılır (elle Bağlan ile aynı yol). Bizim beklediğimiz anda gelen yabancı 1/26 bizimkinden ayırt edilemez; o durumda auth "anahtar yanlış" diye düşebilir.
+
+### 16.2 Sağlık dosyası arşivi
+
+- Oturum hazır olunca (şifreli pil ve cihaz bilgisi yanıtı) 5 saniye sonra, sonra 6 saatte bir: 8/1, 8/2, her kimlik için ayrı 8/3 (belge 7.2). Bölüm zaman aşımı 5 saniye. İstenmeden gelen dosyalar da alınır.
+- Çekme komutu yalnızca komut kanalı boşken gider (`B8FetchGate`). Bekleyen bildirim varsa önce o gider. Komut bekletilirken zaman aşımı işlemez.
+- CRC tutan her dosya `files/<sağlık klasörü>/band8-files/<kimlik>.bin` olarak saklanır. Aynı kimlik gelirse son geçerli sürüm atomik yazılır.
+- **8/5 hiç gönderilmez.** Band dosyaları saklamaya devam eder.
+- Saklanan dosya şifresi çözülmüş ve bölümleri birleştirilmiş hâldedir: 7 bayt kimlik + 1 bayt dolgu + gövde + 4 bayt CRC32. Ayrıştırmak için anahtar gerekmez. Dışa aktarılan zip'te `index.txt` bunu ve APK kimliğini yazar.
+
+### 16.3 Elle denemeler (cihazda doğrulanmadı)
+
+Her düğme tek komut gönderir. Logda komut türü/alt türü ve gelen yanıtın türü/alt türü/durumu yazılır, içerik yazılmaz.
+
+| Deneme | Komut | Yapı | Etiket |
+|---|---|---|---|
+| Cevapsız arama | 7/0 | "phone" paketinden normal bildirim, arama mı alanı yok, başlık "Test arama", gövde "Cevapsız arama", kimlik 1 | tahmin |
+| Alarm listesi | 17/0 | yanıttan yalnızca alarm sayısı ve en çok sayı loglanır | doğrulandı (yapı) |
+| Test alarmı kur | 17/1 | Ç2: saat şimdi + 2 dk, bir kez, açık, normal | güçlü kanıt |
+| Test alarmını düzenle | 17/2 | Ç3: kimlik + ayrıntı, saat şimdi + 3 dk | güçlü kanıt |
+| Test alarmını sil | 17/4 | Ç5: tekrarlı kimlik | güçlü kanıt |
+| Rahatsız etme aç/kapat | 2/23 | S11 > 1: 0 açık, 2 kapalı | güçlü kanıt |
+| Uyku modu zamanla / kapat | 17/9 | Ç9: 1 açık mı, 2 aralık (1 başlangıç, 2 bitiş, 3 = 0) | güçlü kanıt |
+| Hava konumu ekle | 10/7 | alan 5: 1 kod (sabit `finnswatch`), 2 şehir adı | güçlü kanıt |
+| Anlık hava | 10/0 | alan 1: meta, 2 Xiaomi kodu, 3 sıcaklık (℃, sint32) | güçlü kanıt; kod eşlemesi tahmin |
+| Günlük tahmin | 10/1 | alan 2: meta, 2 > tekrarlı 1 gün: 2 kod aralığı, 3 sıcaklık aralığı (sint32), 4 ℃ | tahmin |
+| Hareketsizlik ayarını oku | 8/12 | yanıttaki tek iç mesajın Health alan numarası ve alan biçimi loglanır | güçlü kanıt (komut), alanlar tahmin |
+| Hareketsizlik aç/kapat | 8/13 | okunan mesaj aynı alanla geri gider, yalnızca 1. alan (açık mı) değişir | tahmin |
+| Test şarkı | 18/1 | Music alan 20 > 1: 1 durum (1 çalıyor), 2 ses, 4 şarkı, 5 sanatçı, 6 konum, 7 süre | tahmin |
+
+Alarm kimliğini band verir. Oluşturma yanıtı kimlik vermeyebilir; uygulama oluşturmadan önceki ve sonraki listede tek yeni kimlik varsa onu test alarmı sayar. Banddan gelen 18/x müzik olayları yalnızca alt türüyle loglanır.
+
+Xiaomi hava kodu eşlemesi (tahmin): güneşli 0, parçalı bulutlu 1, kapalı 2, sağanak 3, gök gürültülü 4, karla karışık 6, çisenti 7, şiddetli yağmur 9, kar 14, sis 18, toz 29, diğer 2.

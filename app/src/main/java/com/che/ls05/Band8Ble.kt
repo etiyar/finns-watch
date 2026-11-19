@@ -21,6 +21,7 @@ import com.che.ls05.protocol.band8.B8Char
 import com.che.ls05.protocol.band8.B8Channel
 import com.che.ls05.protocol.band8.B8Command
 import com.che.ls05.protocol.band8.B8DeviceInfo
+import com.che.ls05.protocol.band8.B8ForeignGuard
 import com.che.ls05.protocol.band8.B8Frame
 import com.che.ls05.protocol.band8.B8Incoming
 import com.che.ls05.protocol.band8.B8Messages
@@ -47,6 +48,12 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         fun onAuthFailed(message: String)
         fun onBattery(value: B8Battery)
         fun onDeviceInfo(value: B8DeviceInfo)
+
+        /** Bantla aynı anda konuşan ikinci bir istemcinin izi görüldü (#16). Bağlantı başına bir kez. */
+        fun onForeignClient()
+
+        /** Oturum hazırken gelen ve burada işlenmeyen şifreli komut (deneme yanıtları için). */
+        fun onBandCommand(command: B8Command)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -76,6 +83,12 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     private var mtu = 23
     private var generation = 0
     private var nextFindTestAt = 0L
+    private var guard = B8ForeignGuard()
+    private var foreignTripped = false
+    private var foreignTraces = 0
+    /** Son gelen bildirimin yalnızca çerçeve başlığı (yük değil); yabancı auth logu için. */
+    private var lastHeader = ""
+    private var fetcher: Band8HealthFetcher? = null
     private val commandTimeout = Runnable {
         if (ready && channel.pending > 0) {
             listener.onLog("Band 8 komut zaman aşımı: bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}, yazıyor=$writing; bağlantı yenileniyor")
@@ -219,6 +232,12 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         channel.clear()
         channel.onDisconnected()
         channel = B8Channel()
+        fetcher?.stop()
+        fetcher = null
+        if (foreignTraces > 0) listener.onLog("Band 8 bu bağlantıda başka istemci izi: $foreignTraces")
+        guard = B8ForeignGuard()
+        foreignTripped = false
+        foreignTraces = 0
         if (wasReady) listener.onReady(false)
         if (hadGatt && !released) listener.onDisconnected(byUser, status)
     }
@@ -346,6 +365,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         val phone = B8PhoneInfo(Build.VERSION.SDK_INT, Build.MODEL, Locale.getDefault().country.ifBlank { "TR" })
         auth = B8Auth(key, phone)
         listener.onStatus("Band 8 kimlik doğruluyor…")
+        guard.expectAuth(B8Sub.AUTH_NONCE)
         enqueue(channel.beginAuth(auth!!.start()))
         val serial = generation
         main.postDelayed({
@@ -397,11 +417,40 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             listener.onLog("Band 8 arama ekranı testi reddi: hazır=$ready, bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}")
             return false
         }
-        val message = if (start) B8Messages.incomingCall("Test araması", "", timestamp) else B8Messages.callEnded()
+        val message = if (start) B8Messages.incomingCall(TEST_CALLER, "", timestamp) else B8Messages.callEnded()
         sendAuthenticated(message)
         listener.onLog("Band 8 arama ekranı denemesi sıraya alındı: ${if (start) "aç" else "kapat"}")
         return ready
     }
+
+    /** Gelişmiş > Band 8 denemeleri: tek komut, yalnızca elle. Logda yalnızca tür ve alt tür. */
+    fun sendProbe(command: ByteArray, label: String): Boolean {
+        if (!ready || released || gatt == null || channel.session == null || channel.pending >= MAX_PENDING_COMMANDS) {
+            listener.onLog("Band 8 deneme reddi ($label): hazır=$ready, bekleyen=${channel.pending}")
+            return false
+        }
+        listener.onLog("Band 8 deneme: $label")
+        sendAuthenticated(command)
+        return ready
+    }
+
+    /** Sağlık dosyalarını şimdi çek (yalnızca okuma). Sürüyorsa ya da oturum hazır değilse false. */
+    fun fetchHealthNow(): Boolean = ready && fetcher?.startNow() == true
+
+    private fun channelIdle(): Boolean =
+        ready && channel.session != null && channel.pending == 0 && !writing && writes.isEmpty()
+
+    private fun foreign(reason: String, header: String) {
+        foreignTraces++
+        if (foreignTripped) return
+        foreignTripped = true
+        listener.onLog("Band 8 başka istemci izi: $reason, başlık=$header")
+        listener.onForeignClient()
+    }
+
+    private fun isControl(ev: B8Frame.Event): Boolean = ev is B8Frame.Event.Ack || ev is B8Frame.Event.Ready ||
+        ev is B8Frame.Event.AllReceived || ev is B8Frame.Event.Nack || ev is B8Frame.Event.Rejected ||
+        ev is B8Frame.Event.Resend
 
     private fun enqueue(list: List<B8Write>) {
         for (w in list) writes.addLast(w)
@@ -457,6 +506,22 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
 
     private fun received(ch: BluetoothGattCharacteristic, value: ByteArray) {
         val id = B8Char.values().firstOrNull { chars[it] === ch } ?: return
+        lastHeader = B8ForeignGuard.header(value)
+        if (id == B8Char.CMD_OUT) {
+            val ev = B8Frame.decode(value)
+            if (isControl(ev) && !channel.expects(ev)) {
+                if (foreignTripped) {
+                    foreignTraces++
+                } else {
+                    listener.onLog("Band 8 beklenmeyen kontrol çerçevesi: başlık=$lastHeader, bekleyen=${channel.pending}")
+                    if (guard.onUnexpectedControl(SystemClock.elapsedRealtime())) {
+                        foreign("kanalımız beklemezken onay/hazırım", lastHeader)
+                    } else {
+                        foreignTraces++
+                    }
+                }
+            }
+        }
         val before = channel.pending
         val control = if (id == B8Char.CMD_OUT) when (val ev = B8Frame.decode(value)) {
             is B8Frame.Event.Ack -> "ACK"
@@ -471,12 +536,15 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         if (control != null) listener.onLog("Band 8 protokol yanıtı: $control, bekleyen=$before→${channel.pending}, yazılacak=${result.writes.size}")
         enqueue(result.writes)
         if (id == B8Char.CMD_OUT && (result.writes.isNotEmpty() || !channel.busy)) armCommandTimeout()
+        // Kanal boşaldıysa bekleyen sağlık çekme komutu şimdi gidebilir.
+        if (id == B8Char.CMD_OUT) fetcher?.poll()
         for (event in result.incoming) {
             when (event) {
                 is B8Incoming.Command -> processCommand(event.plain, event.encrypted)
                 is B8Incoming.DecryptFailed -> listener.onLog("Band 8 mesajı doğrulanamadı")
                 is B8Incoming.SendRejected -> listener.onLog("Band 8 isteği reddetti")
-                is B8Incoming.ActivityPart -> Unit
+                is B8Incoming.ActivityPart -> fetcher?.onActivityPart(event.plain)
+                    ?: listener.onLog("Band 8 etkinlik bölümü oturum hazır olmadan geldi; atlandı")
             }
         }
     }
@@ -487,20 +555,23 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             return
         }
         listener.onLog("Band 8 gelen komut: tür=${command.type}, altTür=${command.subtype}, durum=${command.status ?: "yok"}, şifreli=$encrypted")
-        // Saat aynı GATT bağlantısında yeni kimlik doğrulaması başlatabiliyor.
-        // Eski oturum anahtarıyla gelen sonraki paketler çözülemez; mevcut B8Auth
-        // DONE durumunda yeni 1/26 ve 1/27 yanıtlarını işleyemez.
-        if (authComplete && !encrypted && command.type == B8Type.AUTH &&
-            (command.subtype == B8Sub.AUTH_NONCE || command.subtype == B8Sub.AUTH_PROOF)
+        // Android'de BLE bağlantısı uygulamalar arasında paylaşılır. Bizim başlatmadığımız 1/26 ya da 1/27
+        // yanıtı başka bir istemcinin (Mi Fitness, Notify) auth'udur (#16). B8Auth'a verilmez; servis
+        // uyarı gösterir ve en çok 5 dakikada bir tam yeniden bağlanır.
+        if (!encrypted && command.type == B8Type.AUTH &&
+            (command.subtype == B8Sub.AUTH_NONCE || command.subtype == B8Sub.AUTH_PROOF) &&
+            guard.onAuthReply(command.subtype)
         ) {
-            listener.onLog("Band 8 oturum yenileme isteği; bağlantı yeniden kuruluyor")
-            close(false, -1)
+            foreign("istenmemiş şifresiz 1/${command.subtype}", lastHeader)
             return
         }
         val step = auth?.onCommand(command)
         if (step != null) {
             when (step) {
-                is B8Auth.Step.Send -> enqueue(channel.sendPlain(step.plain))
+                is B8Auth.Step.Send -> {
+                    guard.expectAuth(B8Sub.AUTH_PROOF)
+                    enqueue(channel.sendPlain(step.plain))
+                }
                 is B8Auth.Step.Success -> {
                     enqueue(channel.setSession(step.session))
                     authKey?.fill(0)
@@ -540,6 +611,10 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
                 val state = command.body(B8Type.F_SYSTEM)?.int(5)
                 listener.onLog("Band 8 bulma yanıtı: durum=${state ?: "yok"}")
             }
+            ready && encrypted -> {
+                fetcher?.onCommand(command)
+                listener.onBandCommand(command)
+            }
         }
     }
 
@@ -550,10 +625,14 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         listener.onReady(true)
         listener.onStatus("Band 8 bağlı")
         if (channel.pending > 0) armCommandTimeout()
+        fetcher?.stop()
+        fetcher = Band8HealthFetcher(context, main, listener::onLog, ::channelIdle) { sendAuthenticated(it) }
+            .also { it.startAfter(Band8HealthFetcher.FIRST_DELAY_MS) }
     }
 
     private companion object {
         const val MAX_PENDING_COMMANDS = 24
         const val COMMAND_TIMEOUT_MS = 8_000L
+        const val TEST_CALLER = "Test arama"
     }
 }

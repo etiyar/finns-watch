@@ -75,4 +75,7 @@ interface DriverListener {
 
     /** Xiaomi FE95 servis keşfi başarılı, fakat Band 8 anahtarı henüz yok. */
     fun onBandKeyRequired() {}
+
+    /** Band 8'e aynı anda başka bir uygulama (Mi Fitness, Notify) bağlı. Bağlantı başına bir kez. */
+    fun onForeignClient() {}
 }

@@ -19,7 +19,7 @@ class WatchesCard(private val act: MainActivity) {
     private val hint: TextView = ui.caption(BAND8_HINT)
 
     companion object {
-        const val BAND8_HINT = "Band 8 bağlıyken Mi Fitness ve Notify kapalı olmalı."
+        const val BAND8_HINT = "Band 8 için Mi Fitness ve Notify kaldırılmalı ya da Bluetooth izinleri kapatılmalı. Bantla aynı anda konuşurlarsa bildirimler ACK alır ama bantta görünmez."
     }
 
     init {
@@ -56,6 +56,9 @@ class WatchesCard(private val act: MainActivity) {
         }
         ui.add(list, ui.divider(), height = ui.dp(1))
         ui.add(list, ui.row("Saat ekle", null) { add() })
+        val foreign = l.active?.type == WatchType.BAND8 && WatchHub.bandForeignRecent()
+        hint.text = if (foreign) WatchService.FOREIGN_CLIENT_WARNING else BAND8_HINT
+        hint.setTextColor(act.getColor(if (foreign) R.color.danger else R.color.text2))
         hint.visibility = if (l.watches.any { it.type == WatchType.BAND8 }) View.VISIBLE else View.GONE
     }
 

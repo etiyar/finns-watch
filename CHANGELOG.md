@@ -4,6 +4,15 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.15.0-alpha1 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
+
+- Band 8'e aynı anda başka bir uygulama (Mi Fitness, Notify) bağlıysa uyarı: "Banda başka bir uygulama bağlı (Mi Fitness, Notify). O uygulamayı kaldır ya da Bluetooth iznini kapat." Uygulama en çok 5 dakikada bir tam yeniden bağlanır. Logda yalnızca çerçeve başlığı baytları görünür. #16'nın kök nedeni buydu.
+- Band 8 sağlık dosyaları oturum hazır olunca ve bağlıyken 6 saatte bir okunur, CRC denetlenir ve telefonda arşivlenir. Bandan silme komutu gönderilmez. Bildirimler önce gider; çekme komut kanalı boşken ilerler. Değerler gösterilmez, loga yalnızca dosya türü sayısı, bayt ve CRC sonucu yazılır.
+- Gelişmiş > Band 8 denemeleri: "Band 8 ham verisini dışa aktar" arşivi index.txt ile tek zip olarak kaydeder. Dosyalar şifresi çözülmüş hâldedir.
+- Gelişmiş > Band 8 denemeleri: cevapsız arama, alarm (liste, test alarmı kur, düzenle, sil), rahatsız etme (aç, kapat, 22:00–07:00 zamanla), hava durumu (konum, anlık, tahmin), hareketsizlik uyarısı (oku, aç, kapat), müzik test şarkısı ve sağlık dosyalarını şimdi çek. Her düğme tek komut gönderir.
+- Arama ekranı denemesindeki arayan metni "Test arama" oldu.
+- `versionCode` CI çalıştırma numarasından gelir (1000 + numara).
+
 ## v0.13.1-beta1 sürüm adayı | 18 Kasım 2026
 
 - `versionCode` 34 oldu. `0.13.1-alpha1` üzerine güncelleme için APK ve imza uyumu ayrıca gerçek cihazda doğrulanacak; sürüm adayı henüz `main` üzerinde değildir.

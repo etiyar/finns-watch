@@ -175,6 +175,19 @@ object WatchHub {
         settingsChanged()
     }
 
+    /** Band 8'de başka bir istemcinin izi en son ne zaman görüldü (SystemClock.elapsedRealtime). 0: hiç. */
+    @Volatile var bandForeignAt: Long = 0L
+        private set
+
+    fun bandForeignClient() = onMain {
+        bandForeignAt = android.os.SystemClock.elapsedRealtime()
+        observers.toList().forEach { it.onSettingsChanged() }
+    }
+
+    /** Uyarı son 30 dakikada görüldüyse true. */
+    fun bandForeignRecent(): Boolean =
+        bandForeignAt != 0L && android.os.SystemClock.elapsedRealtime() - bandForeignAt < 30 * 60_000L
+
     fun bandFirmware(version: String) = onMain {
         firmware = version
         settingsChanged()

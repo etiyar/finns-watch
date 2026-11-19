@@ -1,0 +1,199 @@
+package com.che.ls05.protocol.band8
+
+import com.che.ls05.protocol.UteWeather
+
+/*
+ * Band 8 ayar ve deneme komutları. Gelişmiş > Band 8 denemeleri yalnızca elle gönderir.
+ * Yapılar docs/BAND8_PROTOKOL.md 6.6, 7.10, 8.1, 8.3, 8.5'e göre. Kayıtla doğrulanmayanlar orada "tahmin"
+ * ya da "güçlü kanıt" diye işaretli; cihazdaki sonuç docs/TEST_RESULTS.md'ye yazılır.
+ */
+
+private fun cmd(type: Int, subtype: Int, field: Int, body: PbWriter): ByteArray =
+    B8Messages.command(type, subtype).message(field, body).toByteArray()
+
+private fun hourMinute(h: Int, m: Int): PbWriter = PbWriter().uint(1, h).uint(2, m)
+
+/** Cevapsız arama: ayrı komut bilinmiyor. "phone" paketinden normal bildirim olarak denenir (tahmin, belge 6.6). */
+object B8Calls {
+    const val MISSED_CALL_ID = 1
+    const val MISSED_CALL_TEXT = "Cevapsız arama"
+
+    fun missedCall(caller: String, timestamp: String): ByteArray = B8Messages.notification(
+        B8Notification(
+            packageName = B8Messages.CALL_PACKAGE, appName = B8Messages.CALL_PACKAGE,
+            title = caller, body = MISSED_CALL_TEXT, timestamp = timestamp,
+            id = MISSED_CALL_ID, key = "missed:$MISSED_CALL_ID", isCall = false,
+        )
+    )
+}
+
+/** 17/0 yanıtındaki alarm kimlikleri ve bandın izin verdiği en çok alarm sayısı. Saatler tutulmaz. */
+data class B8AlarmList(val ids: List<Int>, val max: Int?)
+
+/** Alarm: 17/0 liste, 17/1 oluştur, 17/2 düzenle, 17/4 sil (belge 8.1). Kimlikleri band verir. */
+object B8Alarms {
+    private const val ONCE = 0
+    private const val NORMAL = 2
+
+    fun list(): ByteArray = B8Messages.command(B8Type.SCHEDULE, 0).toByteArray()
+
+    fun parseList(c: B8Command): B8AlarmList? {
+        if (!c.matches(B8Type.SCHEDULE, 0)) return null
+        val alarms = c.body(B8Type.F_SCHEDULE)?.message(1) ?: return null
+        return B8AlarmList(alarms.messages(1).mapNotNull { it.int(1) }, alarms.int(2))
+    }
+
+    /** Bir kez çalan, açık, normal (akıllı olmayan) alarm. */
+    private fun details(hour: Int, minute: Int): PbWriter =
+        PbWriter().message(2, hourMinute(hour, minute)).uint(3, ONCE).bool(5, true).uint(7, NORMAL)
+
+    fun create(hour: Int, minute: Int): ByteArray =
+        cmd(B8Type.SCHEDULE, 1, B8Type.F_SCHEDULE, PbWriter().message(2, details(hour, minute)))
+
+    fun edit(id: Int, hour: Int, minute: Int): ByteArray =
+        cmd(B8Type.SCHEDULE, 2, B8Type.F_SCHEDULE, PbWriter().message(3, PbWriter().uint(1, id).message(2, details(hour, minute))))
+
+    fun delete(ids: List<Int>): ByteArray {
+        val d = PbWriter()
+        for (id in ids) d.uint(1, id)
+        return cmd(B8Type.SCHEDULE, 4, B8Type.F_SCHEDULE, PbWriter().message(5, d))
+    }
+
+    /** Oluşturma yanıtı kimlik vermiyor olabilir: önceki ve sonraki listede tek yeni kimlik varsa odur. */
+    fun newId(before: List<Int>, after: List<Int>): Int? = (after - before.toSet()).singleOrNull()
+
+    fun plusMinutes(hour: Int, minute: Int, add: Int): Pair<Int, Int> {
+        val total = ((hour * 60 + minute + add) % 1440 + 1440) % 1440
+        return total / 60 to total % 60
+    }
+}
+
+/** Rahatsız etme: 2/23 anlık (belge 8.3, Notify'ın kullandığı yapı) ve 17/9 zamanlı uyku modu. */
+object B8Dnd {
+    fun now(on: Boolean): ByteArray =
+        cmd(B8Type.SYSTEM, 23, B8Type.F_SYSTEM, PbWriter().message(11, PbWriter().uint(1, if (on) 0 else 2)))
+
+    fun sleepSchedule(enabled: Boolean, startH: Int, startM: Int, endH: Int, endM: Int): ByteArray {
+        val range = PbWriter().message(1, hourMinute(startH, startM)).message(2, hourMinute(endH, endM)).uint(3, 0)
+        return cmd(B8Type.SCHEDULE, 9, B8Type.F_SCHEDULE, PbWriter().message(9, PbWriter().bool(1, enabled).message(2, range)))
+    }
+}
+
+/**
+ * Banddan okunan, alan numarası henüz kayıtla doğrulanmamış bir ayar mesajı. [shape] yalnızca alan numarası
+ * ve tel türünü verir (v varint, m uzunluklu, f sabit uzunluk); değer yazmaz.
+ */
+class B8RawSetting(val field: Int, val bytes: ByteArray) {
+    fun shape(): String = (PbMessage.parseOrNull(bytes)?.fields ?: emptyList()).joinToString(" ") {
+        it.number.toString() + when (it.wire) {
+            PbWriter.WIRE_VARINT -> "v"
+            PbWriter.WIRE_LEN -> "m"
+            else -> "f"
+        }
+    }
+}
+
+/**
+ * Hareketsizlik (ayakta durma) uyarısı: 8/12 oku, 8/13 yaz (belge 7.10). Health içindeki alan numarası
+ * kayıtla doğrulanmadığı için önce okunur; yazarken aynı alan kullanılır ve yalnızca 1. alan (açık mı)
+ * değiştirilir. Saat aralıkları olduğu gibi geri gider.
+ */
+object B8Standing {
+    fun read(): ByteArray = B8Messages.command(B8Type.HEALTH, 12).toByteArray()
+
+    fun parse(c: B8Command): B8RawSetting? {
+        if (!c.matches(B8Type.HEALTH, 12)) return null
+        val h = c.body(B8Type.F_HEALTH) ?: return null
+        val msgs = h.fields.filter { it.wire == PbWriter.WIRE_LEN && it.data != null }
+        val one = msgs.singleOrNull() ?: return null
+        return B8RawSetting(one.number, one.data!!)
+    }
+
+    /** I64 gibi beklenmeyen bir alan varsa null: değiştirmeden göndermek yerine hiç gönderilmez. */
+    fun write(raw: B8RawSetting, enabled: Boolean): ByteArray? {
+        val m = PbMessage.parseOrNull(raw.bytes) ?: return null
+        val w = PbWriter().bool(1, enabled)
+        for (f in m.fields) {
+            if (f.number == 1) continue
+            when (f.wire) {
+                PbWriter.WIRE_VARINT -> w.uint(f.number, f.value)
+                PbWriter.WIRE_LEN -> w.bytes(f.number, f.data ?: return null)
+                PbWriter.WIRE_I32 -> w.float(f.number, java.lang.Float.intBitsToFloat(f.value.toInt()))
+                else -> return null
+            }
+        }
+        return cmd(B8Type.HEALTH, 13, B8Type.F_HEALTH, PbWriter().message(raw.field, w))
+    }
+}
+
+/** Hava durumu meta bilgisi. Konum adı banda gider, loga yazılmaz. [key] sabit bir koddur. */
+data class B8WeatherMeta(val publishedIso: String, val city: String, val key: String)
+
+/** Bir günlük tahmin. Kodlar Xiaomi kodudur ([B8Weather.fromUte]). Sıcaklık °C. */
+data class B8ForecastDay(val dayCode: Int, val nightCode: Int, val lowC: Int, val highC: Int)
+
+/** Hava durumu: 10/7 konum ekle, 10/0 anlık, 10/1 günlük tahmin (belge 8.5; alanlar güçlü kanıt, kodlar tahmin). */
+object B8Weather {
+    const val CELSIUS = "℃"
+
+    private fun meta(m: B8WeatherMeta): PbWriter = PbWriter()
+        .string(1, m.publishedIso).string(2, m.city).string(3, m.city).string(4, m.key).bool(5, false)
+
+    private fun value(unit: String, v: Int): PbWriter = PbWriter().string(1, unit).sint(2, v)
+
+    private fun range(from: Int, to: Int): PbWriter = PbWriter().sint(1, from).sint(2, to)
+
+    fun addLocation(key: String, city: String): ByteArray =
+        cmd(B8Type.WEATHER, 7, B8Type.F_WEATHER, PbWriter().message(5, PbWriter().string(1, key).string(2, city)))
+
+    fun current(m: B8WeatherMeta, xiaomiCode: Int, temperatureC: Int): ByteArray {
+        val w = PbWriter().message(1, meta(m)).uint(2, xiaomiCode).message(3, value(CELSIUS, temperatureC))
+        return cmd(B8Type.WEATHER, 0, B8Type.F_WEATHER, PbWriter().message(1, w))
+    }
+
+    fun forecast(m: B8WeatherMeta, days: List<B8ForecastDay>): ByteArray {
+        val entries = PbWriter()
+        for (d in days) {
+            entries.message(1, PbWriter()
+                .message(2, range(d.dayCode, d.nightCode))
+                .message(3, range(d.lowC, d.highC))
+                .string(4, CELSIUS))
+        }
+        val f = PbWriter().message(1, meta(m)).message(2, entries)
+        return cmd(B8Type.WEATHER, 1, B8Type.F_WEATHER, PbWriter().message(2, f))
+    }
+
+    /** Uygulamanın ortak hava kodundan (WeatherCodes) Xiaomi koduna. Eşleme tahmindir, cihazda bakılacak. */
+    fun fromUte(code: Int): Int = when (code) {
+        UteWeather.SUNNY -> 0
+        UteWeather.PARTLY_CLOUDY -> 1
+        UteWeather.CLOUDY -> 2
+        UteWeather.SHOWERS -> 3
+        UteWeather.THUNDER -> 4
+        UteWeather.SLEET -> 6
+        UteWeather.DRIZZLE -> 7
+        UteWeather.HEAVY_RAIN -> 9
+        UteWeather.SNOW -> 14
+        UteWeather.HAZE -> 18
+        UteWeather.DUST -> 29
+        else -> 2
+    }
+}
+
+/**
+ * Müzik bilgisi: 18/1, Music alan 20 > 1 (tahmin). Alanlar: 1 durum (1 çalıyor, 2 duraklatıldı), 2 ses (yüzde),
+ * 4 şarkı, 5 sanatçı, 6 konum (sn), 7 süre (sn). Kayıtta müzik yoktu; banddan gelen 18/x olayları loga
+ * yalnızca tür ve alt tür olarak yazılır.
+ */
+object B8Music {
+    fun info(track: String, artist: String, playing: Boolean, durationSec: Int, volumePercent: Int): ByteArray {
+        val i = PbWriter()
+            .uint(1, if (playing) 1 else 2)
+            .uint(2, volumePercent)
+            .string(4, track)
+            .string(5, artist)
+            .uint(6, 0)
+            .uint(7, durationSec)
+        return cmd(B8Type.MUSIC, 1, B8Type.F_MUSIC, PbWriter().message(1, i))
+    }
+}

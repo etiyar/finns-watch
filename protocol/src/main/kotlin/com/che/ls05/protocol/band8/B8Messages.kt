@@ -20,6 +20,7 @@ object B8Type {
     const val F_HEALTH = 10
     const val F_WEATHER = 12
     const val F_SCHEDULE = 19
+    const val F_MUSIC = 20
     const val F_DATA_UPLOAD = 24
     const val F_STATUS = 100
 }
