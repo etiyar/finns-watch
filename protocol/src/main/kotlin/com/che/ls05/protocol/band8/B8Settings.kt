@@ -304,10 +304,16 @@ object B8Music {
     fun info(track: String, artist: String, playing: Boolean, durationSec: Int, volumePercent: Int): ByteArray =
         info(track, artist, if (playing) STATE_PLAYING else STATE_PAUSED, durationSec, 0, volumePercent)
 
+    /**
+     * Tuş olayı: Music alan 2 içinde (1 tuş, 2 ses) ya da 20.11.2026'da görüldüğü gibi doğrudan Music alanlarında
+     * (1v tuş, 2v ses; band ses ekranında 18/2). Durum bilgisinde alan 1 bir mesajdır, tuş sayılmaz.
+     */
     fun mediaKey(c: B8Command): MediaKey? {
         if (c.type != B8Type.MUSIC) return null
-        val k = c.body(B8Type.F_MUSIC)?.message(2) ?: return null
-        return MediaKey(k.int(1) ?: return null, k.int(2))
+        val m = c.body(B8Type.F_MUSIC) ?: return null
+        m.message(2)?.let { k -> return MediaKey(k.int(1) ?: return null, k.int(2)) }
+        val key = m.int(1) ?: return null
+        return MediaKey(key, m.int(2))
     }
 
     /** Banddan gelen 18/0, içinde tuş olayı yoksa: güncel müzik bilgisi isteniyor. */

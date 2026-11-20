@@ -64,24 +64,44 @@ class RepeatTracker(private val maxPerHour: Int = 20) {
 }
 
 /**
- * Süren navigasyon bildirimi (Google Maps ve benzerleri): yönerge (başlık) değişince hemen, yalnızca mesafe
- * (metin) değişince en sık [minIntervalMs]'de bir iletilir. Aynı yönerge ve metin tekrar gitmez.
+ * Süren navigasyon bildirimi (Google Maps ve benzerleri). Mesafe ("200 m", "0,4 km") başlıkta ya da metinde olabilir.
+ * Manevra (mesafe dışındaki yazı) değişince hemen, yalnızca mesafe değişince en sık [minIntervalMs]'de bir iletilir.
+ * Aynı manevra ve mesafe tekrar gitmez. Çıktıda başlık manevra, gövde mesafe ve kalan yazı (sokak).
  */
-class NavigationFilter(private val minIntervalMs: Long = 10_000) {
-    private class Last(val title: String, val text: String, val at: Long)
+class NavigationFilter(private val minIntervalMs: Long = 30_000) {
+    data class Out(val title: String, val body: String)
+
+    private class Last(val maneuver: String, val distance: String, val at: Long)
 
     private val last = HashMap<String, Last>()
 
-    fun shouldForward(pkg: String, title: String, text: String, now: Long): Boolean {
+    private fun strip(s: String) = s.replace(DISTANCE, "").replace(Regex("^[\\s·•,-]+|[\\s·•,-]+$"), "").replace(Regex("\\s{2,}"), " ").trim()
+
+    /** İletilecekse başlık ve gövde; değilse null. */
+    fun decide(pkg: String, title: String, text: String, now: Long): Out? {
+        val titleDist = DISTANCE.find(title)?.value
+        val textDist = DISTANCE.find(text)?.value
+        val distance = titleDist ?: textDist ?: ""
+        val t = strip(title)
+        val x = strip(text)
+        // Manevra: mesafesi olmayan alan; ikisinde de yoksa başlık.
+        val (maneuver, rest) = when {
+            titleDist != null && textDist == null -> x.ifEmpty { t } to (if (x.isEmpty()) "" else t)
+            textDist != null && titleDist == null -> t.ifEmpty { x } to (if (t.isEmpty()) "" else x)
+            else -> t.ifEmpty { x } to (if (t.isEmpty()) "" else x)
+        }
+        val key = NotifyRules.norm(maneuver)
         val l = last[pkg]
         val go = when {
             l == null -> true
-            l.title != title -> true
-            l.text == text -> false
+            l.maneuver != key -> true
+            l.distance == distance -> false
             else -> now - l.at >= minIntervalMs
         }
-        if (go) last[pkg] = Last(title, text, now)
-        return go
+        if (!go) return null
+        last[pkg] = Last(key, distance, now)
+        val body = listOf(distance, rest).filter { it.isNotBlank() }.joinToString(" · ")
+        return Out(maneuver.ifEmpty { title.trim() }, body)
     }
 
     fun reset(pkg: String) { last.remove(pkg) }
@@ -89,7 +109,16 @@ class NavigationFilter(private val minIntervalMs: Long = 10_000) {
     companion object {
         /** Bilinen navigasyon paketleri. Google Maps dışındakiler cihazda doğrulanmadı. */
         val PACKAGES: Set<String> = setOf("com.google.android.apps.maps", "net.osmand", "net.osmand.plus", "de.komoot.android")
+
+        private val DISTANCE = Regex("\\d+(?:[.,]\\d+)?\\s?(?:km|m|mi|ft|yd)\\b", RegexOption.IGNORE_CASE)
     }
+}
+
+/** Band 8 müzik ses düzeyi: bant 0-100 kullanır (bizim gönderdiğimiz yüzdeyi doğru gösterdi); telefon akış adımına çevrilir. */
+object MusicVolume {
+    fun toStreamStep(level: Int, streamMax: Int): Int = ((level.coerceIn(0, 100) * streamMax + 50) / 100).coerceIn(0, streamMax)
+
+    fun toPercent(step: Int, streamMax: Int): Int = if (streamMax <= 0) 0 else Math.round(step * 100f / streamMax).coerceIn(0, 100)
 }
 
 /** Telefon pili uyarıları: düşük (eşik, şarjda değilken) ve dolu (şarjda %100). Her geçişte bir kez. */

@@ -55,22 +55,48 @@ class NotifyExtrasTest {
     // ---------- Navigasyon ----------
 
     @Test
-    fun navigationForwardsChangedInstructionAndThrottlesDistance() {
-        val n = NavigationFilter(minIntervalMs = 10_000)
-        assertTrue(n.shouldForward("maps", "Sola dönün", "300 m", 0))
-        assertTrue(!n.shouldForward("maps", "Sola dönün", "300 m", 20_000), "aynı yönerge tekrar gitmez")
-        assertTrue(!n.shouldForward("maps", "Sola dönün", "200 m", 5_000), "yalnızca mesafe değişti, 10 sn dolmadı")
-        assertTrue(n.shouldForward("maps", "Sola dönün", "150 m", 10_000))
-        assertTrue(n.shouldForward("maps", "Sağa dönün", "50 m", 11_000), "yönerge değişti, hemen")
-        assertTrue(n.shouldForward("osmand", "Sola dönün", "300 m", 11_000), "uygulamalar ayrı")
+    fun navigationForwardsManeuverChangeAndThrottlesDistanceTo30s() {
+        val n = NavigationFilter()
+        val first = n.decide("maps", "200 m", "Atatürk Cd. yönünde sola dönün", 0)!!
+        assertEquals("Atatürk Cd. yönünde sola dönün", first.title)
+        assertEquals("200 m", first.body)
+        assertNull(n.decide("maps", "150 m", "Atatürk Cd. yönünde sola dönün", 10_000), "yalnızca mesafe, 30 sn dolmadı")
+        assertEquals("150 m", n.decide("maps", "150 m", "Atatürk Cd. yönünde sola dönün", 31_000)?.body)
+        val later = NavigationFilter()
+        later.decide("maps", "200 m", "Sola dönün", 0)
+        assertEquals("100 m", later.decide("maps", "100 m", "Sola dönün", 30_000)?.body, "30 sn sonra mesafe güncellemesi")
+        assertNull(later.decide("maps", "100 m", "Sola dönün", 90_000), "aynı mesafe ve yönerge tekrar gitmez")
+        assertEquals("Sağa dönün", later.decide("maps", "50 m", "Sağa dönün", 31_000)?.title, "yönerge değişince hemen")
     }
 
     @Test
-    fun navigationResetForgetsLast() {
+    fun navigationFindsDistanceInEitherFieldAndKeepsStreet() {
         val n = NavigationFilter()
-        n.shouldForward("maps", "A", "1", 0)
+        val o = n.decide("osmand", "Sola dönün", "0,4 km · İstiklal Cd.", 0)!!
+        assertEquals("Sola dönün", o.title)
+        assertEquals("0,4 km · İstiklal Cd.", o.body)
+        val noDist = NavigationFilter().decide("maps", "Varış 12:30", "Hedefe yaklaşıyorsunuz", 0)!!
+        assertEquals("Varış 12:30", noDist.title)
+    }
+
+    @Test
+    fun navigationAppsAreSeparateAndResetForgets() {
+        val n = NavigationFilter()
+        n.decide("maps", "200 m", "Sola dönün", 0)
+        assertTrue(n.decide("osmand", "200 m", "Sola dönün", 1) != null, "uygulamalar ayrı")
         n.reset("maps")
-        assertTrue(n.shouldForward("maps", "A", "1", 1))
+        assertTrue(n.decide("maps", "200 m", "Sola dönün", 2) != null)
+    }
+
+    // ---------- Müzik tuşu ----------
+
+    @Test
+    fun bandVolumeLevelScalesToStreamSteps() {
+        assertEquals(15, MusicVolume.toStreamStep(100, 15))
+        assertEquals(0, MusicVolume.toStreamStep(0, 15))
+        assertEquals(8, MusicVolume.toStreamStep(50, 15))
+        assertEquals(15, MusicVolume.toStreamStep(250, 15), "aralık dışı kırpılır")
+        assertEquals(53, MusicVolume.toPercent(8, 15))
     }
 
     // ---------- Telefon pili ----------
