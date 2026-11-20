@@ -56,31 +56,31 @@ object HealthCsv {
 
     private fun ute(d: LocalDate) = UteDate(d.year, d.monthValue, d.dayOfMonth)
 
-    /** tarih,saat,adim. Saatlik satırlar; adımı olmayan saat yazılmaz. */
-    fun steps(view: HealthView, from: LocalDate, to: LocalDate): String {
+    /** tarih,saat,adim,kaynak. Saatlik satırlar; adımı olmayan saat yazılmaz. Kaynak: o saatin seçilen saati. */
+    fun steps(view: HealthQuery, from: LocalDate, to: LocalDate): String {
         val rows = ArrayList<List<String>>()
         for (d in days(from, to)) {
             val hours = view.hourlySteps(ute(d))
-            for (h in 0..23) if (hours[h] > 0) rows += listOf(date(d), "${two(h)}:00", hours[h].toString())
+            for (h in 0..23) if (hours[h] > 0) rows += listOf(date(d), "${two(h)}:00", hours[h].toString(), view.stepSource(ute(d), h) ?: "")
         }
-        return table(listOf("tarih", "saat", "adim"), rows)
+        return table(listOf("tarih", "saat", "adim", "kaynak"), rows)
     }
 
-    /** tarih_saat,nabiz. Yalnızca geçerli ölçümler; aynı dakikadaki aynı değer bir kez yazılır. */
-    fun heart(view: HealthView, from: LocalDate, to: LocalDate): String {
+    /** tarih_saat,nabiz,kaynak. Yalnızca geçerli ölçümler; aynı dakikadaki aynı değer bir kez yazılır. */
+    fun heart(view: HealthQuery, from: LocalDate, to: LocalDate): String {
         val rows = view.heartPoints()
             .filter { it.bpm in HealthLog.VALID_BPM && !it.at.toLocalDate().isBefore(from) && !it.at.toLocalDate().isAfter(to) }
             .distinct()
             .sortedBy { it.at }
-            .map { listOf(dateTime(it.at), it.bpm.toString()) }
-        return table(listOf("tarih_saat", "nabiz"), rows)
+            .map { listOf(dateTime(it.at), it.bpm.toString(), view.heartSource(it.at) ?: "") }
+        return table(listOf("tarih_saat", "nabiz", "kaynak"), rows)
     }
 
     /**
-     * gece,baslangic,bitis,tur,dakika. gece: uyanılan gün. Bölüm saati 18 ve sonrasıysa bir önceki güne aittir
-     * ([HealthView.sleepFor] ile aynı kural). Yalnızca derin ve hafif bölümler yazılır.
+     * gece,baslangic,bitis,tur,dakika,kaynak. gece: uyanılan gün. Bölüm saati 18 ve sonrasıysa bir önceki güne
+     * aittir ([HealthView.sleepFor] ile aynı kural). Derin, hafif ve REM (Band 8) yazılır; uyanık yazılmaz.
      */
-    fun sleep(view: HealthView, from: LocalDate, to: LocalDate): String {
+    fun sleep(view: HealthQuery, from: LocalDate, to: LocalDate): String {
         val rows = ArrayList<List<String>>()
         for (d in days(from, to)) {
             val wake = d.atStartOfDay()
@@ -88,18 +88,19 @@ object HealthCsv {
                 val kind = when (s.type) {
                     SleepSegment.DEEP -> "derin"
                     SleepSegment.LIGHT -> "hafif"
+                    SleepSegment.REM -> "rem"
                     else -> continue
                 }
                 val start = (if (s.hour >= 18) wake.minusDays(1) else wake).withHour(s.hour).withMinute(s.minute)
                 val end = start.plusMinutes(s.minutes.toLong())
-                rows += listOf(date(d), dateTime(start), dateTime(end), kind, s.minutes.toString())
+                rows += listOf(date(d), dateTime(start), dateTime(end), kind, s.minutes.toString(), view.sleepSource(ute(d)) ?: "")
             }
         }
-        return table(listOf("gece", "baslangic", "bitis", "tur", "dakika"), rows)
+        return table(listOf("gece", "baslangic", "bitis", "tur", "dakika", "kaynak"), rows)
     }
 
     /** Üç dosya, ad ve UTF-8 içerik (BOM dahil). */
-    fun files(view: HealthView, from: LocalDate, to: LocalDate): List<Pair<String, ByteArray>> = listOf(
+    fun files(view: HealthQuery, from: LocalDate, to: LocalDate): List<Pair<String, ByteArray>> = listOf(
         STEPS to steps(view, from, to).toByteArray(Charsets.UTF_8),
         HEART to heart(view, from, to).toByteArray(Charsets.UTF_8),
         SLEEP to sleep(view, from, to).toByteArray(Charsets.UTF_8),
