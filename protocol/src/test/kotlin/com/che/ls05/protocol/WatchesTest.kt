@@ -201,7 +201,9 @@ class WatchesTest {
         // v0.15.0-beta1: cevapsız arama, rahatsız etme ve sağlık geçmişi otomatik; alarm, hava, müzik yalnızca elle denemede.
         assertTrue(b.missedCall && b.dnd && b.steps && b.heart && b.sleep)
         assertEquals(0, b.alarmSlots)
-        assertFalse(b.weather || b.musicRemote || b.incomingCall)
+        assertFalse(b.weather || b.musicRemote)
+        // v0.15.0-beta2: gerçek gelen arama ekranı ve bantta reddetme.
+        assertTrue(b.incomingCall && b.callReject)
         assertTrue(Capabilities.MAX_ALARM_SLOTS >= l.alarmSlots)
     }
 

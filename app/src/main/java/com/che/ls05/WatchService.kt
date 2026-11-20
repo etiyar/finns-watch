@@ -29,6 +29,7 @@ import com.che.ls05.protocol.ProfileSetting
 import com.che.ls05.protocol.RemoteAction
 import com.che.ls05.protocol.SettingSync
 import com.che.ls05.protocol.SwitchRules
+import com.che.ls05.protocol.TextSanitizer
 import com.che.ls05.protocol.TurkishFold
 import com.che.ls05.protocol.WatchEvent
 import com.che.ls05.protocol.WatchKeys
@@ -512,8 +513,15 @@ class WatchService : Service(), DriverListener {
                 // Cevapsız arama kendi ayarıyla süzülür (Bildirimler > Cevapsız aramalar), uygulama filtresiyle değil.
                 if (isBand && (!Prefs.forwardingEnabled(this) ||
                         (note.kind == WatchHub.NoteKind.MESSAGE && !Prefs.appEnabled(this, note.pkg)))) return
+                // Bildirim metni emojili gelir (Band 8 çizer). LS05'in yazı tipi için eski temizleyici burada uygulanır.
                 val text = if (driver.type == WatchType.LS05) {
-                    note.copy(title = fold(note.title), body = fold(note.body))
+                    val t = TextSanitizer.clean(note.title)
+                    val b = TextSanitizer.clean(note.body)
+                    if (t.isEmpty() && b.isEmpty()) {
+                        WatchHub.log("Bildirim atlandı: gösterilecek metin yok.")
+                        return
+                    }
+                    note.copy(title = fold(t.ifEmpty { note.appLabel }), body = fold(b))
                 } else note
                 val sent = driver.sendAppNotification(text, Prefs.vibrate(this))
                 if (sent) {
@@ -524,7 +532,8 @@ class WatchService : Service(), DriverListener {
                     WatchHub.log("Band 8 bildirim iletilmedi: tür=${note.kind}, hazır=${driver.isReady}.")
                 }
             }
-            WatchHub.NoteKind.CALL_ALERT -> sendCallAlert(fold(note.body))
+            WatchHub.NoteKind.CALL_ALERT ->
+                sendCallAlert(if (driver.type == WatchType.LS05) fold(TextSanitizer.clean(note.body)) else note.body)
             WatchHub.NoteKind.CALL_STOP -> sendCallStop("arama cevaplandı ya da bitti")
         }
     }
@@ -958,6 +967,28 @@ class WatchService : Service(), DriverListener {
      * olmazsa ANSWER_PHONE_CALLS izni verilmişse TelecomManager.endCall.
      */
     @Suppress("DEPRECATION")
+    /** Band 8 arama ekranında reddet ya da sessize al. Yalnızca bizim açtığımız gerçek arama ekranı için. */
+    override fun onBandCallAction(reject: Boolean) {
+        if (!callOnWatch) {
+            WatchHub.log("Band 8 arama olayı: bantta açık gerçek arama yok; yok sayıldı.")
+            return
+        }
+        if (reject) rejectCallFromWatch() else silenceRinger()
+        sendCallStop(if (reject) "bantta reddedildi" else "bantta sessize alındı")
+    }
+
+    /** Zil sesini susturur; izin yoksa yalnızca loglanır (bantta ekran yine kapanır). */
+    private fun silenceRinger() {
+        val ok = try {
+            getSystemService(android.telecom.TelecomManager::class.java)?.silenceRinger()
+            true
+        } catch (e: Exception) {
+            WatchHub.log("Zil susturulamadı: ${e.javaClass.simpleName}")
+            false
+        }
+        if (ok) WatchHub.log("Arama bantta sessize alındı.")
+    }
+
     private fun rejectCallFromWatch() {
         if (!Prefs.rejectFromWatch(this)) {
             WatchHub.log("Saat aramayı reddetmek istedi (12 02). \"Saatten aramayı reddet\" kapalı; yok sayıldı.")

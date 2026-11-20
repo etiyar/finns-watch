@@ -17,11 +17,13 @@ import com.che.ls05.protocol.band8.B8Calls
 import com.che.ls05.protocol.band8.B8Command
 import com.che.ls05.protocol.band8.B8DeviceInfo
 import com.che.ls05.protocol.band8.B8Dnd
+import com.che.ls05.protocol.band8.B8Messages
 import com.che.ls05.protocol.band8.B8ForecastDay
 import com.che.ls05.protocol.band8.B8Music
 import com.che.ls05.protocol.band8.B8Notification
 import com.che.ls05.protocol.band8.B8RawSetting
 import com.che.ls05.protocol.band8.B8Standing
+import com.che.ls05.protocol.band8.B8Text
 import com.che.ls05.protocol.band8.B8Type
 import com.che.ls05.protocol.band8.B8Weather
 import com.che.ls05.protocol.band8.B8WeatherMeta
@@ -36,6 +38,7 @@ import java.util.Locale
 /** Gelişmiş > Band 8 denemeleri. Her dokunuş tek komut gönderir. */
 enum class Band8Probe(val label: String) {
     MISSED_CALL("cevapsız arama 7/0"),
+    EMOJI_TEST("emoji testi 7/0"),
     ALARM_LIST("alarm listesi 17/0"),
     ALARM_CREATE("test alarmı oluştur 17/1"),
     ALARM_EDIT("test alarmını düzenle 17/2"),
@@ -70,6 +73,9 @@ class Band8Driver(
     private val main = Handler(Looper.getMainLooper())
     private var callTestActive = false
     private val appContext = context.applicationContext
+
+    /** Gönderilen düzenlemenin saati; yanıt gelince kaydedilir. */
+    private var pendingEditTime: Pair<Int, Int>? = null
 
     /** Banddan okunan hareketsizlik ayarı (deneme). Değer loglanmaz. */
     private var standing: B8RawSetting? = null
@@ -109,6 +115,10 @@ class Band8Driver(
         val now = ZonedDateTime.now()
         val command: ByteArray = when (p) {
             Band8Probe.MISSED_CALL -> B8Calls.missedCall(TEST_CALLER, notificationTime(System.currentTimeMillis()))
+            Band8Probe.EMOJI_TEST -> {
+                val t = System.currentTimeMillis()
+                B8Messages.notification(B8Notification(packageName, "Finn's Watch", "Emoji testi", B8Text.EMOJI_TEST, notificationTime(t), (t / 1000).toInt(), "emoji:$t"))
+            }
             Band8Probe.ALARM_LIST -> B8Alarms.list()
             Band8Probe.ALARM_CREATE -> {
                 // Çift alarmı önler: her oluşturmadan önce taze liste gerekir, test alarmı varsa yenisi kurulmaz.
@@ -121,9 +131,14 @@ class Band8Driver(
             }
             Band8Probe.ALARM_EDIT -> {
                 val list = freshAlarms() ?: return "Önce alarm listesini oku."
-                val a = testAlarm(list) ?: return "Listede test alarmı yok. Önce kur, sonra listeyi oku."
+                val a = testAlarm(list) ?: run {
+                    listener.onLog("Band 8 alarm düzenleme: listede test alarmı bulunamadı (deneme imzalı ${B8Alarms.probeCandidates(list).size})")
+                    return "Listede test alarmı yok. Önce kur, sonra listeyi oku."
+                }
                 val (h, m) = B8Alarms.plusMinutes(now.hour, now.minute, 3)
-                Prefs.setBand8TestAlarm(appContext, h, m)
+                // Yeni saat, band düzenlemeyi kabul edince kaydedilir; reddederse eski saatle bulunmaya devam eder.
+                pendingEditTime = h to m
+                listener.onLog("Band 8 alarm düzenleme gönderiliyor: kimlik=${a.id}")
                 B8Alarms.edit(a.id, h, m)
             }
             Band8Probe.ALARM_DELETE -> {
@@ -190,13 +205,26 @@ class Band8Driver(
                 alarmList = list
                 alarmListFresh = true
                 val test = testAlarm(list)
+                // Tanı: alarm başına kimlik ve alan biçimi; saat ve değer yazılmaz.
+                for (line in B8Alarms.describe(command)) listener.onLog("Band 8 alarm listesi biçimi: $line")
+                if (Prefs.band8TestAlarm(appContext) == null) listener.onLog("Band 8 test alarmı saati kayıtlı değil")
                 listener.onLog("Band 8 alarm listesi: ${list.alarms.size} alarm, en çok ${list.max ?: "?"}, " +
                     "deneme imzalı ${B8Alarms.probeCandidates(list).size}, test alarmı ${if (test != null) "bulundu" else "yok"}")
             }
             command.matches(B8Type.SCHEDULE, 1) ->
                 listener.onLog("Band 8 alarm oluşturma yanıtı: durum=${command.status ?: "yok"}; kimlik için listeyi oku")
-            command.matches(B8Type.SCHEDULE, 2) ->
-                listener.onLog("Band 8 alarm düzenleme yanıtı: durum=${command.status ?: "yok"}")
+            command.matches(B8Type.SCHEDULE, 2) -> {
+                val st = command.status
+                val t = pendingEditTime
+                pendingEditTime = null
+                if (t != null && (st == null || st == 0)) Prefs.setBand8TestAlarm(appContext, t.first, t.second)
+                listener.onLog("Band 8 alarm düzenleme yanıtı: durum=${st ?: "yok"}; yeni saat ${if (t != null && (st == null || st == 0)) "kaydedildi" else "kaydedilmedi"}")
+            }
+            command.matches(B8Type.NOTIFICATION, 2) || command.matches(B8Type.NOTIFICATION, 5) -> {
+                val reject = command.subtype == 2
+                listener.onLog("Band 8 arama olayı: tür=7, altTür=${command.subtype} (${if (reject) "reddet" else "sessize al"})")
+                listener.onBandCallAction(reject)
+            }
             command.matches(B8Type.SCHEDULE, 4) ->
                 listener.onLog("Band 8 alarm silme yanıtı: durum=${command.status ?: "yok"}; listeyi yeniden oku")
             command.matches(B8Type.SCHEDULE, 9) -> {
@@ -262,8 +290,14 @@ class Band8Driver(
     private fun notificationTime(at: Long): String =
         NOTIFICATION_TIME.format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()))
 
-    override fun sendIncomingCall(name: String) = false
-    override fun sendCallStop() = false
+    /** Gerçek gelen arama: bantta arama ekranı. Arayan adı ya da numarası loga yazılmaz. */
+    override fun sendIncomingCall(name: String): Boolean {
+        clearCallTest()
+        return ble.sendFeature(B8Messages.incomingCall(name, "", notificationTime(System.currentTimeMillis())), "gelen arama 7/0")
+    }
+
+    /** Arama cevaplandı, reddedildi ya da bitti: bantta arama ekranını kapatır. */
+    override fun sendCallStop(): Boolean = ble.sendFeature(B8Messages.callEnded(), "arama bitti 7/1")
     override fun sendTime(now: ZonedDateTime, label: String) = Unit
     /** Ayarlar kartı: rahatsız etme saatleri zamanlı uyku modu (17/9) olarak gider. Diğer ayarlar Band 8'de yok. */
     override fun sendSetting(key: String, value: String): Boolean {

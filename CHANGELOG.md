@@ -4,6 +4,13 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.15.0-beta2 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
+
+- Band 8 bildirimlerinde emoji korunur (ZWJ dizileri, değişken seçiciler, ten rengi dahil). Kontrol karakterleri çıkar, uzun metin emoji bölünmeden kısaltılır. LS05 metni eskisi gibi temizlenir.
+- Gelişmiş > Band 8 denemeleri: "Emoji testi" sabit emojili bir test bildirimi gönderir.
+- Band 8'de gerçek gelen arama: telefon çalınca bantta arama ekranı açılır, arama cevaplanınca, reddedilince ya da bitince kapanır. Bantta reddet, "Saatten aramayı reddet" ayarı açıksa aramayı reddeder; sessize al zili susturmayı dener. Arayan adı ve numarası loga yazılmaz.
+- Alarm denemesi: bandın yazmadığı sıfır alanlar (bir kez, dakika 0) artık doğru okunur; test alarmı bu yüzden listede bulunamıyordu. Liste loga alan biçimiyle (değersiz) yazılır. Düzenlemenin yeni saati band kabul edince kaydedilir.
+
 ## v0.15.0-beta1 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
 
 - Band 8 adım, nabız ve uyku Bugün ekranında görünür. Uyku evrelerinde REM ayrı renkte; REM, derin, hafif, uyanık süreleri, uyanma sayısı ve uyku boyunca ortalama nabız gösterilir. Veri, arşivdeki dosyalardan uygulama açılışında ve her çekme bitince ayrıştırılır. Aynı arşiv yeniden ayrıştırılınca çift kayıt oluşmaz.

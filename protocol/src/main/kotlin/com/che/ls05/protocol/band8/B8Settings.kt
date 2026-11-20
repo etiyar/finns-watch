@@ -39,6 +39,7 @@ data class B8AlarmList(val alarms: List<B8Alarm>, val max: Int?) {
 /** Alarm: 17/0 liste, 17/1 oluştur, 17/2 düzenle, 17/4 sil (belge 8.1). Kimlikleri band verir. */
 object B8Alarms {
     private const val ONCE = 0
+    private const val SMART = 1
     private const val NORMAL = 2
 
     fun list(): ByteArray = B8Messages.command(B8Type.SCHEDULE, 0).toByteArray()
@@ -50,13 +51,24 @@ object B8Alarms {
             val id = a.int(1) ?: return@mapNotNull null
             val d = a.message(2)
             val t = d?.message(2)
-            B8Alarm(id, t?.int(1) ?: -1, t?.int(2) ?: -1, d?.int(3) ?: -1, d?.bool(5) ?: false, d?.int(7) ?: -1, d?.int(4))
+            // Band sıfır değerli alanları yazmayabilir: yoksa 0 (saat 0, dakika 0, bir kez, kapalı, akıllı değil).
+            B8Alarm(id, t?.int(1) ?: 0, t?.int(2) ?: 0, d?.int(3) ?: ONCE, d?.bool(5) ?: false, d?.int(7) ?: 0, d?.int(4))
         }
         return B8AlarmList(list, alarms.int(2))
     }
 
-    /** Deneme düğmesinin kurduğu alarmın imzası: bir kez, normal (akıllı değil), gün bayrağı yok. */
-    fun matchesProbe(a: B8Alarm): Boolean = a.repeat == ONCE && a.smart == NORMAL && (a.dayFlags ?: 0) == 0
+    /** Log için: her alarmın kimliği ve alan biçimi (numara + tel türü). Saat ve değer yazılmaz. */
+    fun describe(c: B8Command): List<String> {
+        val alarms = c.body(B8Type.F_SCHEDULE)?.message(1) ?: return emptyList()
+        return alarms.messages(1).map { a ->
+            val d = a.bytes(2)
+            val t = d?.let { PbMessage.parseOrNull(it) }?.bytes(2)
+            "kimlik=${a.int(1) ?: "yok"} ayrıntı=[${d?.let { B8RawSetting(0, it).shape() } ?: "yok"}] saat=[${t?.let { B8RawSetting(0, it).shape() } ?: "yok"}]"
+        }
+    }
+
+    /** Deneme düğmesinin kurduğu alarmın imzası: bir kez, akıllı değil, gün bayrağı yok. */
+    fun matchesProbe(a: B8Alarm): Boolean = a.repeat == ONCE && a.smart != SMART && (a.dayFlags ?: 0) == 0
 
     /** Deneme imzasına uyan bütün alarmlar ("Test alarmlarını temizle" adayları). */
     fun probeCandidates(l: B8AlarmList): List<B8Alarm> = l.alarms.filter { matchesProbe(it) }

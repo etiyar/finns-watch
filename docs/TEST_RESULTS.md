@@ -16,6 +16,11 @@ Yeni sonuç biçimi: **Tarih | APK kimliği | Test | Fiziksel gözlem | Logun ka
 | 20.11.2026 | `0.15.0-alpha1 · build 182 · run 44619800678-1 · 562dea1 · dev/v0.13.1-band8-daily` | Müzik bilgisi (18/1) | Bantta bir şey görünmedi. | `ACK` alındı. | **BAŞARISIZ (görünür sonuç yok)** |
 | 20.11.2026 | `0.15.0-alpha1 · build 182 · run 44619800678-1 · 562dea1 · dev/v0.13.1-band8-daily` | Hava durumu: konum ekle (10/7), anlık (10/0), tahmin (10/1) | Kullanıcı bantta hava ekranı bulamadı. | 10/7 yanıtı durum 0; 10/0 ve 10/1 `ACK` aldı. | **DOĞRULANMADI (görünür sonuç yok)** |
 | 20.11.2026 | `0.15.0-alpha1 · build 182 · run 44619800678-1 · 562dea1 · dev/v0.13.1-band8-daily` | Hareketsizlik uyarısı (8/12, 8/13) | Denenmedi. | Yok. | **TEST EDİLMEDİ** |
+| 20.11.2026 | `0.15.0-beta1 · build 184 · run 44673877183-1 · cfc41b3 · dev/v0.13.1-band8-daily` | Bugün ekranında Band 8 uyku ve adım, LS05'e geçince LS05 görünümü, CSV dışa aktarma | Kullanıcı test adımlarının 4. adıma kadar sorunsuz olduğunu bildirdi. | Ayrıca log paylaşılmadı. | **GEÇTİ (kullanıcı bildirimi)** |
+| 20.11.2026 | `0.15.0-beta1 · build 184 · run 44673877183-1 · cfc41b3 · dev/v0.13.1-band8-daily` | Gerçek cevapsız arama ve çalan gelen arama | Cevapsız arama bantta göründü. Çalan gelen arama bantta görünmedi. | Bu sürümde Band 8 için otomatik gelen arama yolu yoktu (beklenen). | **Cevapsız arama GEÇTİ; gelen arama UYGULANMADI** |
+| 20.11.2026 | `0.15.0-beta1 · build 184 · run 44673877183-1 · cfc41b3 · dev/v0.13.1-band8-daily` | Rahatsız etme şimdi aç/kapat (2/23) ve zamanlama (17/9) | Kullanıcı sorun bildirmedi. | Yanıtlar durum 0. | **GEÇTİ (log ve kullanıcı bildirimi)** |
+| 20.11.2026 | `0.15.0-beta1 · build 184 · run 44673877183-1 · cfc41b3 · dev/v0.13.1-band8-daily` | Test alarmı kurma ve düzenleme | Alarm kurulan saatte çaldı. Düzenleme alarmı değiştirmedi. | Neden logla ayrıştırılmadı. beta2 listedeki alarmın alan biçimini ve düzenleme yanıtını logluyor. | **Kurma GEÇTİ; düzenleme BAŞARISIZ** |
+| 20.11.2026 | `0.15.0-beta1 · build 184 · run 44673877183-1 · cfc41b3 · dev/v0.13.1-band8-daily` | WhatsApp tepki bildirimi | Bantta tepki metni emojisiz göründü. | LS05 yazı tipi için olan metin temizleyicisi emojileri siliyordu. | **BAŞARISIZ: emoji kayboluyor (beta2'de Band 8 için ayrı temizleyici)** |
 
 ## 18 Kasım 2026 | Band 8 uzun oturum, 19:50–20:36
 
