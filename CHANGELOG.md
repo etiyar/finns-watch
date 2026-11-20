@@ -4,6 +4,13 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.15.0-beta4 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
+
+- **Hatırlatıcılar** (Saat > Hatırlatıcılar ve takvim): başlık, ilk gün, saat ve tekrar (bir kez, her gün, hafta içi, seçili günler, her N günde). Zamanı gelince telefon etkin saate bildirim gönderir; alarm notlarıyla aynı tam zamanlı alarm yolu, telefon açılışı ve saat değişiminde yeniden kurulur. 5 dakikadan çok geciken hatırlatma gönderilmez.
+- **Telefon takvimi** (isteğe bağlı, takvim izni): seçili takvimlerin etkinlikleri, etkinliğin kendi hatırlatma süresiyle (yoksa 10 dk önce; tüm gün etkinliği o gün 09:00) saate gider. Reddedilen etkinlik atlanır. Takvim değişince ve 30 dakikada bir yeniden okunur. Etkinlik başlığı saklanmaz, gönderim anında takvimden okunur.
+- **Band 8 hareketsizlik uyarısı (deneysel):** Saat sayfasında açık/kapalı ve saat aralığı. Bandın ayarı önce okunur, yalnızca bu alanlar değişir; gün seçimi protokolde bilinmediği için bandın kendi ayarında kalır.
+- Band 8'de kurala göre titreşim, 2/59 deseni cihazda doğrulanana kadar yalnızca Gelişmiş denemesinde.
+
 ## v0.15.0-beta3 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
 
 v0.15, v0.16 ve v0.17 planları tek sürümde (v0.15.0) toplandı.
