@@ -35,6 +35,9 @@ object CalendarReminders {
     private const val OBSERVER_DELAY_MS = 5_000L
 
     private val main = Handler(Looper.getMainLooper())
+
+    /** Takvim sorguları ana iş parçacığında yapılmaz; sırayla tek iş parçacığında. */
+    private val io = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "takvim").apply { isDaemon = true } }
     private var observer: ContentObserver? = null
 
     fun hasPermission(c: Context): Boolean = c.checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
@@ -79,17 +82,24 @@ object CalendarReminders {
         Prefs.setCalendarScheduled(c, emptySet())
     }
 
-    /** Etkinlikleri yeniden okur ve hatırlatmaları baştan kurar. Kapalıysa ya da izin yoksa hepsini iptal eder. */
-    fun refresh(c: Context) {
+    /** Etkinlikleri arka planda yeniden okur ve hatırlatmaları baştan kurar. Kapalıysa ya da izin yoksa hepsini iptal eder. */
+    fun refresh(c: Context, done: (() -> Unit)? = null) {
         val app = c.applicationContext
+        // Gözlemci kaydı ana iş parçacığında; sorgu ve zamanlama arka planda.
+        if (Prefs.calendarEnabled(app) && hasPermission(app)) main.post { startObserver(app) } else main.post { stopObserver(app) }
+        io.execute {
+            try { refreshNow(app) } catch (e: Exception) { WatchHub.log("Takvim yenilenemedi: ${e.javaClass.simpleName}") }
+            done?.invoke()
+        }
+    }
+
+    private fun refreshNow(app: Context) {
         val am = app.getSystemService(AlarmManager::class.java) ?: return
         cancelAll(app)
         if (!Prefs.calendarEnabled(app) || !hasPermission(app)) {
             am.cancel(refreshPending(app))
-            stopObserver(app)
             return
         }
-        startObserver(app)
         val now = System.currentTimeMillis()
         val instances = try { readInstances(app, now) } catch (e: Exception) {
             WatchHub.log("Takvim okunamadı: ${e.javaClass.simpleName}")
@@ -145,8 +155,15 @@ object CalendarReminders {
         return raw.map { (id, begin, f) -> CalendarPlan.Instance(id, begin, f.first, f.second, minutes[id] ?: emptyList()) }
     }
 
-    /** Zamanı geldi: etkinlik hâlâ var ve reddedilmemişse başlığı okunup saate gider. Başlık loga yazılmaz. */
-    fun fire(c: Context, intent: Intent) {
+    /** Zamanı geldi: arka planda etkinlik okunur. [done] alıcının goAsync işini bitirir. */
+    fun fire(c: Context, intent: Intent, done: () -> Unit) {
+        io.execute {
+            try { fireNow(c, intent) } catch (_: Exception) {} finally { done() }
+        }
+    }
+
+    /** Etkinlik hâlâ var ve reddedilmemişse başlığı okunup saate gider. Başlık loga yazılmaz. */
+    private fun fireNow(c: Context, intent: Intent) {
         val eventId = intent.getLongExtra(EXTRA_EVENT, -1)
         val begin = intent.getLongExtra(EXTRA_BEGIN, 0)
         val at = intent.getLongExtra(Reminders.EXTRA_AT, 0)
@@ -163,7 +180,7 @@ object CalendarReminders {
         val title = try { titleOf(c, eventId, begin) } catch (_: Exception) { null }
         if (title == null) {
             WatchHub.log("Takvim hatırlatması atlandı: etkinlik silinmiş, değişmiş ya da reddedilmiş.")
-            refresh(c)
+            refreshNow(c)
             return
         }
         Prefs.addCalendarSent(c, key)

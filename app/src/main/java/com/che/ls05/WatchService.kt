@@ -554,9 +554,15 @@ class WatchService : Service(), DriverListener {
             WatchHub.NoteKind.MESSAGE, WatchHub.NoteKind.MISSED_CALL -> {
                 val isBand = driver.type == WatchType.BAND8
                 // Cevapsız arama kendi ayarıyla süzülür (Bildirimler > Cevapsız aramalar), uygulama filtresiyle değil.
-                // Uygulamanın kendi uyarıları (telefon pili) uygulama filtresine takılmaz.
-                if (isBand && (!Prefs.forwardingEnabled(this) ||
-                        (note.kind == WatchHub.NoteKind.MESSAGE && note.pkg != packageName && !Prefs.appEnabled(this, note.pkg)))) return
+                // Uygulamanın kendi uyarıları (telefon pili) ve navigasyon uygulama filtresine takılmaz.
+                if (isBand && !Prefs.forwardingEnabled(this)) {
+                    WatchHub.log("Band 8 bildirim atlandı: iletim kapalı.")
+                    return
+                }
+                if (isBand && note.kind == WatchHub.NoteKind.MESSAGE && note.appFilter && note.pkg != packageName && !Prefs.appEnabled(this, note.pkg)) {
+                    WatchHub.log("Band 8 bildirim atlandı: uygulama filtresinde kapalı.")
+                    return
+                }
                 // Bildirim metni emojili gelir (Band 8 çizer). LS05'in yazı tipi için eski temizleyici burada uygulanır.
                 val text = if (driver.type == WatchType.LS05) {
                     // Bilinen emoji önce kısa metne döner (❤️ → <3), kalanını eski temizleyici çıkarır.

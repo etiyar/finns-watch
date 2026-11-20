@@ -140,15 +140,16 @@ class NotifyForwarder : NotificationListenerService() {
 
     // ---------- Navigasyon ----------
 
-    /** Süren navigasyon bildirimi: yönerge değişince hemen, yalnızca mesafe değişince en sık 10 sn'de bir. */
+    /** Süren navigasyon bildirimi: başlık manevra, gövde mesafe ve sokak (NavigationFilter). */
     private fun forwardNavigation(sbn: StatusBarNotification, n: Notification, pkg: String) {
         val (title, text) = texts(n)
         if (title.isEmpty() && text.isEmpty()) return
         val now = System.currentTimeMillis()
-        if (!navigation.shouldForward(pkg, title, text, android.os.SystemClock.elapsedRealtime())) return
+        // Manevra değişince hemen, yalnızca mesafe değişince en sık 30 sn'de bir.
+        val out = navigation.decide(pkg, title, text, android.os.SystemClock.elapsedRealtime()) ?: return
         WatchHub.log("Navigasyon yönergesi iletime geçti: ${appLabel(pkg)}.")
-        // Kısa titreşim: LS05'te tek titreşim. Band 8 kendi varsayılanını kullanır.
-        WatchHub.forward(this, note(sbn, pkg, appLabel(pkg), title, text, now, NAV_VIBRATION))
+        // Navigasyonun kendi anahtarı var; uygulama filtresine takılmaz. Kısa titreşim (LS05'te tek).
+        WatchHub.forward(this, note(sbn, pkg, appLabel(pkg), out.title, out.body, now, NAV_VIBRATION).copy(appFilter = false))
     }
 
     // ---------- Okunana kadar tekrar ----------

@@ -72,6 +72,8 @@ object WatchHub {
         val androidKey: String? = null,
         /** Bildirim kuralının titreşimi: -1 varsayılan, 0 titreşimsiz, 1-5 sayı (yalnızca LS05). */
         val vibration: Int = -1,
+        /** false: uygulama filtresi uygulanmaz (navigasyon kendi anahtarıyla açılır). */
+        val appFilter: Boolean = true,
     )
 
     /** Çalan aramalar (bildirim anahtarına göre). Bildirim dinleyici ve servis ana iş parçacığında kullanır. */
