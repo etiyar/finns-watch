@@ -228,6 +228,27 @@ class Band8Driver(
         return null
     }
 
+    // ---------- Hareketsizlik uyarısı kartı (deneysel; 8/12 oku, 8/13 yaz) ----------
+
+    private var idleReadAfterWrite = false
+
+    /** Okunan ayarın açık mı ve saat aralığı; okunmadıysa ya da biçim beklenmedikse null. */
+    fun idleWindow(): B8Standing.Window? = standing?.let { B8Standing.window(it) }
+
+    fun idleRead(): String? {
+        if (!ble.isReady) return "Band 8 hazır değil."
+        return if (ble.sendFeature(B8Standing.read(), "hareketsizlik ayarı oku 8/12")) null else "Ayar istenemedi."
+    }
+
+    fun idleSave(enabled: Boolean, startH: Int, startM: Int, endH: Int, endM: Int): String? {
+        if (!ble.isReady) return "Band 8 hazır değil."
+        val raw = standing ?: return "Önce ayar okunmalı."
+        val bytes = B8Standing.writeWindow(raw, enabled, startH, startM, endH, endM) ?: return "Okunan ayar beklenmeyen biçimde; gönderilmedi."
+        if (!ble.sendFeature(bytes, "hareketsizlik ayarı yaz 8/13")) return "Ayar gönderilemedi."
+        idleReadAfterWrite = true
+        return null
+    }
+
     /** Kart değişikliğinden sonra yanıt gelince liste bir kez yeniden okunur. */
     private var refreshAfterChange = false
 
@@ -292,6 +313,14 @@ class Band8Driver(
                 val s = standing
                 listener.onLog(if (s != null) "Band 8 hareketsizlik ayarı okundu: Health alanı ${s.field}, alanlar ${s.shape()}"
                     else "Band 8 hareketsizlik ayarı beklenen biçimde değil")
+                WatchHub.settingsChanged()
+            }
+            command.matches(B8Type.HEALTH, 13) -> {
+                listener.onLog("Band 8 hareketsizlik ayarı yazma yanıtı: durum=${command.status ?: "yok"}")
+                if (idleReadAfterWrite) {
+                    idleReadAfterWrite = false
+                    idleRead()
+                }
             }
             command.type == B8Type.MUSIC -> {
                 // Yapı tahmin: alan biçimi loga yazılır (metin yok), istek yanıtlanır, tuş uygulanır.

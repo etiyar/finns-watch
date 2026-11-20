@@ -198,6 +198,7 @@ class WatchService : Service(), DriverListener {
         LinkAlert.createChannel(this)
         registerReceiver(btReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        CalendarReminders.refresh(this)
     }
 
     override fun onDestroy() {
@@ -314,6 +315,12 @@ class WatchService : Service(), DriverListener {
         val band = driver as? Band8Driver ?: return "Band 8 etkin değil."
         return band.probe(p)
     }
+
+    /** Band 8 hareketsizlik uyarısı kartı (deneysel). */
+    fun bandIdleWindow(): com.che.ls05.protocol.band8.B8Standing.Window? = (driver as? Band8Driver)?.idleWindow()
+    fun bandIdleRead(): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.idleRead() }
+    fun bandIdleSave(enabled: Boolean, sh: Int, sm: Int, eh: Int, em: Int): String? =
+        (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.idleSave(enabled, sh, sm, eh, em) }
 
     /** Band 8 alarm kartı. */
     fun bandAlarms(): com.che.ls05.protocol.band8.B8AlarmList? = (driver as? Band8Driver)?.alarmsForCard()

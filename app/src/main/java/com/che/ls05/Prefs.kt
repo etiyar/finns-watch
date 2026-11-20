@@ -109,6 +109,33 @@ object Prefs {
     fun setBand8TestAlarm(c: Context, hour: Int, minute: Int) =
         p(c).edit().putInt("band8TestAlarm", hour * 60 + minute).apply()
 
+    /** Özel hatırlatıcılar (telefona ait). Biçim: [com.che.ls05.protocol.CustomReminders.encode]. */
+    fun customReminders(c: Context): String? = p(c).getString("customReminders", null)
+    fun setCustomReminders(c: Context, value: String) = p(c).edit().putString("customReminders", value).apply()
+    fun scheduledCustom(c: Context): Set<Int> =
+        p(c).getStringSet("scheduledCustom", emptySet())?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
+    fun setScheduledCustom(c: Context, ids: Set<Int>) = p(c).edit().putStringSet("scheduledCustom", ids.map { it.toString() }.toSet()).apply()
+    fun customSentAt(c: Context, id: Int): Long = p(c).getLong("customSent:$id", 0L)
+    fun setCustomSentAt(c: Context, id: Int, at: Long) = p(c).edit().putLong("customSent:$id", at).apply()
+
+    /** Takvim eşitlemesi (varsayılan kapalı) ve seçili takvim kimlikleri. Etkinlik başlığı saklanmaz. */
+    fun calendarEnabled(c: Context): Boolean = p(c).getBoolean("calendarEnabled", false)
+    fun setCalendarEnabled(c: Context, value: Boolean) = p(c).edit().putBoolean("calendarEnabled", value).apply()
+    fun calendarIds(c: Context): Set<Long> =
+        p(c).getStringSet("calendarIds", emptySet())?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+    fun setCalendarIds(c: Context, ids: Set<Long>) = p(c).edit().putStringSet("calendarIds", ids.map { it.toString() }.toSet()).apply()
+    /** Kurulu takvim hatırlatmalarının istek kodları (iptal için). */
+    fun calendarScheduled(c: Context): Set<Int> =
+        p(c).getStringSet("calendarScheduled", emptySet())?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
+    fun setCalendarScheduled(c: Context, codes: Set<Int>) = p(c).edit().putStringSet("calendarScheduled", codes.map { it.toString() }.toSet()).apply()
+    /** Gönderilmiş takvim hatırlatmalarının anahtarları (etkinlik kimliği, başlangıç, an); en çok 200. */
+    fun calendarSent(c: Context): Set<String> = p(c).getStringSet("calendarSent", emptySet())?.toSet() ?: emptySet()
+    fun addCalendarSent(c: Context, key: String) {
+        val cur = calendarSent(c).toMutableList()
+        cur += key
+        p(c).edit().putStringSet("calendarSent", cur.takeLast(200).toSet()).apply()
+    }
+
     fun lastSync(c: Context): Long = p(c).getLong(k(c, "lastSync"), 0L)
     fun setLastSync(c: Context, at: Long) = p(c).edit().putLong(k(c, "lastSync"), at).apply()
 
