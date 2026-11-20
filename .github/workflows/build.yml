@@ -10,6 +10,11 @@ on:
         type: boolean
         required: true
         default: false
+      release_tag:
+        description: 'Kararlı sürüm etiketi (ör. v0.15.0). Yalnızca main üzerinde. Boş bırakılırsa kararlı sürüm yayımlanmaz.'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -120,3 +125,31 @@ jobs:
             --title "Finn's Watch test adayı · ${GITHUB_REF_NAME} · ${short_sha} · build ${GITHUB_RUN_NUMBER}" \
             --notes "Test adayı. versionCode: $((1000 + GITHUB_RUN_NUMBER)). APK: build ${GITHUB_RUN_NUMBER}, run ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}, commit ${short_sha}, dal ${GITHUB_REF_NAME}. Cihaz sonucu henüz doğrulanmadı." \
             --prerelease
+
+  stable:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != '' && github.ref_name == 'main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: FinnsWatch-${{ github.run_number }}-${{ github.run_attempt }}-apk
+          path: apk
+      - name: Kararlı sürümü yayımla
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "Geçersiz etiket: $TAG"; exit 1;; esac
+          ver="${TAG#v}"
+          grep -q "versionName = \"$ver\"" app/build.gradle.kts || { echo "versionName $ver değil"; exit 1; }
+          awk -v h="## $TAG |" 'index($0,h)==1{f=1;next} f&&/^## /{exit} f' CHANGELOG.md > notes.md
+          short_sha="${GITHUB_SHA:0:7}"
+          printf '\nAPK: build %s, commit %s. Önceki sürümün üstüne kaldırmadan kurulabilir.\n' "$GITHUB_RUN_NUMBER" "$short_sha" >> notes.md
+          mv apk/app-debug.apk "FinnsWatch-${TAG}.apk"
+          gh release create "$TAG" "FinnsWatch-${TAG}.apk" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Finn's Watch ${TAG}" --notes-file notes.md --latest
