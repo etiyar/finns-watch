@@ -21,6 +21,10 @@ Yeni sonuç biçimi: **Tarih | APK kimliği | Test | Fiziksel gözlem | Logun ka
 | 20.11.2026 | `0.15.0-beta1 · build 184 · run 44673877183-1 · cfc41b3 · dev/v0.13.1-band8-daily` | Rahatsız etme şimdi aç/kapat (2/23) ve zamanlama (17/9) | Kullanıcı sorun bildirmedi. | Yanıtlar durum 0. | **GEÇTİ (log ve kullanıcı bildirimi)** |
 | 20.11.2026 | `0.15.0-beta1 · build 184 · run 44673877183-1 · cfc41b3 · dev/v0.13.1-band8-daily` | Test alarmı kurma ve düzenleme | Alarm kurulan saatte çaldı. Düzenleme alarmı değiştirmedi. | Neden logla ayrıştırılmadı. beta2 listedeki alarmın alan biçimini ve düzenleme yanıtını logluyor. | **Kurma GEÇTİ; düzenleme BAŞARISIZ** |
 | 20.11.2026 | `0.15.0-beta1 · build 184 · run 44673877183-1 · cfc41b3 · dev/v0.13.1-band8-daily` | WhatsApp tepki bildirimi | Bantta tepki metni emojisiz göründü. | LS05 yazı tipi için olan metin temizleyicisi emojileri siliyordu. | **BAŞARISIZ: emoji kayboluyor (beta2'de Band 8 için ayrı temizleyici)** |
+| 20.11.2026 | `0.15.0-beta2 · build 188 · run 44758261913-1 · 5f1a5cd · dev/v0.13.1-band8-daily` | Emoji testi (❤️ 👍 😂 😮 😢 🙏) | Bantta altı boş kutucuk göründü. | Bildirim `ACK` aldı. | **BAŞARISIZ: bandın yazı tipi emoji çizemiyor; beta3'te emoji kısa metne dönüyor** |
+| 20.11.2026 | `0.15.0-beta2 · build 188 · run 44758261913-1 · 5f1a5cd · dev/v0.13.1-band8-daily` | Gerçek gelen arama ekranı ve bantta reddet | Kullanıcı arama ekranının bantta açıldığını ve bandtan reddetmenin çalıştığını bildirdi. | Ayrıca log paylaşılmadı. | **GEÇTİ (kullanıcı bildirimi)** |
+| 20.11.2026 | `0.15.0-beta2 · build 188 · run 44758261913-1 · 5f1a5cd · dev/v0.13.1-band8-daily` | Müzik (18/1 test şarkısı) | Bantta bir şey görünmedi. | 18/1 `ACK` aldı. Band müzik ekranı açılınca ve tuşlara basınca şifreli 18/0 gönderdi (18:03, 18:04, 18:07). | **BAŞARISIZ: band 18/0 ile istiyor; beta3 isteğe yanıt veriyor ve alan biçimini logluyor** |
+| 20.11.2026 | `0.15.0-beta2 · build 188 · run 44758261913-1 · 5f1a5cd · dev/v0.13.1-band8-daily` | Alarm düzenleme | Sonuç bekleniyor. | | **DOĞRULANMADI** |
 
 ## 18 Kasım 2026 | Band 8 uzun oturum, 19:50–20:36
 
