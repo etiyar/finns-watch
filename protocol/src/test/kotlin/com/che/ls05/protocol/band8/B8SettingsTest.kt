@@ -250,6 +250,28 @@ class B8SettingsTest {
     }
 
     @Test
+    fun standingWindowChangesOnlyEnabledStartEnd() {
+        val raw = B8Standing.parse(standingReply())!!
+        val c = cmd(B8Standing.writeWindow(raw, true, 8, 30, 20, 15)!!)
+        assertTrue(c.matches(8, 13))
+        val m = c.body(10)!!.message(17)!!
+        assertEquals(true, m.bool(1))
+        assertEquals(8, m.message(2)!!.int(1))
+        assertEquals(30, m.message(2)!!.int(2))
+        assertEquals(20, m.message(3)!!.int(1))
+        assertEquals(15, m.message(3)!!.int(2))
+        assertEquals(true, m.bool(4), "öğle arası korunur")
+        assertEquals(12, m.message(5)!!.int(1))
+        assertEquals(1, m.all(2).size)
+    }
+
+    @Test
+    fun standingWindowReadsBack() {
+        val w = B8Standing.window(B8Standing.parse(standingReply())!!)!!
+        assertEquals(B8Standing.Window(false, 9, 0, 21, 0), w)
+    }
+
+    @Test
     fun standingParseRejectsAmbiguousReply() {
         val two = cmd(B8Messages.command(8, 12).message(10, PbWriter().message(17, PbWriter().bool(1, true)).message(18, PbWriter().bool(1, true))).toByteArray())
         assertNull(B8Standing.parse(two))

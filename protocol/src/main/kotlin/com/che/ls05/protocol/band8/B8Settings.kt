@@ -172,6 +172,36 @@ object B8Standing {
         return B8RawSetting(one.number, one.data!!)
     }
 
+    /** Okunan ayarın açık mı ve saat aralığı (alan 1, 2, 3; tahmin). Biçim beklenmedikse null. */
+    data class Window(val enabled: Boolean, val startH: Int, val startM: Int, val endH: Int, val endM: Int)
+
+    fun window(raw: B8RawSetting): Window? {
+        val m = PbMessage.parseOrNull(raw.bytes) ?: return null
+        val a = m.message(2) ?: return null
+        val b = m.message(3) ?: return null
+        return Window(m.bool(1) ?: false, a.int(1) ?: 0, a.int(2) ?: 0, b.int(1) ?: 0, b.int(2) ?: 0)
+    }
+
+    /** Açık mı ve başlangıç/bitiş saati değişir; öğle arası gibi diğer alanlar olduğu gibi geri gider. */
+    fun writeWindow(raw: B8RawSetting, enabled: Boolean, startH: Int, startM: Int, endH: Int, endM: Int): ByteArray? =
+        rewrite(raw, mapOf(1 to null, 2 to hourMinute(startH, startM), 3 to hourMinute(endH, endM)), enabled)
+
+    private fun rewrite(raw: B8RawSetting, replace: Map<Int, PbWriter?>, enabled: Boolean): ByteArray? {
+        val m = PbMessage.parseOrNull(raw.bytes) ?: return null
+        val w = PbWriter().bool(1, enabled)
+        for ((n, v) in replace) if (n != 1 && v != null) w.message(n, v)
+        for (f in m.fields) {
+            if (f.number in replace.keys) continue
+            when (f.wire) {
+                PbWriter.WIRE_VARINT -> w.uint(f.number, f.value)
+                PbWriter.WIRE_LEN -> w.bytes(f.number, f.data ?: return null)
+                PbWriter.WIRE_I32 -> w.float(f.number, java.lang.Float.intBitsToFloat(f.value.toInt()))
+                else -> return null
+            }
+        }
+        return cmd(B8Type.HEALTH, 13, B8Type.F_HEALTH, PbWriter().message(raw.field, w))
+    }
+
     /** I64 gibi beklenmeyen bir alan varsa null: değiştirmeden göndermek yerine hiç gönderilmez. */
     fun write(raw: B8RawSetting, enabled: Boolean): ByteArray? {
         val m = PbMessage.parseOrNull(raw.bytes) ?: return null
