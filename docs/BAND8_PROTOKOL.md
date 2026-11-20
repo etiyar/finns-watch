@@ -422,7 +422,7 @@ Kayıtta görülen kimlikler (doğrulandı, değerler yazılmadı):
 - Bu yapı Gadgetbridge'in davranışından çıkarıldı ve kayıttaki dosyanın boyutları ve hizalamasıyla doğrulandı. Değerleri (adım, nabız) ilk cihaz denemesinde dolu bir günle karşılaştıracağız.
 - Dosyada saatlik toplam yok. **Saatlik adım, 60 dakikalık kayıtların toplamıyla çıkarılır** (güçlü kanıt).
 
-### 7.6 Uyku (güçlü kanıt, ayrıntılar tahmin)
+### 7.6 Uyku (sürüm 2 yapısı doğrulandı 20.11.2026; aşağıdaki eski notlar bölüm 17'ye göre okunmalı)
 
 - **Uyku dosyası (alt tür 8):** dolgudan sonra 1 bayt başlık bayrakları, 1 bayt "uyanık mı", 4 bayt yatma zamanı, 4 bayt kalkma zamanı. Bazı sürümlerde 1 bayt uyku kalitesi. Sonra bayraklara bağlı ek ölçüm blokları (nabız, SpO2, horlama; her biri: birim, sayı, isteğe bağlı ilk kayıt zamanı, kayıtlar). En sonda evre paketleri.
 - Evre paketleri 4 baytlık sabit bir işaretle başlar. Her paketin bir türü var (17 = evreler, 16 = özet, 2 = uykuya dalma, 3 = uyanma, diğerleri bilinmiyor). Evre kayıtlarında evre kodu üst 4 bittedir.
@@ -707,3 +707,114 @@ Sleep as Android'in saat eklentisi arayüzü yayın (broadcast) mesajlarıyla ç
 - Testler: RFC 5869, RFC 3610 ve NIST SP 800-38C vektörleri, bağımsız bir Python betiğiyle TEST anahtarıyla üretilmiş altın vektörler, sentetik fikstürler ve sahte bantla akış testi.
 - `B8CaptureTest` yalnızca yerelde, `B8_AUTH_KEY` ve `B8_CAPTURE_FRAMES` varsa çalışır. Gerçek kayıtta 3 auth, bütün komutlar, yüklemeler ve tam dosyalar hatasız çözüldü. Yalnızca sayılar yazdırılır.
 - Ayrıştırıcıların çıktısı UTC saniye ve 15 dakikalık saat dilimi birimidir. Yerel saate çevirme ortak yardımcıya bırakıldı.
+
+## 16. İkinci istemci, sağlık arşivi ve elle denemeler (v0.15.0-alpha1)
+
+### 16.1 İkinci istemci (doğrulandı, #16)
+
+Android'de aynı BLE bağlantısını birden çok uygulama paylaşır. Bandın bildirimleri, karakteristiğe abone olan her uygulamaya gider. Mi Fitness ya da Notify açıksa:
+
+- Onların auth'u bandın oturum anahtarını değiştirir. Bizim komutlarımız `ACK` alır ama band çözemediği için bileklikte bir şey olmaz.
+- Onların auth yanıtları (şifresiz 1/26, 1/27) ve 0x0052'deki onayları (`ACK`, `READY`, `ALL_RECEIVED`) bize de gelir.
+
+Cihaz kanıtı (19.11.2026, build 175): Notify kaldırıldıktan sonra da istenmemiş 1/27, kuyruk boşken üçlü `ACK` ve her bildirimden sonra `READY`/`ALL_RECEIVED` görüldü. Mi Fitness kaldırılınca dört Bluetooth turunda tek temiz auth ve hiç yabancı iz yoktu; bildirimler göründü.
+
+Uygulama kuralı (`B8ForeignGuard`): bizim başlatmadığımız şifresiz 1/26 ya da 1/27 tek başına yabancı izdir ve auth durum makinesine verilmez. Kanalımızın beklemediği kontrol çerçevesi 30 saniye içinde ikinci kez gelirse yabancı izdir. Tek sapma tetiklemez. Logda yalnızca 4-6 baytlık çerçeve başlığı yazılır. Uyarı gösterilir ve en çok 5 dakikada bir tam yeniden bağlanılır (elle Bağlan ile aynı yol). Bizim beklediğimiz anda gelen yabancı 1/26 bizimkinden ayırt edilemez; o durumda auth "anahtar yanlış" diye düşebilir.
+
+### 16.2 Sağlık dosyası arşivi
+
+- Oturum hazır olunca (şifreli pil ve cihaz bilgisi yanıtı) 5 saniye sonra, sonra 6 saatte bir: 8/1, 8/2, her kimlik için ayrı 8/3 (belge 7.2). Bölüm zaman aşımı 5 saniye. İstenmeden gelen dosyalar da alınır.
+- Çekme komutu yalnızca komut kanalı boşken gider (`B8FetchGate`). Bekleyen bildirim varsa önce o gider. Komut bekletilirken zaman aşımı işlemez.
+- CRC tutan her dosya `files/<sağlık klasörü>/band8-files/<kimlik>.bin` olarak saklanır. Aynı kimlik gelirse son geçerli sürüm atomik yazılır.
+- **8/5 hiç gönderilmez.** Band dosyaları saklamaya devam eder.
+- Saklanan dosya şifresi çözülmüş ve bölümleri birleştirilmiş hâldedir: 7 bayt kimlik + 1 bayt dolgu + gövde + 4 bayt CRC32. Ayrıştırmak için anahtar gerekmez. Dışa aktarılan zip'te `index.txt` bunu ve APK kimliğini yazar.
+
+### 16.3 Elle denemeler (cihazda doğrulanmadı)
+
+Her düğme tek komut gönderir. Logda komut türü/alt türü ve gelen yanıtın türü/alt türü/durumu yazılır, içerik yazılmaz.
+
+| Deneme | Komut | Yapı | Etiket |
+|---|---|---|---|
+| Cevapsız arama | 7/0 | "phone" paketinden normal bildirim, arama mı alanı yok, başlık "Test arama", gövde "Cevapsız arama", kimlik 1 | tahmin |
+| Alarm listesi | 17/0 | yanıttan yalnızca alarm sayısı ve en çok sayı loglanır | doğrulandı (yapı) |
+| Test alarmı kur | 17/1 | Ç2: saat şimdi + 2 dk, bir kez, açık, normal | güçlü kanıt |
+| Test alarmını düzenle | 17/2 | Ç3: kimlik + ayrıntı, saat şimdi + 3 dk | güçlü kanıt |
+| Test alarmını sil | 17/4 | Ç5: tekrarlı kimlik | güçlü kanıt |
+| Rahatsız etme aç/kapat | 2/23 | S11 > 1: 0 açık, 2 kapalı | güçlü kanıt |
+| Uyku modu zamanla / kapat | 17/9 | Ç9: 1 açık mı, 2 aralık (1 başlangıç, 2 bitiş, 3 = 0) | güçlü kanıt |
+| Hava konumu ekle | 10/7 | alan 5: 1 kod (sabit `finnswatch`), 2 şehir adı | güçlü kanıt |
+| Anlık hava | 10/0 | alan 1: meta, 2 Xiaomi kodu, 3 sıcaklık (℃, sint32) | güçlü kanıt; kod eşlemesi tahmin |
+| Günlük tahmin | 10/1 | alan 2: meta, 2 > tekrarlı 1 gün: 2 kod aralığı, 3 sıcaklık aralığı (sint32), 4 ℃ | tahmin |
+| Hareketsizlik ayarını oku | 8/12 | yanıttaki tek iç mesajın Health alan numarası ve alan biçimi loglanır | güçlü kanıt (komut), alanlar tahmin |
+| Hareketsizlik aç/kapat | 8/13 | okunan mesaj aynı alanla geri gider, yalnızca 1. alan (açık mı) değişir | tahmin |
+| Test şarkı | 18/1 | Music alan 20 > 1: 1 durum (1 çalıyor), 2 ses, 4 şarkı, 5 sanatçı, 6 konum, 7 süre | tahmin |
+
+Alarm kimliğini band verir. Oluşturma yanıtı kimlik vermeyebilir; uygulama oluşturmadan önceki ve sonraki listede tek yeni kimlik varsa onu test alarmı sayar. Banddan gelen 18/x müzik olayları yalnızca alt türüyle loglanır.
+
+Xiaomi hava kodu eşlemesi (tahmin): güneşli 0, parçalı bulutlu 1, kapalı 2, sağanak 3, gök gürültülü 4, karla karışık 6, çisenti 7, şiddetli yağmur 9, kar 14, sis 18, toz 29, diğer 2.
+
+## 17. Cihaz arşiviyle doğrulanan dosya biçimleri (20.11.2026)
+
+Kullanıcının dışa aktardığı arşiv repo dışında çözüldü ve bandın ekranıyla karşılaştırıldı. Değerler bu belgeye yazılmadı.
+
+### 17.1 Uyku: tür 0, alt tür 8, ayrıntı 0, sürüm 2 (doğrulandı)
+
+- Dosya kimliğindeki zaman uykunun **bitişidir**.
+- Gövde: `f0 xx`, başlangıç u32 LE, bitiş u32 LE, u16 (bilinmiyor), sayı u16 LE, nabız başlangıcı u32 LE, sonra [sayı] bayt dakikalık nabız (0 = ölçüm yok). Sayı, oturumun dakika sayısından az olabilir.
+- Kalan kısım `fb fa fc ff` işaretiyle ayrılmış kayıtlardır. Kayıt: `11` + 8 bayt anahtar + 2 bayt etiket + 1 bayt (0) + yük. Oturum kayıtlarının anahtarı: başlangıç u32 LE + 4 sıfır.
+- Etiket `00 10` ya da `01 10` **özet**: `0d`, sürüm (`10`/`11`), sonra büyük endian u16: toplam, uyanık, hafif, REM, derin (dakika). Toplam = hafif + REM + derin.
+- Etiket `00 11` ya da `01 11` **evreler**: uzunluk baytı, sonra (evre, dakika) çiftleri. Evre `00` uyanık, `10` hafif, `20` derin, `30` REM. Çiftlerin toplamı oturum süresine eşit. Uyanık parça sayısı bandın "uyanma" sayısı.
+- Aynı oturum için birden çok kayıt olabilir (geçici ya da boş). Anahtarı tutan, boş olmayan son kayıt geçerlidir. Diğer kayıt türleri bilinmiyor, kullanılmaz.
+- Dakikalık nabızların ortalaması bandın uyku "ortalama nabız" değeriyle eşleşti.
+- Yerel doğrulama: üç oturumun üçünde toplam = hafif + REM + derin, evre toplamı = süre, evre başına toplam = özet.
+
+### 17.2 Günlük özet: tür 0, alt tür 0, ayrıntı 1, sürüm 5
+
+- 69 bayt. Gövde `ff ff ff ff`, sonra toplam adım u32 LE (7.7).
+- Kimlik zamanı özetin alındığı andır; aynı gün için en son özet kullanılır.
+
+### 17.3 Günlük ayrıntı: sürüm 3
+
+- 17297 bayt: 8 bayt kimlik ve dolgu, 5 bayt başlık, 1440 × 12 bayt dakika kaydı, 4 bayt CRC (7.5).
+- Yerel doğrulama: dört ayrıntı dosyasından üçünde dakika adımlarının toplamı aynı günün özetiyle tam eşit (yarım gün dahil). Bir tam günde özet, dakika toplamından %1-5 büyük. Neden bilinmiyor; birleşik görünüm günlük toplam olarak ikisinin büyüğünü kullanır.
+- Bu arşivde dakika kayıtlarında nabız neredeyse hiç yok (gün başına 0-5 dakika). Bandın sürekli nabız ölçüm ayarı ayrıca kontrol edilmeli. Uyku dosyasındaki dakikalık nabız ayrıntı dosyasında olmayan dakikaları doldurur.
+
+### 17.4 Alarm (20.11.2026 cihaz sonucu)
+
+- 17/1 alarmı kurar ve alarm çalar. Yanıtta kimlik yok. Kimlik, 17/0 listesindeki sıra numarasıdır.
+- Uygulama deneme alarmını listede saatine ve imzasına (bir kez, normal, gün bayrağı yok) göre bulur. Kurma, düzenleme ve silme taze liste ister.
+
+### 17.5 Alarm listesinde sıfır alanlar ve düzenleme (20.11.2026, build 184)
+
+- Düzenleme (17/2) bantta alarmı değiştirmedi. Olası neden: band sıfır değerli alanları (tekrar = 0 bir kez, dakika 0, akıllı alanı) yazmıyor olabilir. Eski ayrıştırıcı eksik alanı -1 sayıyordu, test alarmı imzaya uymuyor ve 17/2 hiç gönderilmiyordu. Artık eksik alan 0 okunur, akıllı alarm (1) dışındaki her değer "akıllı değil" sayılır.
+- 17/2 yapısı: Ç3 > 1 kimlik, 2 ayrıntı (2 saat {1 saat, 2 dakika}, 3 tekrar, 5 açık, 7 akıllı/normal). Gadgetbridge de kimlik olarak liste sırasını (1'den) kullanıyor.
+- Tanı logu: her 17/0 yanıtında alarm başına `kimlik=N ayrıntı=[alan biçimi] saat=[alan biçimi]` satırı. Değer yazılmaz. Düzenleme gönderilince kimlik, yanıtta durum loglanır.
+
+### 17.6 Gelen arama (otomatik, cihazda doğrulanacak)
+
+- Telefon çalınca 7/0 (paket "phone", arama mı = true, başlık arayan adı ya da numara). Cevap, ret ya da bitişte 7/1 (kimlik 0, paket "phone"). Elle arama ekranı denemesi bu iki komutun çalıştığını gösterdi.
+- Banddan 7/2 reddet, 7/5 sessize al. Uygulama yalnızca kendi açtığı gerçek arama ekranı için tepki verir.
+
+### 17.7 Emoji, müzik ve titreşim (20.11.2026, build 188)
+
+- Bandın yazı tipi emoji çizemiyor: "Emoji testi" altı boş kutucuk gösterdi. Banda giden metinde yaygın emojiler kısa metne çevrilir, diğerleri çıkar (`EmojiText`, LS05 ile ortak).
+- Müzik: kendiliğinden giden 18/1 `ACK` aldı ama görünmedi. Band müzik ekranı açılınca ve tuşlara basınca şifreli 18/0 gönderdi. Uygulama 18/0'ı durum isteği sayar ve 18/1 ile yanıtlar (Music alan 1: 1 durum, 2 ses, 4 şarkı, 5 sanatçı, 6 konum, 7 süre; tahmin). 18/0 içinde Music alan 2 (1 tuş, 2 ses) varsa tuş olayı sayılır: 0 çal, 1 duraklat, 3 önceki, 4 sonraki, 5 ses (tahmin). Gelen her 18/x'in alan biçimi loga yazılır; sonraki cihaz testi yapıyı doğrulayacak.
+- Titreşim deseni 2/59: System alan 41 > tekrarlı 1 { 1 titreşim 1/0, 2 süre ms } (güçlü kanıt, cihazda denenmedi).
+
+### 17.8 Müzik sesi ve navigasyon ekranı (20.11.2026, build 197)
+
+**Müzik sesi**
+
+- Build 197: bandda sesi artırınca telefon en yükseğe (adım 150/150), azaltınca sıfıra (0/150) gitti. 18/2 içinde Music alanları `1v 2v` (build 191). Alan 1 bizim tuş kodu 5 saydığımız değer, alan 2 ses sanılan değer (tahmin). Alan 2'nin yüzde olmadığı ya da bizim 18/1'de bildirdiğimiz düzeyden başka bir ölçekte olduğu anlaşılıyor (güçlü kanıt: iki yönde de uç değer).
+- rc2: 18/1 içinde STREAM_MUSIC yüzdesi (0-100) bildirilir. Bandın 18/2 değeri son bildirdiğimiz yüzdeye 10 puandan yakınsa yüzde sayılır ve uygulanır. Uzaksa yalnızca yön sayılır, telefon sesi bir çentik (akışın on beşte biri) oynar (`MusicVolume.decide`).
+- Log: her 18/2 için ham alan 1 ve alan 2 (yalnızca sayılar), son bildirilen yüzde, akış adımı ve seçilen yol ("yüzde", "çentik", "aynı"). Her 18/1 için bildirilen yüzde. Sonraki cihaz testi alan 2'nin gerçek anlamını gösterecek.
+
+**Navigasyon ekranı**
+
+- Notify'ın Band 8'de gösterdiği büyük ok, "Turn left", "400m" ve "ETA" ekranı bir protokol komutu değil. Notify bu ekranı telefonda bir resim olarak çiziyor ve banda **kadran olarak yüklüyor**. Sabit bir kadran kimliği kullanıyor, resim her yönergede yenileniyor (güçlü kanıt: Notify kaynak incelemesi; yalnızca başvuru, kod alınmadı).
+- Notify manevrayı Google Maps bildiriminin büyük simgesinden (ok resmi) tanıyor. Sola, sağa, hafif, keskin, göbek çıkışları, rampa, çatal, varış gibi otuzu aşkın manevra türü var (güçlü kanıt).
+- Notify kaynağında Band 8 için ayrı bir navigasyon komutu (tür ve alt tür) bulunmadı. Aranan anahtar sözcükler yalnızca manevra listesini buldu (güçlü kanıt, eksiksiz değil: kaynak karartılmış).
+- Gadgetbridge belgelerine göre Xiaomi protobuf saatlerde navigasyon yönergesi **bildirim olarak, yönerge simgesiyle** gidiyor; ayrı bir navigasyon ekranı listelenmiyor (güçlü kanıt: gadgetbridge.org navigasyon sayfası; kod incelenmedi).
+- Bizde bildirim simgesi akışı doğrulandı (bkz. 9 ve bildirim simgesi notları): band bilmediği paket için 7/16 ile simge ister, simge tür 50 veri yüklemesiyle gider. Her manevra için ayrı bir sahte paket adı ve ok simgesi yüklenirse bildirimde büyük ok görünebilir (tahmin, cihazda denenmedi). Bu iş veri yükleme kanalının (0x0055) uygulamada kurulmasını gerektiriyor. rc2'de yapılmadı.
+- Kadran yoluyla tam ekran navigasyon: kadran dosya biçimi gerekiyor, kadran yüklemesi kapsam dışı (bkz. 9). **Uygulanmayacak.**
+- rc2 yedeği: bildirim başlığı kısa manevra adı ("Sola dön", "Hafif sağa", "Göbek", "Varış"), gövde mesafe, yönerge ve sokak. Manevra tanınmazsa başlık yönergenin kendisi, 20 karakteri aşarsa sözcük sınırında sağdan kısaltılır. Build 197'de uzun başlık bantta baştan kesik görünmüştü.

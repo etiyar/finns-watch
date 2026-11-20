@@ -67,6 +67,18 @@ class B8Channel(var mtu: Int = 247) {
     val pending: Int get() = queue.size + (if (inFlight != null) 1 else 0)
     val busy: Boolean get() = inFlight != null
 
+    /**
+     * CMD_OUT'tan gelen kontrol çerçevesini bu kanal bekliyor mu. Beklenmeyen onay, "hazırım" ya da
+     * "hepsi alındı" başka bir istemcinin aynı karakteristiğe yazdığını gösterir (#16).
+     */
+    fun expects(ev: B8Frame.Event): Boolean = when (ev) {
+        is B8Frame.Event.Ack -> wait == Wait.ACK
+        is B8Frame.Event.Ready -> wait == Wait.READY
+        is B8Frame.Event.AllReceived, is B8Frame.Event.Resend -> wait == Wait.ALL_RECEIVED
+        is B8Frame.Event.Nack, is B8Frame.Event.Rejected -> inFlight != null
+        else -> true
+    }
+
     /** Şifreli komut kuyruğa girer. Oturum yoksa auth bitene kadar bekler. */
     fun send(plain: ByteArray): List<B8Write> {
         queue.addLast(Out(plain, true))

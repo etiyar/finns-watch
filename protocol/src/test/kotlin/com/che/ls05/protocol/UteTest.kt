@@ -86,6 +86,10 @@ class UteTest {
     fun vibrateMatchesRecordingAndRepliesParse() {
         // Kayıt indeksi 1486 (yazma) ve 1491 (yanıt).
         assertContentEquals(Hex.parse("06 00 00 00 02 02 00 00"), UteCommand.VIBRATE_TEXT)
+        // Kural titreşimi: sayı değişir, süre mesaj titreşimindeki gibi 2.
+        assertContentEquals(UteCommand.VIBRATE_TEXT, UteCommand.vibrateCount(2))
+        assertContentEquals(Hex.parse("06 00 00 00 05 02 00 00"), UteCommand.vibrateCount(5))
+        assertContentEquals(Hex.parse("06 00 00 00 01 02 00 00"), UteCommand.vibrateCount(0), "en az 1")
         assertTrue(UteParser.parse(Hex.parse("06 00")) is UteFrame.VibrateAck)
         assertEquals(UteFrame.AuthStatus(1), UteParser.parse(Hex.parse("20 04 01")))
     }

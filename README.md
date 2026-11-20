@@ -8,37 +8,40 @@ Finn's Watch, birden fazla saati tek uygulamadan yönetmeyi hedefleyen bağıms�
 
 | Bileşen | Durum | Açıklama |
 | --- | --- | --- |
-| Haylou Solar LS05 | Kullanımda | Bağlantı, bildirim, arama, alarm, DND, sağlık geçmişi, cihaz bulma ve kadran aktarımı için mevcut işlevler |
-| Xiaomi Smart Band 8 | **Beta** | Bluetooth bağlantısı, kimlik doğrulama, pil yüzdesi ve firmware bilgisi gerçek cihazda doğrulandı |
-| Çoklu saat yönetimi | **Beta** | Etkin saat değiştirme ve Bluetooth kapat/aç sonrasında yeniden bağlantı kullanıcı testinde çalıştı |
-| Band 8 günlük özellikleri | Geliştirmede | Bildirim, arama, müzik, sağlık senkronizasyonu ve saat ayarları henüz tamamlanmadı |
+| Haylou Solar LS05 | Kullanımda | Bağlantı, bildirim, arama, alarm, DND, sağlık geçmişi, cihaz bulma ve kadran aktarımı |
+| Xiaomi Smart Band 8 | Kullanımda | Bildirim, arama, alarm, DND, müzik, sağlık verisi, hatırlatıcılar; gerçek cihazda doğrulandı |
+| Çoklu saat yönetimi | Kullanımda | Etkin saat değiştirme, birleşik sağlık grafikleri |
 
-**Sürümler:** `main` üzerinde **v0.12.0** bulunur. **v0.13.0-beta6**, [ayrı geliştirme dalındadır](https://github.com/etiyar/ls05-controller/tree/dev/v0.13-band8-connection); kararlı sürüm olarak yayımlanmamıştır.
+**Sürüm:** Kararlı sürüm **v0.15.0** ([Releases](https://github.com/etiyar/finns-watch/releases)). Ayrıntılar [CHANGELOG](CHANGELOG.md), cihaz kanıtları [TEST_RESULTS](docs/TEST_RESULTS.md) içinde.
 
-> **Bilinen açık sorun:** Band 8 için bir test oturumunda doğrulama durdu ve uygulama yeniden açıldığında saat kaydı listede görünmedi. Koruyucu kod değişiklikleri geliştirme dalına eklendi; kesin kök neden ve gerçek cihaz testi bekleniyor. Sağlık verileri Band 8 için henüz eşitlenmediğinden ilgili ekranda veri görünmemesi bu aşamada normaldir.
+> **Bilinen sınırlar:** Band 8'e Mi Fitness ya da Notify aynı anda bağlıysa komutlar `ACK` alır ama bileklikte işlenmez. Bu uygulamaları kaldır ya da Bluetooth izinlerini kapat; Finn's Watch bunu fark edince uyarır. Band 8 ve LS05 emoji çizemez; yaygın emojiler kısa metne döner. Band 8'de navigasyon düz bildirim olarak gösterilir, oklu ekran yoktur. Band 8 hava durumu ve kadran yükleme henüz yoktur. Band 8 hareketsizlik kartı deneyseldir.
 
 ## Özellikler
 
 **Haylou Solar LS05**
-- Arka planda Bluetooth bağlantısı ve uygun olduğunda yeniden bağlanma.
-- Türkçe bildirimler, gelen ve cevapsız arama bilgisi.
-- Alarm, rahatsız etmeme, saat ve profil ayarları.
-- Adım, nabız ve uyku geçmişi ile yerel grafikler.
-- Saati bulma, son görülen konum ve desteklenen telefon kumandaları.
-- Özel kadran yükleme ve kadran araçları.
+- Arka planda Bluetooth bağlantısı ve yeniden bağlanma.
+- Türkçe bildirimler, gelen ve cevapsız arama.
+- Alarm (3 yuva, notlu), rahatsız etme, saat ve profil ayarları.
+- Adım, nabız ve uyku geçmişi, yerel grafikler.
+- Saati bulma, son görülen konum, telefon kumandaları.
+- Özel kadran yükleme.
 
-**Xiaomi Smart Band 8 (beta)**
-- FE95 üzerinden Bluetooth bağlantısı ve kimlik doğrulama.
-- Pil yüzdesi ve firmware sürümünü okuma.
-- Bluetooth taraması, kayıtlı cihazlardan seçim veya bilinen adresle bağlantı.
-- Kimlik anahtarını Android Keystore aracılığıyla koruma.
-- LS05 ile etkin saat arasında geçiş.
+**Xiaomi Smart Band 8**
+- FE95 üzerinden bağlantı ve kimlik doğrulama; anahtar Android Keystore'da.
+- Bildirimler, gelen arama (banttan reddetme), cevapsız arama, bilekliği bul.
+- Alarmlar (10 yuva), rahatsız etme ve zamanlaması.
+- Müzik bilgisi, oynatma tuşları ve ses düzeyi.
+- Uyku (derin, hafif, REM, uyanma, nabız), adım ve nabız; banddan dosya silinmez.
 
-Band 8 için LS05 ile aynı özellik kapsamı **henüz sunulmaz**. Destek yalnızca gerçek cihaz testleriyle doğrulandıkça genişletilir.
+**İki saat için ortak**
+- Bildirim kuralları: uygulama, kişi, kelime filtresi; iş profili; sessiz saatler; okunana kadar tekrar; titreşim.
+- Google Maps navigasyon yönergeleri, WhatsApp/Telegram aramaları, telefon pili uyarısı.
+- Hatırlatıcılar ve takvim hatırlatmaları.
+- Birleşik sağlık grafikleri ve CSV dışa aktarma (kaynak sütunu).
 
 ## Kurulum ve geliştirme
 
-Bu depo Android kaynak kodunu ve GitHub Actions testlerini içerir. Deneme APK'ları [Actions](https://github.com/etiyar/ls05-controller/actions) çıktılarından alınabilir. Beta sürümler yalnızca ilgili geliştirme dalından derlenir.
+Bu depo Android kaynak kodunu ve GitHub Actions testlerini içerir. Telefondan indirilecek test adayları [Releases](https://github.com/etiyar/finns-watch/releases) sayfasında açıkça adlandırılır; her CI derlemesi [Actions](https://github.com/etiyar/finns-watch/actions) çıktısında kalır. Aday testinde Ayarlar > Hakkında satırındaki APK kimliği kaydedilir.
 
 Yerel derleme için Android SDK ve JDK 17 gerekir:
 
@@ -59,11 +62,11 @@ Tasarım ilkesi, çalışan LS05 işlevlerini koruyarak saat başına ayrı sür
 
 ## Geliştirme ve test takibi
 
-Güncel belgeler [v0.13 geliştirme dalında](https://github.com/etiyar/ls05-controller/tree/dev/v0.13-band8-connection) tutulur:
+Güncel belgeler [v0.13.1 geliştirme dalında](https://github.com/etiyar/finns-watch/tree/dev/v0.13.1-band8-daily) tutulur:
 
-- [CHANGELOG.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/CHANGELOG.md): Sürüm değişiklikleri.
-- [TEST_RESULTS.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/docs/TEST_RESULTS.md): Gerçek cihaz ve CI test sonuçları.
-- [PLAN.md](https://github.com/etiyar/ls05-controller/blob/dev/v0.13-band8-connection/docs/PLAN.md): Mevcut durum, açık sorunlar ve sonraki adımlar.
+- [CHANGELOG.md](https://github.com/etiyar/finns-watch/blob/dev/v0.13.1-band8-daily/CHANGELOG.md): Sürüm değişiklikleri.
+- [TEST_RESULTS.md](https://github.com/etiyar/finns-watch/blob/dev/v0.13.1-band8-daily/docs/TEST_RESULTS.md): Gerçek cihaz ve CI test sonuçları.
+- [PLAN.md](https://github.com/etiyar/finns-watch/blob/dev/v0.13.1-band8-daily/docs/PLAN.md): Güncel durum ve açık issue bağlantıları.
 
 CI derlemesinin geçmesi, ilgili özelliğin gerçek saatte doğrulandığı anlamına gelmez. Bu iki durum ayrı takip edilir.
 

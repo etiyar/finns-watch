@@ -18,11 +18,11 @@ object Prefs {
      */
     private fun k(c: Context, name: String): String = WatchRegistry.ns(c) + name
 
-    fun userIdText(c: Context): String = p(c).getString(k(c, "userId"), "") ?: ""
+    fun userIdText(c: Context, ns: String = WatchRegistry.ns(c)): String = p(c).getString(ns + "userId", "") ?: ""
     fun setUserIdText(c: Context, value: String) = p(c).edit().putString(k(c, "userId"), value.trim()).apply()
     fun userIdBytes(c: Context): ByteArray? = UteCommand.parseUserId(userIdText(c))
 
-    fun address(c: Context): String? = p(c).getString(k(c, "address"), null)
+    fun address(c: Context, ns: String = WatchRegistry.ns(c)): String? = p(c).getString(ns + "address", null)
     fun setAddress(c: Context, value: String) = p(c).edit().putString(k(c, "address"), value).apply()
 
     /** Kullanıcı "Durdur" demediyse servis açılışta ve güncellemeden sonra yeniden başlar. */
@@ -31,6 +31,28 @@ object Prefs {
 
     fun forwardingEnabled(c: Context): Boolean = p(c).getBoolean("forwarding", true)
     fun setForwardingEnabled(c: Context, value: Boolean) = p(c).edit().putBoolean("forwarding", value).apply()
+
+    /** Bildirim kuralları (telefona ait, saatler arasında ortak). Biçim: [com.che.ls05.protocol.NotifyRuleSet.encode]. */
+    fun notifyRules(c: Context): com.che.ls05.protocol.NotifyRuleSet =
+        com.che.ls05.protocol.NotifyRuleSet.decode(p(c).getString("notifyRules", null))
+    fun setNotifyRules(c: Context, value: com.che.ls05.protocol.NotifyRuleSet) =
+        p(c).edit().putString("notifyRules", value.encode()).apply()
+
+    /** "Okunana kadar tekrar" durumu: yalnızca bildirim anahtarları ve sayaçlar, metin yok. */
+    fun repeatState(c: Context): String? = p(c).getString("repeatState", null)
+    fun setRepeatState(c: Context, value: String) = p(c).edit().putString("repeatState", value).apply()
+
+    /** Navigasyon yönergelerini saate ilet (varsayılan kapalı). */
+    fun navigation(c: Context): Boolean = p(c).getBoolean("navigation", false)
+    fun setNavigation(c: Context, value: Boolean) = p(c).edit().putBoolean("navigation", value).apply()
+
+    /** Telefon pili uyarıları (varsayılan kapalı). */
+    fun batteryLow(c: Context): Boolean = p(c).getBoolean("batteryLow", false)
+    fun setBatteryLow(c: Context, value: Boolean) = p(c).edit().putBoolean("batteryLow", value).apply()
+    fun batteryLowThreshold(c: Context): Int = p(c).getInt("batteryLowAt", 15)
+    fun setBatteryLowThreshold(c: Context, value: Int) = p(c).edit().putInt("batteryLowAt", value.coerceIn(5, 50)).apply()
+    fun batteryFull(c: Context): Boolean = p(c).getBoolean("batteryFull", false)
+    fun setBatteryFull(c: Context, value: Boolean) = p(c).edit().putBoolean("batteryFull", value).apply()
 
     fun vibrate(c: Context): Boolean = p(c).getBoolean("vibrate", true)
     fun setVibrate(c: Context, value: Boolean) = p(c).edit().putBoolean("vibrate", value).apply()
@@ -78,6 +100,42 @@ object Prefs {
     fun setProfileVerified(c: Context, value: Boolean) = p(c).edit().putBoolean(k(c, "profileVerified"), value).apply()
 
     /** Son başarılı adım geçmişi okuması (ms); 0 = hiç. */
+    /** Band 8 deneme alarmının son kurulan saati ("Test alarmlarını temizle" ve düzenle/sil için). */
+    fun band8TestAlarm(c: Context): Pair<Int, Int>? {
+        val v = p(c).getInt("band8TestAlarm", -1)
+        return if (v < 0) null else (v / 60) to (v % 60)
+    }
+
+    fun setBand8TestAlarm(c: Context, hour: Int, minute: Int) =
+        p(c).edit().putInt("band8TestAlarm", hour * 60 + minute).apply()
+
+    /** Özel hatırlatıcılar (telefona ait). Biçim: [com.che.ls05.protocol.CustomReminders.encode]. */
+    fun customReminders(c: Context): String? = p(c).getString("customReminders", null)
+    fun setCustomReminders(c: Context, value: String) = p(c).edit().putString("customReminders", value).apply()
+    fun scheduledCustom(c: Context): Set<Int> =
+        p(c).getStringSet("scheduledCustom", emptySet())?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
+    fun setScheduledCustom(c: Context, ids: Set<Int>) = p(c).edit().putStringSet("scheduledCustom", ids.map { it.toString() }.toSet()).apply()
+    fun customSentAt(c: Context, id: Int): Long = p(c).getLong("customSent:$id", 0L)
+    fun setCustomSentAt(c: Context, id: Int, at: Long) = p(c).edit().putLong("customSent:$id", at).apply()
+
+    /** Takvim eşitlemesi (varsayılan kapalı) ve seçili takvim kimlikleri. Etkinlik başlığı saklanmaz. */
+    fun calendarEnabled(c: Context): Boolean = p(c).getBoolean("calendarEnabled", false)
+    fun setCalendarEnabled(c: Context, value: Boolean) = p(c).edit().putBoolean("calendarEnabled", value).apply()
+    fun calendarIds(c: Context): Set<Long> =
+        p(c).getStringSet("calendarIds", emptySet())?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+    fun setCalendarIds(c: Context, ids: Set<Long>) = p(c).edit().putStringSet("calendarIds", ids.map { it.toString() }.toSet()).apply()
+    /** Kurulu takvim hatırlatmalarının istek kodları (iptal için). */
+    fun calendarScheduled(c: Context): Set<Int> =
+        p(c).getStringSet("calendarScheduled", emptySet())?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
+    fun setCalendarScheduled(c: Context, codes: Set<Int>) = p(c).edit().putStringSet("calendarScheduled", codes.map { it.toString() }.toSet()).apply()
+    /** Gönderilmiş takvim hatırlatmalarının anahtarları (etkinlik kimliği, başlangıç, an); en çok 200. */
+    fun calendarSent(c: Context): Set<String> = p(c).getStringSet("calendarSent", emptySet())?.toSet() ?: emptySet()
+    fun addCalendarSent(c: Context, key: String) {
+        val cur = calendarSent(c).toMutableList()
+        cur += key
+        p(c).edit().putStringSet("calendarSent", cur.takeLast(200).toSet()).apply()
+    }
+
     fun lastSync(c: Context): Long = p(c).getLong(k(c, "lastSync"), 0L)
     fun setLastSync(c: Context, at: Long) = p(c).edit().putLong(k(c, "lastSync"), at).apply()
 

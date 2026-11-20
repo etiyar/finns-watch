@@ -38,6 +38,44 @@ data class B8DailySummary(
     val spo2Avg: Int,
 )
 
+/** Uyku evresi parçası. [stage]: 0 uyanık, 1 hafif, 2 derin, 3 REM (dosyadaki kod / 16). */
+data class B8SleepRun(val stage: Int, val minutes: Int) {
+    companion object {
+        const val AWAKE = 0
+        const val LIGHT = 1
+        const val DEEP = 2
+        const val REM = 3
+    }
+}
+
+/**
+ * Bir uyku oturumu (alt tür 8, sürüm 2). Zamanlar UTC saniyesi; [tzQuarters] dosya kimliğinden.
+ * Süreler dakika. [heartPerMinute] [hrStartUtc]'den başlayarak dakikada bir; 0 = ölçüm yok.
+ */
+class B8Sleep(
+    val startUtc: Long,
+    val endUtc: Long,
+    val tzQuarters: Int,
+    val totalMin: Int,
+    val awakeMin: Int,
+    val lightMin: Int,
+    val remMin: Int,
+    val deepMin: Int,
+    val runs: List<B8SleepRun>,
+    val hrStartUtc: Long,
+    val heartPerMinute: IntArray,
+) {
+    /** Bantta "uyanma" sayısı: uyanık parçaların sayısı. */
+    val wakeUps: Int get() = runs.count { it.stage == B8SleepRun.AWAKE }
+
+    /** Geçerli dakikalık nabızların yuvarlanmış ortalaması; ölçüm yoksa null. */
+    val averageHeart: Int?
+        get() {
+            val v = heartPerMinute.filter { it in com.che.ls05.protocol.HealthLog.VALID_BPM }
+            return if (v.isEmpty()) null else Math.round(v.average()).toInt()
+        }
+}
+
 /** Elle ölçüm. [type]: 1 nabız, 2 SpO2, 3 stres, 4 sıcaklık. */
 data class B8ManualSample(val utcSeconds: Long, val tzQuarters: Int, val type: Int, val value: Int)
 
@@ -46,6 +84,7 @@ sealed class B8Parsed {
     class DailyDetail(override val id: B8FileId, val records: List<B8MinuteRecord>) : B8Parsed()
     class DailySummary(override val id: B8FileId, val summary: B8DailySummary) : B8Parsed()
     class Manual(override val id: B8FileId, val samples: List<B8ManualSample>) : B8Parsed()
+    class Sleep(override val id: B8FileId, val sleep: B8Sleep) : B8Parsed()
     /** Tanınmayan ya da henüz desteklenmeyen dosya. [reason] kişisel veri içermez. */
     class Unsupported(override val id: B8FileId, val reason: String) : B8Parsed()
 }
@@ -59,9 +98,9 @@ object B8ActivityParsers {
                 id.isDailyDetail -> parseDailyDetail(file)
                 id.isDailySummary -> parseDailySummary(file)
                 id.isManual -> parseManual(file)
-                // TODO(7. adım): uyku dosyası (alt tür 8) ve uyku evreleri (alt tür 3).
-                // Belge 7.6'daki yapı kayıtla doğrulanmadı. Gerçek bir sabah eşitlemesi gelmeden yazılmaz.
-                id.isSleep || id.subtype == B8FileId.SUB_SLEEP_STAGES -> B8Parsed.Unsupported(id, "uyku henüz yok")
+                id.isSleep && id.detailType == B8FileId.DETAIL -> parseSleep(file)
+                // Uyku evreleri dosyası (alt tür 3) cihaz arşivinde görülmedi.
+                id.isSleep || id.subtype == B8FileId.SUB_SLEEP_STAGES -> B8Parsed.Unsupported(id, "uyku dosyası ${id.kind()}")
                 else -> B8Parsed.Unsupported(id, "bilinmeyen dosya ${id.kind()}")
             }
         } catch (e: IndexOutOfBoundsException) {
@@ -170,6 +209,83 @@ object B8ActivityParsers {
             id.utcSeconds, id.tzQuarters, steps, rest, hrMax, hrMaxTs, hrMin, hrMinTs, hrAvg,
             sAvg, sMax, sMin, standing, cal, oMax, oMaxTs, oMin, oMinTs, oAvg,
         ))
+    }
+
+    private val SLEEP_MARKER = byteArrayOf(0xfb.toByte(), 0xfa.toByte(), 0xfc.toByte(), 0xff.toByte())
+
+    /**
+     * Uyku dosyası, sürüm 2 (belge 7.6; yapı 20.11.2026 cihaz arşiviyle doğrulandı).
+     * Gövde: 2 bayt başlık, başlangıç u32, bitiş u32, u16 (bilinmiyor), sayı u16, nabız başlangıcı u32,
+     * sonra [sayı] bayt dakikalık nabız. Kalanı `fb fa fc ff` ile ayrılmış kayıtlar:
+     * `11` + 8 bayt anahtar + 2 bayt etiket + 1 bayt (0) + yük. Oturum kayıtlarının anahtarı başlangıç u32 + 4 sıfır.
+     * Etiket xx 10: özet (0d, sürüm, toplam, uyanık, hafif, REM, derin; u16 büyük endian, dakika).
+     * Etiket xx 11: evreler (uzunluk, sonra (evre, dakika) çiftleri; evre 00/10/20/30).
+     * Aynı oturum için birden çok kayıt olabilir: anahtarı tutan, boş olmayan son kayıt geçerlidir.
+     */
+    fun parseSleep(file: B8ActivityFile): B8Parsed {
+        val id = file.id
+        if (id.version != 2) return B8Parsed.Unsupported(id, "uyku sürümü ${id.version}")
+        val b = file.bytes
+        val end = b.size - 4
+        val base = 8
+        if (end - base < 18) return B8Parsed.Unsupported(id, "uyku dosyası kısa")
+        fun u16le(p: Int) = (b[p].toInt() and 0xFF) or ((b[p + 1].toInt() and 0xFF) shl 8)
+        fun u16be(p: Int) = ((b[p].toInt() and 0xFF) shl 8) or (b[p + 1].toInt() and 0xFF)
+        fun u32le(p: Int) = (u16le(p).toLong()) or (u16le(p + 2).toLong() shl 16)
+        val start = u32le(base + 2)
+        val stop = u32le(base + 6)
+        val count = u16le(base + 12)
+        val hrStart = u32le(base + 14)
+        val hrFrom = base + 18
+        if (stop <= start || hrFrom + count > end) return B8Parsed.Unsupported(id, "uyku başlığı geçersiz")
+        val hr = IntArray(count) { b[hrFrom + it].toInt() and 0xFF }
+        val key = ByteArray(8).also { for (i in 0 until 4) it[i] = b[base + 2 + i] }
+
+        var summary: IntArray? = null
+        var runs: List<B8SleepRun>? = null
+        var p = hrFrom + count
+        // Kayıt sınırları: işaretin her geçtiği yer.
+        val cuts = ArrayList<Int>()
+        var i = p
+        while (i + 4 <= end) {
+            if (b[i] == SLEEP_MARKER[0] && b[i + 1] == SLEEP_MARKER[1] && b[i + 2] == SLEEP_MARKER[2] && b[i + 3] == SLEEP_MARKER[3]) {
+                cuts += i
+                i += 4
+            } else i++
+        }
+        for ((k, cut) in cuts.withIndex()) {
+            val from = cut + 4
+            val to = if (k + 1 < cuts.size) cuts[k + 1] else end
+            if (to - from < 13 || b[from] != 0x11.toByte()) continue
+            var match = true
+            for (j in 0 until 8) if (b[from + 1 + j] != key[j]) { match = false; break }
+            if (!match) continue
+            val tag = b[from + 10].toInt() and 0xFF
+            p = from + 12 // etiketten sonraki 0 bayt atlanır
+            when (tag) {
+                0x10 -> if (to - p >= 12) {
+                    val v = IntArray(5) { u16be(p + 2 + it * 2) }
+                    if (v[0] > 0) summary = v
+                }
+                0x11 -> {
+                    val len = b[p].toInt() and 0xFF
+                    if (len > 0 && p + 1 + len <= to) {
+                        runs = (0 until len / 2).map { n ->
+                            B8SleepRun((b[p + 1 + 2 * n].toInt() and 0xFF) ushr 4, b[p + 2 + 2 * n].toInt() and 0xFF)
+                        }
+                    }
+                }
+            }
+        }
+        val r = runs
+        if (summary == null && r == null) return B8Parsed.Unsupported(id, "uyku oturumu yok")
+        val list = r ?: emptyList()
+        fun sum(stage: Int) = list.filter { it.stage == stage }.sumOf { it.minutes }
+        val sm = summary ?: intArrayOf(
+            sum(B8SleepRun.LIGHT) + sum(B8SleepRun.DEEP) + sum(B8SleepRun.REM),
+            sum(B8SleepRun.AWAKE), sum(B8SleepRun.LIGHT), sum(B8SleepRun.REM), sum(B8SleepRun.DEEP),
+        )
+        return B8Parsed.Sleep(id, B8Sleep(start, stop, id.tzQuarters, sm[0], sm[1], sm[2], sm[3], sm[4], list, hrStart, hr))
     }
 
     fun parseManual(file: B8ActivityFile): B8Parsed {

@@ -5,14 +5,12 @@ import android.text.InputType
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.che.ls05.protocol.UteCommand
 import com.che.ls05.protocol.WatchList
 import com.che.ls05.protocol.WatchRecord
 import com.che.ls05.protocol.WatchType
 
-/**
- * Saat sekmesinin en üstündeki "Saatlerim" listesi: saat ekle, etkin yap, yeniden adlandır, sil.
- * Bu sürümde yalnızca LS05 eklenebilir; kayıt Band 8 türünü de taşır.
- */
+/** Saatlerim: Band 8 önce taranır ve doğrulanır, ardından anahtarı istenir. */
 class WatchesCard(private val act: MainActivity) {
 
     private val ui: Ui = act.ui
@@ -21,10 +19,7 @@ class WatchesCard(private val act: MainActivity) {
     private val hint: TextView = ui.caption(BAND8_HINT)
 
     companion object {
-        const val BAND8_HINT = "Band 8 bağlıyken Mi Fitness ve Notify kapalı olmalı."
-
-        /** "Saat ekle"de sunulan türler. Band 8, sürücüsü gelince eklenir. */
-        val ADDABLE = listOf(WatchType.LS05)
+        const val BAND8_HINT = "Band 8 için Mi Fitness ve Notify kaldırılmalı ya da Bluetooth izinleri kapatılmalı. Bantla aynı anda konuşurlarsa bildirimler ACK alır ama bantta görünmez."
     }
 
     init {
@@ -38,19 +33,41 @@ class WatchesCard(private val act: MainActivity) {
     fun refresh() {
         list.removeAllViews()
         val l = WatchRegistry.list(act)
-        if (l.watches.isEmpty()) {
-            ui.add(list, ui.row("Henüz saat yok", "Saat ekle ile başla. İlk LS05, Ayarlar > Saat bağlantısı'ndan da bağlanabilir."))
+        if (WatchRegistry.needsRecovery(act)) {
+            ui.add(list, ui.row("Saat kayıtlarını kurtar", "Eski yerel kayıtlardan geri yükle") { confirmRecovery() })
+            ui.add(list, ui.divider(), height = ui.dp(1))
         }
         for ((i, w) in l.watches.withIndex()) {
             if (i > 0) ui.add(list, ui.divider(), height = ui.dp(1))
             val active = w.id == l.activeId
-            val sub = if (active) "${w.type.label} · ${WatchManager.state.label}" else w.type.label
+            val sub = when {
+                needsSetup(w) -> "Kurulum gerekli"
+                active -> "${w.type.label} · ${WatchManager.state.label}"
+                else -> w.type.label
+            }
             val trailing = if (active) ui.pill("Etkin", Tone.OK) else null
             ui.add(list, ui.row(w.name, sub, trailing) { actions(w) })
         }
+        // Model kısayolu yalnızca kullanıcı kuruluma başladığında kayıt oluşturur.
+        for (type in WatchType.entries) {
+            if (l.watches.any { it.type == type }) continue
+            if (list.childCount > 0) ui.add(list, ui.divider(), height = ui.dp(1))
+            ui.add(list, ui.row(type.label, "Kurulum gerekli") { addAndSetUp(type, type.label) })
+        }
         ui.add(list, ui.divider(), height = ui.dp(1))
         ui.add(list, ui.row("Saat ekle", null) { add() })
+        val foreign = l.active?.type == WatchType.BAND8 && WatchHub.bandForeignRecent()
+        hint.text = if (foreign) WatchService.FOREIGN_CLIENT_WARNING else BAND8_HINT
+        hint.setTextColor(act.getColor(if (foreign) R.color.danger else R.color.text2))
         hint.visibility = if (l.watches.any { it.type == WatchType.BAND8 }) View.VISIBLE else View.GONE
+    }
+
+    private fun needsSetup(w: WatchRecord): Boolean {
+        if (Prefs.address(act, w.ns) == null) return true
+        return when (w.type) {
+            WatchType.LS05 -> UteCommand.parseUserId(Prefs.userIdText(act, w.ns)) == null
+            WatchType.BAND8 -> !SecretStore.has(act, w.id)
+        }
     }
 
     private fun actions(w: WatchRecord) {
@@ -58,9 +75,16 @@ class WatchesCard(private val act: MainActivity) {
         val active = w.id == l.activeId
         val labels = ArrayList<String>()
         val doers = ArrayList<() -> Unit>()
-        if (!active) {
+        if (needsSetup(w)) {
+            labels += "Kurulumu aç"
+            doers += { setUp(w) }
+        } else if (!active) {
             labels += "Bu saati tak (etkin yap)"
             doers += { switchTo(w) }
+        }
+        if (active && w.type == WatchType.BAND8 && SecretStore.has(act, w.id)) {
+            labels += "Kimlik anahtarını değiştir"
+            doers += { act.showBandKeyEditor() }
         }
         labels += "Yeniden adlandır"
         doers += { rename(w) }
@@ -121,27 +145,51 @@ class WatchesCard(private val act: MainActivity) {
         d.show()
     }
 
-    /** Tür seçimi (bu sürümde yalnızca LS05), ad, sonra etkin yapma ve kurulum. */
+    /** İkinci bir saat için tür ve ad seçimi. */
     private fun add() {
-        val types = ADDABLE
+        val types = WatchType.entries
         val d = AlertDialog.Builder(act)
             .setTitle("Saat ekle")
             .setItems(types.map { it.label }.toTypedArray()) { _, which ->
                 val type = types[which]
                 nameDialog("Saat adı", type.label) { name ->
-                    val rec = WatchRegistry.add(act, type, name)
-                    val err = WatchManager.switchTo(act, rec.id)
-                    if (err != null) {
-                        act.toast(err)
-                    } else {
-                        act.toast("Şimdi Ayarlar > Saat bağlantısı'ndan Tara ile saati seç.")
-                    }
-                    refresh()
+                    addAndSetUp(type, name)
                 }
             }
             .setNegativeButton("Vazgeç", null)
             .create()
         act.track(d)
         d.show()
+    }
+    private fun addAndSetUp(type: WatchType, name: String) {
+        val rec = try {
+            WatchRegistry.add(act, type, name)
+        } catch (e: IllegalStateException) {
+            act.toast(e.message ?: "Saat kaydedilemedi.")
+            return
+        }
+        setUp(rec)
+    }
+
+    private fun confirmRecovery() {
+        val d = AlertDialog.Builder(act)
+            .setTitle("Saat kayıtlarını kurtar")
+            .setMessage("Saat listesi okunamıyor. Telefonda adresi ve şifreli anahtarı kalan Band 8 kayıtları geri alınacak. Bozuk listenin iki kopyası da saklanacak. Eksik saatler yeniden kurulmak zorunda kalabilir.")
+            .setPositiveButton("Kurtar") { _, _ ->
+                val count = WatchRegistry.recoverLocalDevices(act)
+                act.toast(if (count > 0) "$count Band 8 kaydı geri alındı. Saati seçip bağlantıyı dene." else "Kurtarılabilir Band 8 kaydı bulunamadı; veriler değiştirilmedi.")
+                refresh()
+            }
+            .setNegativeButton("Vazgeç", null)
+            .create()
+        act.track(d)
+        d.show()
+    }
+
+    private fun setUp(rec: WatchRecord) {
+        val err = WatchManager.switchTo(act, rec.id)
+        if (err != null) act.toast(err)
+        else act.settings.openWatchConnection()
+        refresh()
     }
 }

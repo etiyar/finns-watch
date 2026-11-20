@@ -115,11 +115,26 @@ object CallClassifier {
         "com.samsung.android.incallui",
     )
 
-    fun classify(pkg: String, category: String?, ongoing: Boolean, callType: Int, fullScreen: Boolean): CallKind = when {
+    /**
+     * [chronometer]: bildirim süre sayacı gösteriyor (konuşma sürüyor). VoIP uygulamaları (WhatsApp, Telegram, Signal)
+     * çalarken arama türünü ve tam ekran isteğini vermeyebilir; [VOIP_PACKAGES] içindeki paketlerde sayaç yoksa
+     * çalan arama sayılır (cihazda doğrulanmadı).
+     */
+    /** Arama bildirimi gönderen bilinen VoIP uygulamaları. */
+    val VOIP_PACKAGES: Set<String> = setOf(
+        "com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger", "org.thoughtcrime.securesms",
+        "com.viber.voip", "com.facebook.orca", "com.skype.raider", "com.microsoft.teams",
+    )
+
+    fun classify(pkg: String, category: String?, ongoing: Boolean, callType: Int, fullScreen: Boolean, chronometer: Boolean = false): CallKind = when {
         category == CATEGORY_CALL -> when (callType) {
             CALL_TYPE_INCOMING -> CallKind.INCOMING
             CALL_TYPE_ONGOING, CALL_TYPE_SCREENING -> CallKind.ONGOING
-            else -> if (fullScreen) CallKind.INCOMING else CallKind.ONGOING
+            else -> when {
+                fullScreen -> CallKind.INCOMING
+                pkg in VOIP_PACKAGES && !chronometer -> CallKind.INCOMING
+                else -> CallKind.ONGOING
+            }
         }
         category == CATEGORY_MISSED_CALL -> CallKind.MISSED
         pkg in DIALER_PACKAGES && category == null && fullScreen -> CallKind.INCOMING

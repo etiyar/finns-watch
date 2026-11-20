@@ -52,11 +52,11 @@ data class Capabilities(
             findWatch = true, findPhone = true, musicRemote = true, faces = true,
         )
 
-        /** Band 8 için başlangıç: hiçbir özellik açık değil. Doğrulanan özellik yazıldıkça açılır. */
+        /** Doğrulanan Band 8 özellikleri yazıldıkça açılır. */
         val BAND8_BASE = Capabilities(
-            notifications = false, incomingCall = false, callReject = false, missedCall = false,
-            alarmSlots = 0, alarmNote = false, alarmVibration = false, dnd = false, profile = false,
-            weather = false, timeSync = false, steps = false, heart = false, sleep = false, liveSteps = false,
+            notifications = true, incomingCall = true, callReject = true, missedCall = true,
+            alarmSlots = 0, alarmNote = false, alarmVibration = false, dnd = true, profile = false,
+            weather = false, timeSync = false, steps = true, heart = true, sleep = true, liveSteps = false,
             findWatch = false, findPhone = false, musicRemote = false, faces = false,
         )
 
@@ -177,6 +177,25 @@ data class WatchList(
     }
 }
 
+/** Single-line SharedPreferences representation. Legacy plain-text lists remain readable. */
+object WatchListStorage {
+    private const val PREFIX = "b64.v1:"
+
+    fun encode(list: WatchList): String = PREFIX + java.util.Base64.getEncoder()
+        .encodeToString(list.serialize().toByteArray(Charsets.UTF_8))
+
+    fun parse(stored: String?): WatchList? {
+        if (stored == null) return null
+        if (!stored.startsWith(PREFIX)) return WatchList.deserialize(stored)
+        return try {
+            val decoded = java.util.Base64.getDecoder().decode(stored.removePrefix(PREFIX))
+            WatchList.deserialize(String(decoded, Charsets.UTF_8))
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+}
+
 /** Saate ait ayar anahtarı: önek + ad. Öneksiz kayıtta anahtar v0.11 ile aynıdır. */
 object PrefKeys {
     fun key(ns: String, name: String): String = ns + name
@@ -210,6 +229,26 @@ object RegistryMigration {
         if (stored == null) return fromLegacy(legacyAddress, legacyUserId, now) to Source.MIGRATED
         val parsed = WatchList.deserialize(stored)
         return if (parsed != null) parsed to Source.LOADED else fromLegacy(legacyAddress, legacyUserId, now) to Source.REBUILT
+    }
+}
+
+/**
+ * Saat listesi kurtarma seçimi. Birincil kayıt geçerliyse her zaman onu kullanır.
+ * Birincil veri yok veya bozuksa son geçerli ayrı kurtarma kopyasına döner.
+ * Mevcut bozuk kayıtlar hiçbir durumda otomatik boş listeyle ezilmez.
+ */
+object RegistryRecovery {
+    enum class Source { PRIMARY, BACKUP, MIGRATED, CORRUPT }
+    data class Result(val list: WatchList, val source: Source)
+
+    fun load(primary: String?, mirror: String?, legacyAddress: String?, legacyUserId: String?, now: Long): Result {
+        WatchListStorage.parse(primary)?.let { return Result(it, Source.PRIMARY) }
+        WatchListStorage.parse(mirror)?.let { return Result(it, Source.BACKUP) }
+        if (primary == null && mirror == null) {
+            return Result(RegistryMigration.fromLegacy(legacyAddress, legacyUserId, now), Source.MIGRATED)
+        }
+        // Geçersiz kayıt: eski LS05'ten arayüzde geçici görüntü oluştur, diske asla yazma.
+        return Result(RegistryMigration.fromLegacy(legacyAddress, legacyUserId, now), Source.CORRUPT)
     }
 }
 

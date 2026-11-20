@@ -73,6 +73,49 @@ class WatchesTest {
         }
     }
 
+    @Test
+    fun recoveryPrefersValidPrimaryOverStaleMirror() {
+        val (start, _) = RegistryMigration.load(null, "legacy", null, now)
+        val (newer, rec) = start.add(WatchType.BAND8, "B8", now)
+        val current = newer.withActive(rec.id)
+        val result = RegistryRecovery.load(current.serialize(), start.serialize(), "legacy", null, now)
+        assertEquals(RegistryRecovery.Source.PRIMARY, result.source)
+        assertEquals(current, result.list)
+    }
+
+    @Test
+    fun recoveryRestoresBand8WhenPrimaryMissingOrCorrupted() {
+        val (start, _) = RegistryMigration.load(null, "legacy", null, now)
+        val (newer, rec) = start.add(WatchType.BAND8, "B8", now)
+        val latest = newer.withActive(rec.id)
+        for (primary in listOf<String?>(null, "invalid file")) {
+            val result = RegistryRecovery.load(primary, latest.serialize(), "legacy", null, now)
+            assertEquals(RegistryRecovery.Source.BACKUP, result.source)
+            assertEquals(latest, result.list)
+        }
+    }
+
+    @Test
+    fun encodedRegistrySurvivesReloadAndLegacyStillReads() {
+        val (legacy, _) = RegistryMigration.load(null, "legacy", null, now)
+        val (withBand, band) = legacy.add(WatchType.BAND8, "Xiaomi Smart Band 8", now)
+        val selected = withBand.withActive(band.id)
+        val stored = WatchListStorage.encode(selected)
+        assertFalse(stored.contains('\n'))
+        assertFalse(stored.contains('\t'))
+        assertEquals(selected, WatchListStorage.parse(stored))
+        assertEquals(selected, RegistryRecovery.load(stored, "corrupt", "legacy", null, now).list)
+        assertEquals(selected, WatchListStorage.parse(selected.serialize()))
+        assertNull(WatchListStorage.parse("b64.v1:!"))
+    }
+
+    @Test
+    fun recoveryDoesNotSilentlyPersistCorruptRecordsAsFreshInstall() {
+        val result = RegistryRecovery.load("corrupt", "also corrupt", "legacy", null, now)
+        assertEquals(RegistryRecovery.Source.CORRUPT, result.source)
+        assertEquals(WatchType.LS05, result.list.active?.type)
+    }
+
     // ---------- Kayıt işlemleri ----------
 
     @Test
@@ -155,6 +198,12 @@ class WatchesTest {
         assertEquals(Capabilities.LS05, Capabilities.of(null))
         val b = Capabilities.of(WatchType.BAND8)
         assertFalse(b.faces || b.alarmNote || b.alarmVibration)
+        // v0.15.0-beta1: cevapsız arama, rahatsız etme ve sağlık geçmişi otomatik; alarm, hava, müzik yalnızca elle denemede.
+        assertTrue(b.missedCall && b.dnd && b.steps && b.heart && b.sleep)
+        assertEquals(0, b.alarmSlots)
+        assertFalse(b.weather || b.musicRemote)
+        // v0.15.0-beta2: gerçek gelen arama ekranı ve bantta reddetme.
+        assertTrue(b.incomingCall && b.callReject)
         assertTrue(Capabilities.MAX_ALARM_SLOTS >= l.alarmSlots)
     }
 

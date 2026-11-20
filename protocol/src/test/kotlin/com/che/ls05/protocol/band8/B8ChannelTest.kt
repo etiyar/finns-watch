@@ -56,6 +56,30 @@ class B8ChannelTest {
     }
 
     @Test
+    fun queuedNotificationsPreserveSourceAndTurkishText() {
+        val h = authed()
+        val first = B8Notification("com.example.chat", "Sohbet", "Çağrı", "Öğle ışığı", "20261118T142301", 11, "chat:11")
+        val second = B8Notification("com.example.mail", "Posta", "İleti", "Görüşürüz".repeat(31), "20261118T142302", 11, "mail:11")
+        val firstWrite = h.ch.send(B8Messages.notification(first))
+        assertTrue(h.ch.send(B8Messages.notification(second)).isEmpty())
+        h.write(firstWrite)
+        h.run()
+
+        val received = h.band.received.filter { it.matches(7, 0) }
+        assertEquals(2, received.size)
+        received.zip(listOf(first, second)).forEach { (command, expected) ->
+            val fields = command.body(9)!!.message(3)!!.message(1)!!
+            assertEquals(expected.packageName, fields.string(1))
+            assertEquals(expected.title, fields.string(3))
+            assertEquals(expected.body, fields.string(5))
+            assertEquals(expected.timestamp, fields.string(6))
+            assertEquals(expected.id, fields.int(7))
+            assertEquals(expected.key, fields.string(12))
+        }
+        assertEquals(0, h.ch.pending)
+    }
+
+    @Test
     fun reauthResetsCounterAndReencryptsQueued() {
         val h = authed()
         h.send(B8Messages.batteryRequest())

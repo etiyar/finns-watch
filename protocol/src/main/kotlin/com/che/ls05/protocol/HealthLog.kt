@@ -28,6 +28,12 @@ data class SleepSegment(val hour: Int, val minute: Int, val type: Int, val minut
         const val DEEP = 1
         const val LIGHT = 2
 
+        /** Band 8 REM. LS05 baytları 0-255 olduğu için bu değerle çakışmaz; LS05 verisinde hiç görünmez. */
+        const val REM = 0x103
+
+        /** Band 8 uyanık parçası. Eski kural gereği DEEP, LIGHT ve REM dışındaki her tür uyanık sayılır. */
+        const val AWAKE = 0
+
         fun parseAll(b: ByteArray, from: Int): List<SleepSegment> {
             val out = ArrayList<SleepSegment>()
             var i = from
@@ -51,8 +57,33 @@ data class SleepNight(
     val deepMin: Int,
     val lightMin: Int,
     val awakeMin: Int,
+    /** Band 8: REM dakikası. LS05'te hep 0. */
+    val remMin: Int = 0,
+    /** Band 8: uyanma sayısı. LS05'te null. */
+    val wakeUps: Int? = null,
+    /** Band 8: uyku boyunca ortalama nabız. LS05'te null. */
+    val avgHeart: Int? = null,
 ) {
-    val sleepMin get() = deepMin + lightMin
+    val sleepMin get() = deepMin + lightMin + remMin
+}
+
+/**
+ * Sağlık görünümünün ekran ve CSV'nin kullandığı ortak yüzü. [HealthView] (tek LS05 kaynağı) ve
+ * [MergedHealth] (birleşik) uygular.
+ */
+interface HealthQuery {
+    val heartSummary: UteFrame.HeartSummary?
+    fun stepsForDay(day: UteDate): Int?
+    fun hourlySteps(day: UteDate): IntArray
+    fun lastHeart(notAfter: LocalDateTime? = null): HeartPoint?
+    fun heartPoints(): List<HeartPoint>
+    fun sleepSegmentsFor(day: UteDate): List<SleepSegment>
+    fun sleepFor(day: UteDate): SleepNight?
+
+    /** CSV kaynak sütunu. Tek kaynaklı görünümde null. */
+    fun stepSource(day: UteDate, hour: Int): String? = null
+    fun heartSource(at: LocalDateTime): String? = null
+    fun sleepSource(day: UteDate): String? = null
 }
 
 object HealthLog {
@@ -100,13 +131,13 @@ object HealthLog {
  * Kayıtlardan hesaplanan görünüm. entries alınma sırasıyla verilir; aynı saate ait kayıtlarda sonuncusu geçerlidir.
  * live: bellekteki canlı adım kayıtları (dosyaya yazılmaz).
  */
-class HealthView(entries: List<HealthEntry>, live: Collection<StepHour> = emptyList()) {
+class HealthView(entries: List<HealthEntry>, live: Collection<StepHour> = emptyList()) : HealthQuery {
 
     private val stepByHour = LinkedHashMap<Pair<UteDate, Int>, Int>()
     private val heart = ArrayList<HeartPoint>()
 
     /** Saatin bildirdiği son günlük nabız özeti. */
-    var heartSummary: UteFrame.HeartSummary? = null
+    override var heartSummary: UteFrame.HeartSummary? = null
         private set
 
     private val sleep = LinkedHashMap<UteDate, List<SleepSegment>>()
@@ -176,29 +207,35 @@ class HealthView(entries: List<HealthEntry>, live: Collection<StepHour> = emptyL
     }
 
     /** O güne ait kayıt yoksa null, varsa toplam adım. */
-    fun stepsForDay(day: UteDate): Int? {
+    /** Birleştirme için: (gün, saat) → adım. */
+    fun stepHours(): Map<Pair<UteDate, Int>, Int> = LinkedHashMap(stepByHour)
+
+    /** Birleştirme için: uyku kaydı olan uyanış günleri. */
+    fun sleepDays(): Set<UteDate> = LinkedHashSet(sleep.keys)
+
+    override fun stepsForDay(day: UteDate): Int? {
         val hours = stepByHour.filterKeys { it.first == day }
         return if (hours.isEmpty()) null else hours.values.sum()
     }
 
     /** 24 saatlik dağılım. */
-    fun hourlySteps(day: UteDate): IntArray {
+    override fun hourlySteps(day: UteDate): IntArray {
         val out = IntArray(24)
         for ((k, v) in stepByHour) if (k.first == day) out[k.second] = v
         return out
     }
 
     /** En son geçerli nabız ölçümü. notAfter verilirse ondan sonraki (saat hatası) kayıtlar sayılmaz. */
-    fun lastHeart(notAfter: LocalDateTime? = null): HeartPoint? =
+    override fun lastHeart(notAfter: LocalDateTime?): HeartPoint? =
         heart.filter { notAfter == null || !it.at.isAfter(notAfter) }.maxByOrNull { it.at }
 
-    fun heartPoints(): List<HeartPoint> = heart.sortedBy { it.at }
+    override fun heartPoints(): List<HeartPoint> = heart.sortedBy { it.at }
 
     /**
      * O gün uyanılan gecenin bölümleri, başlangıç zamanına göre sıralı (uyku şeridi için). Kural [sleepFor] ile aynı:
      * bölüm saati 18 ve sonrasıysa bir önceki güne aittir, aynı bölüm bir kez sayılır. Kayıt yoksa boş liste.
      */
-    fun sleepSegmentsFor(day: UteDate): List<SleepSegment> {
+    override fun sleepSegmentsFor(day: UteDate): List<SleepSegment> {
         val segs = sleep[day]?.distinct() ?: return emptyList()
         return segs.sortedBy { (if (it.hour >= 18) it.hour - 24 else it.hour) * 60 + it.minute }
     }
@@ -207,7 +244,7 @@ class HealthView(entries: List<HealthEntry>, live: Collection<StepHour> = emptyL
      * O gün uyanılan gecenin özeti. Bölüm saati 18 ve sonrasıysa bir önceki güne aittir.
      * Aynı bölüm iki kez geldiyse bir kez sayılır.
      */
-    fun sleepFor(day: UteDate): SleepNight? {
+    override fun sleepFor(day: UteDate): SleepNight? {
         val segs = sleep[day]?.distinct() ?: return null
         if (segs.isEmpty()) return null
         val wake = LocalDateTime.of(day.year, day.month, day.day, 0, 0)

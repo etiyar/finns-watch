@@ -28,6 +28,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import com.che.ls05.protocol.UteFrame
+import com.che.ls05.protocol.WatchType
 
 /**
  * v0.6 panel: sayfa başlığı ve bağlantı kapsülü, dört sekme (Bugün, Saat, Bildirimler, Ayarlar), yüzen alt menü.
@@ -355,7 +356,8 @@ class MainActivity : Activity(), WatchHub.Observer {
     private fun refreshTop() {
         if (WatchHub.ready) {
             val b = WatchHub.battery
-            ui.setPill(statusPill, if (b != null) "Bağlı · %$b" else "Bağlı", Tone.OK)
+            val label = if (WatchRegistry.active(this)?.type == WatchType.BAND8) "Oturum açık" else "Bağlı"
+            ui.setPill(statusPill, if (b != null) "$label · %$b" else label, Tone.OK)
         } else {
             val s = WatchHub.status
             val busy = s.endsWith("…") || s.startsWith("Saatte onay")
@@ -417,6 +419,10 @@ class MainActivity : Activity(), WatchHub.Observer {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == HealthExport.REQ) {
             HealthExport.onResult(this, resultCode, data)
+            return
+        }
+        if (requestCode == Band8RawExport.REQ) {
+            Band8RawExport.onResult(this, resultCode, data)
             return
         }
         if (requestCode != REQ_FACE || resultCode != RESULT_OK) return
@@ -496,6 +502,15 @@ class MainActivity : Activity(), WatchHub.Observer {
 
     override fun onHealthChanged() {
         today.refresh()
+    }
+
+    fun showBandKeyEditor() {
+        selectTab(3)
+        settings.promptBandKey()
+    }
+
+    override fun onBandKeyRequired() {
+        showBandKeyEditor()
     }
 
     override fun onDeviceFound(device: BluetoothDevice, name: String, rssi: Int) {

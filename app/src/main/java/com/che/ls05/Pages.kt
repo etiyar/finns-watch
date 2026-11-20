@@ -2,6 +2,9 @@ package com.che.ls05
 
 import android.app.AlertDialog
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.pm.PackageManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.ApplicationInfo
@@ -23,7 +26,8 @@ import com.che.ls05.protocol.AlarmReminder
 import com.che.ls05.protocol.AlarmSetting
 import com.che.ls05.protocol.DndSetting
 import com.che.ls05.protocol.HealthLog
-import com.che.ls05.protocol.HealthView
+import com.che.ls05.protocol.HealthQuery
+import com.che.ls05.protocol.MergedHealth
 import com.che.ls05.protocol.NotificationState
 import com.che.ls05.protocol.ProfileSetting
 import com.che.ls05.protocol.SyncEntry
@@ -33,6 +37,8 @@ import com.che.ls05.protocol.UteCommand
 import com.che.ls05.protocol.UteDate
 import com.che.ls05.protocol.UteFrame
 import com.che.ls05.protocol.UteProfile
+import com.che.ls05.protocol.SecretEnvelope
+import com.che.ls05.protocol.WatchType
 import java.time.LocalDateTime
 
 /**
@@ -86,6 +92,9 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
     private val deepText: TextView = ui.caption("")
     private val lightText: TextView = ui.caption("")
     private val awakeText: TextView = ui.caption("")
+    private val remText: TextView = ui.caption("")
+    private val remRow: LinearLayout = ui.horizontal()
+    private val sleepExtra: TextView = ui.caption("")
 
     // Son eşitleme: sayfanın en üstünde küçük açıklama. Yenileme aşağı çekerek yapılır.
     private val syncText: TextView = ui.caption("")
@@ -151,7 +160,14 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
         legendItem(legendRow, R.color.sleep_deep, deepText, 0)
         legendItem(legendRow, R.color.sleep_light, lightText, 12)
         ui.add(legend, legendRow)
+        // Band 8: REM ayrı renkte; LS05 gecesinde gizli.
+        legendItem(remRow, R.color.sleep_rem, remText, 0)
+        ui.add(remRow, View(act), width = 0, weight = 1f, leftDp = 12)
+        remRow.visibility = View.GONE
+        ui.add(legend, remRow, topDp = 4)
         ui.add(legend, awakeText, topDp = 4)
+        sleepExtra.visibility = View.GONE
+        ui.add(legend, sleepExtra, topDp = 4)
         ui.add(body, legend, topDp = 10)
 
         val trends = ui.card()
@@ -188,7 +204,7 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
     }
 
     // Bellekte yalnızca son 3 gün var; daha eski günler arka planda dosyalardan okunur ve günde bir yenilenir.
-    private var olderView: HealthView? = null
+    private var olderView: HealthQuery? = null
     private var olderHeartByDay: Map<java.time.LocalDate, List<com.che.ls05.protocol.HeartPoint>>? = null
     private var olderDate: java.time.LocalDate? = null
     private var olderLoading = false
@@ -216,11 +232,11 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
     }
 
     /** Günlük geçmiş grafikleri. Son sütun bugün (uykuda bu sabah biten gece). Ortalamalar yalnızca verisi olan günlerden. */
-    private fun refreshTrends(recent: HealthView, today: java.time.LocalDate) {
+    private fun refreshTrends(recent: HealthQuery, today: java.time.LocalDate) {
         loadOlder(today)
         val older = olderView
         // Son 3 gün bellekteki güncel veriden, öncesi dosyalardan.
-        fun src(d: java.time.LocalDate): HealthView = if (older != null && d.isBefore(today.minusDays(2))) older else recent
+        fun src(d: java.time.LocalDate): HealthQuery = if (older != null && d.isBefore(today.minusDays(2))) older else recent
         val days = (span - 1 downTo 0).map { today.minusDays(it.toLong()) }
         val names = arrayOf("Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz")
         val labels = Array<String?>(span) { i ->
@@ -285,6 +301,13 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
      * Saat bağlı değilse ya da kadran yükleniyorsa readyService kısa uyarı gösterir.
      */
     private fun requestData(): Boolean {
+        if (WatchRegistry.active(act)?.type == WatchType.BAND8) {
+            // Band 8: sağlık dosyalarını şimdi çek (yalnızca okuma). Bitince ekran kendiliğinden yenilenir.
+            val s = act.readyService() ?: return false
+            val err = s.bandProbe(Band8Probe.FETCH_NOW)
+            act.toast(err ?: "Band 8 sağlık dosyaları çekiliyor.")
+            return false
+        }
         val s = act.readyService() ?: return false
         if (s.requestHistory(true)) return true
         if (s.historyBusy) return true
@@ -294,7 +317,7 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
 
     /** Okuma sürerken (elle ya da bağlanınca otomatik) gösterge döner; bitince ya da kopunca gizlenir. */
     private fun refreshPullState() {
-        pull.setRefreshing(WatchHub.service?.historyBusy == true)
+        pull.setRefreshing(WatchRegistry.active(act)?.type != WatchType.BAND8 && WatchHub.service?.historyBusy == true)
     }
 
     override fun refresh() {
@@ -327,7 +350,8 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
         }
 
         // Saatlik adım: eşitleme yapıldıysa boş saat gerçek 0'dır; hiç eşitleme yoksa grafik çizilmez.
-        if (last == 0L) {
+        val band8Today = (view as? MergedHealth)?.hasBand8Steps(today) == true
+        if (last == 0L && !band8Today) {
             bars.visibility = View.GONE
             barsEmpty.visibility = View.VISIBLE
         } else {
@@ -389,6 +413,19 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
             } else {
                 awakeText.visibility = View.GONE
             }
+            // Band 8 gecesi: REM, uyanma sayısı ve ortalama nabız. LS05 gecesinde bu satırlar görünmez.
+            if (night.remMin > 0) {
+                remText.text = "REM ${dur(night.remMin)}"
+                remRow.visibility = View.VISIBLE
+            } else {
+                remRow.visibility = View.GONE
+            }
+            val extra = listOfNotNull(
+                night.wakeUps?.let { "Uyanma $it" },
+                night.avgHeart?.let { "Ortalama nabız $it bpm" },
+            )
+            sleepExtra.text = extra.joinToString(" · ")
+            sleepExtra.visibility = if (extra.isEmpty()) View.GONE else View.VISIBLE
             legend.visibility = View.VISIBLE
         }
 
@@ -419,9 +456,23 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
 
     // Etkin saatin desteklemediği bölümler gizlenir (Capabilities). LS05'te hepsi görünür.
     private val alarmViews = ArrayList<View>()
+    private val band8Alarms = Band8AlarmsCard(act)
+    private val band8Idle = Band8IdleCard(act)
+    private var alarmSection: View? = null
     private val faceViews = ArrayList<View>()
     private val profileViews = ArrayList<View>()
     private var dndView: View? = null
+    private var bandDndRow: View? = null
+    private var lastDndNowAt = 0L
+
+    private fun bandDndNow(on: Boolean) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastDndNowAt < 2_000L) return
+        lastDndNowAt = now
+        val s = act.readyService() ?: return
+        val err = s.bandProbe(if (on) Band8Probe.DND_ON else Band8Probe.DND_OFF)
+        act.toast(err ?: if (on) "Rahatsız etme açılıyor." else "Rahatsız etme kapatılıyor.")
+    }
     private var findView: View? = null
 
     // Saatlerim: kayıtlı saatler ve etkin saat.
@@ -462,8 +513,11 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         // Alarmlar: saatte üç yuva; yalnızca kurulmuş olanlar görünür. Yoğunluk: saat 28 sp, kart içi 14 dp, kart arası 10 dp.
         ui.add(body, watchList.view)
         val alarmSec = ui.section("Alarmlar")
-        alarmViews += alarmSec
+        alarmSection = alarmSec
         ui.add(body, alarmSec, topDp = 20)
+        // Band 8: bandın kendi alarm listesi (LS05 yuvaları yerine).
+        band8Alarms.view.visibility = View.GONE
+        ui.add(body, band8Alarms.view)
         for (slot in 1..UteAlarm.SLOTS) {
             val key = AlarmSetting.key(slot)
             alarms += alarmCard(
@@ -478,6 +532,15 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         ui.add(body, addAlarm, topDp = 10, width = Ui.WRAP)
         exactBanner.view.visibility = View.GONE
         ui.add(body, exactBanner.view, topDp = 10)
+
+        // Hatırlatıcılar ve takvim: iki saat için ortak, telefondan gönderilir.
+        val reminders = ui.card(padDp = 16, padVDp = 6)
+        ui.add(reminders, ui.row("Hatırlatıcılar ve takvim", "Özel hatırlatıcılar ve telefon takvimi saate bildirim olarak gelir") {
+            RemindersScreen(act).show()
+        })
+        ui.add(body, reminders, topDp = 10)
+        band8Idle.view.visibility = View.GONE
+        ui.add(body, band8Idle.view)
 
         // Rahatsız etme ve saati bul yan yana, eşit yükseklikte.
         val pair = LinearLayout(act)
@@ -498,6 +561,13 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         val dndRetry = ui.tonal("Yeniden gönder") { SettingsStore.retry(act, DndSetting.KEY) }
         dndRetry.visibility = View.GONE
         ui.add(dndCard, dndRetry, topDp = 8)
+        // Band 8: rahatsız etmeyi hemen aç ya da kapat (2/23). Saat aralığı kartın kendisiyle (17/9) ayarlanır.
+        val dndNow = ui.horizontal()
+        ui.add(dndNow, ui.tonal("Şimdi aç") { bandDndNow(true) }, width = 0, weight = 1f)
+        ui.add(dndNow, ui.tonal("Kapat") { bandDndNow(false) }, width = 0, weight = 1f, leftDp = 6)
+        dndNow.visibility = View.GONE
+        ui.add(dndCard, dndNow, topDp = 8)
+        bandDndRow = dndNow
         dnd = SettingViews(dndMain, ui.caption(""), dndToggle, dndStatus, dndRetry)
         ui.add(pair, dndCard, width = 0, height = Ui.MATCH, weight = 1f)
         dndView = dndCard
@@ -619,9 +689,18 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         val slots = minOf(caps.alarmSlots, UteAlarm.SLOTS)
         fun show(v: View?, on: Boolean) { v?.visibility = if (on) View.VISIBLE else View.GONE }
         alarmViews.forEach { show(it, slots > 0) }
+        val band = WatchRegistry.active(act)?.type == WatchType.BAND8
+        show(alarmSection, slots > 0 || band)
+        show(band8Alarms.view, band)
+        show(band8Idle.view, band)
+        if (band) {
+            band8Alarms.refresh()
+            band8Idle.refresh()
+        }
         faceViews.forEach { show(it, caps.faces) }
         profileViews.forEach { show(it, caps.profile) }
         show(dndView, caps.dnd)
+        show(bandDndRow, WatchRegistry.active(act)?.type == WatchType.BAND8)
         show(findView, caps.findWatch)
         val visible = SettingsStore.visibleAlarms(act).filter { it <= slots }
         for (slot in 1..UteAlarm.SLOTS) {
@@ -1078,8 +1157,24 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
         }
     }
 
+    private val navigationRow: SwitchRow = ui.switchRow(
+        "Navigasyon yönergeleri",
+        "Google Maps yönergesi değişince saate gider (OsmAnd, Komoot denenmedi).",
+        Prefs.navigation(act),
+    ) { Prefs.setNavigation(act, it) }
+    private val batteryLowRow: SwitchRow = ui.switchRow(
+        "Telefon pili azaldı", "Eşik: %${Prefs.batteryLowThreshold(act)}. Değiştirmek için uzun bas.", Prefs.batteryLow(act),
+    ) { Prefs.setBatteryLow(act, it) }
+    private val batteryFullRow: SwitchRow = ui.switchRow(
+        "Telefon pili doldu", "Şarjdayken %100 olunca bir kez.", Prefs.batteryFull(act),
+    ) { Prefs.setBatteryFull(act, it) }
+
     // Küçük ikincil düğme: sayfanın asıl işi iletim ayarları, test yardımcı.
-    private val testButton: Button = ui.secondary("Test bildirimi gönder") { sendTest("LS05TEST123", "LS05TEST123") }.also {
+    private val ls05NotificationOptions = ui.vertical()
+    private val testButton: Button = ui.secondary("Test bildirimi gönder") {
+        if (WatchRegistry.active(act)?.type == WatchType.BAND8) sendTest("Band 8 denemesi", "Öğle ışığı, çığ ve güller")
+        else sendTest("LS05TEST123", "LS05TEST123")
+    }.also {
         it.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
     }
     private val testState: TextView = ui.text("", 14f, R.color.text)
@@ -1097,17 +1192,22 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
 
         val main = ui.card(padDp = 16, padVDp = 6)
         ui.add(main, forward.view)
-        ui.add(main, ui.divider(), height = ui.dp(1))
-        ui.add(main, incomingCalls.view)
-        ui.add(main, ui.divider(), height = ui.dp(1))
-        ui.add(main, missedCalls.view)
-        ui.add(main, ui.divider(), height = ui.dp(1))
-        ui.add(main, vibrate.view)
-        ui.add(main, ui.divider(), height = ui.dp(1))
-        ui.add(main, foldTurkish.view)
-        ui.add(main, ui.divider(), height = ui.dp(1))
-        ui.add(main, rejectCalls.view)
+        for (row in listOf(incomingCalls, missedCalls, vibrate, foldTurkish, rejectCalls)) {
+            ui.add(ls05NotificationOptions, ui.divider(), height = ui.dp(1))
+            ui.add(ls05NotificationOptions, row.view)
+        }
+        ui.add(main, ls05NotificationOptions)
         ui.add(body, main, topDp = 10)
+
+        // Kurallar ve özel kaynaklar: iki saat için ortak.
+        val extra = ui.card(padDp = 16, padVDp = 6)
+        ui.add(extra, ui.row("Bildirim kuralları", "Uygulama, kişi, kelime, sessiz saatler, tekrar") { NotifyRulesScreen(act).show() })
+        for (row in listOf(navigationRow, batteryLowRow, batteryFullRow)) {
+            ui.add(extra, ui.divider(), height = ui.dp(1))
+            ui.add(extra, row.view)
+        }
+        batteryLowRow.view.setOnLongClickListener { editBatteryThreshold(); true }
+        ui.add(body, extra, topDp = 10)
 
         // "Uygulamalar" + arama simgesi. Arama kutusu simgeye dokununca açılır.
         val head = ui.horizontal()
@@ -1153,6 +1253,7 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
         missedCalls.toggle.set(Prefs.missedCalls(act))
         rejectCalls.toggle.set(Prefs.rejectFromWatch(act))
         val caps = WatchManager.caps(act)
+        ls05NotificationOptions.visibility = if (WatchRegistry.active(act)?.type == WatchType.BAND8) View.GONE else View.VISIBLE
         rejectCalls.view.visibility = if (caps.callReject) View.VISIBLE else View.GONE
         foldTurkish.toggle.set(Prefs.foldTurkish(act))
         onReady(WatchHub.ready)
@@ -1259,6 +1360,22 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
     // ---------- Test bildirimi ----------
 
     /** Gönderildiyse true. Sonuç bu sekmede işaretlenir. */
+    private fun editBatteryThreshold() {
+        val box = ui.dialogBox()
+        val f = ui.field("Yüzde (5-50)")
+        f.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        f.setText(Prefs.batteryLowThreshold(act).toString())
+        ui.add(box, f, topDp = 8)
+        val d = AlertDialog.Builder(act).setTitle("Düşük pil eşiği").setView(box)
+            .setPositiveButton("Kaydet") { _, _ ->
+                f.text.toString().toIntOrNull()?.let { Prefs.setBatteryLowThreshold(act, it) }
+                batteryLowRow.subtitle.text = "Eşik: %${Prefs.batteryLowThreshold(act)}. Değiştirmek için uzun bas."
+            }
+            .setNegativeButton("Vazgeç", null).create()
+        act.track(d)
+        d.show()
+    }
+
     fun sendTest(title: String, message: String): Boolean {
         val s = WatchHub.service
         if (s == null || !s.isWatchReady()) {
@@ -1267,6 +1384,10 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
             return false
         }
         if (!s.sendTestNotification(title, message)) return false
+        if (WatchRegistry.active(act)?.type == WatchType.BAND8) {
+            setNotifState(NotificationState.REQUESTED)
+            return true
+        }
         setNotifState(NotificationState.SENDING)
         act.handler.postDelayed({
             if (notifState == NotificationState.SENDING) setNotifState(NotificationState.TRANSFER_TIMEOUT)
@@ -1280,6 +1401,8 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
             NotificationState.IDLE -> return
             NotificationState.SENDING ->
                 "Test bildirimi gönderiliyor…" to "Gönderiliyor…"
+            NotificationState.REQUESTED ->
+                "Test bildirimi sıraya alındı. Saatte gördün mü?" to "Gönderim istendi. Saatte gördün mü?"
             NotificationState.TRANSFER_DONE ->
                 "Aktarım tamam (saat onayladı). Ekranda gördün mü?" to "Aktarım tamam. Saatte gördün mü?"
             NotificationState.TRANSFER_TIMEOUT ->
@@ -1294,7 +1417,9 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
         testState.text = shownText
         testState.visibility = View.VISIBLE
         confirmRow.visibility =
-            if (st == NotificationState.TRANSFER_DONE || st == NotificationState.TRANSFER_TIMEOUT) View.VISIBLE else View.GONE
+            if (st in setOf(NotificationState.REQUESTED, NotificationState.TRANSFER_DONE, NotificationState.TRANSFER_TIMEOUT)) {
+                View.VISIBLE
+            } else View.GONE
     }
 
     fun onFrame(frame: UteFrame) {
@@ -1312,6 +1437,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
 
     private companion object {
         const val LAST_SEEN_INFO = "Bağlantı beklenmedik koparsa telefonun konumu kaydedilir. Yalnızca son kayıt tutulur."
+        const val PROBE_DEBOUNCE_MS = 2_000L
     }
 
     private val logShown = 300
@@ -1319,8 +1445,13 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
 
     private val setup: Collapsible = ui.collapsible("Kurulum", "", R.drawable.ic_check, open = false)
     private val theme: Segmented = ui.segmented(listOf("Sistem", "Koyu", "Açık"), Prefs.themeMode(act)) { act.setThemeMode(it) }
+    private val connectionHeading = ui.section("Saat bağlantısı")
     private val idRow: NavRow = ui.navRow(null, "Kimlik", null, "") { editId() }
     private val deviceBox: LinearLayout = ui.vertical()
+    private val directConnectButtons: LinearLayout = ui.vertical()
+    private var scanCandidates = 0
+    private var scanGeneration = 0
+    private var bandKeyDialog: AlertDialog? = null
     // Hava durumu
     private val weatherSwitch: SwitchRow = ui.switchRow(
         "Hava durumunu saate gönder",
@@ -1376,6 +1507,9 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private var lastSeenDenied = false
     private val firmwareValue: TextView = ui.text("", 15f, R.color.text2)
     private val actionButtons = ArrayList<Button>()
+    private val bandFindTests = ui.vertical()
+    private val bandCallTests = ui.vertical()
+    private val bandProbes = ui.vertical()
     private val logView: TextView = ui.mono()
     private var setupOpened = false
 
@@ -1384,7 +1518,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(body, setup.view, topDp = 4)
 
         // Saat bağlantısı
-        ui.add(body, ui.section("Saat bağlantısı"), topDp = 8)
+        ui.add(body, connectionHeading, topDp = 8)
         val w = ui.card(padDp = 16, padVDp = 6)
         ui.add(w, idRow.view)
         val btns = ui.horizontal()
@@ -1393,6 +1527,9 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(btns, ui.secondary("Durdur") { WatchService.start(act, WatchService.ACTION_STOP) },
             width = 0, weight = 1f, leftDp = 8)
         ui.add(w, btns, topDp = 4)
+        ui.add(directConnectButtons, ui.row("Kayıtlı Bluetooth cihazlarından seç", "Tarama gerektirmez; mevcut eşleşmeler", onClick = { showBondedDevices() }))
+        ui.add(directConnectButtons, ui.row("Bluetooth adresiyle bağlan", "Önceki bağlantı kaydındaki adresi kullan", onClick = { enterKnownBluetoothAddress() }))
+        ui.add(w, directConnectButtons, topDp = 6)
         ui.add(w, deviceBox, topDp = 8)
         ui.add(w, ui.divider(), height = ui.dp(1))
         ui.add(w, autoTime.view)
@@ -1450,6 +1587,29 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         val timeButton = ui.secondary("Saati eşitle") { withWatch { it.sendTime() } }
         actionButtons += timeButton
         ui.add(adv.content, timeButton)
+        ui.add(bandFindTests, ui.cardTitle("Band 8 saati bul testi"))
+        ui.add(bandFindTests, ui.caption("Band 8 yanındayken dene. Gerekirse titreşimi bileklikten durdur."), topDp = 4)
+        val findStart = ui.secondary("Başlatmayı dene") { testBandFind(start = true) }
+        val findStop = ui.secondary("Durdurmayı dene") { testBandFind(start = false) }
+        actionButtons += findStart
+        actionButtons += findStop
+        ui.add(bandFindTests, findStart, topDp = 8)
+        ui.add(bandFindTests, findStop, topDp = 4)
+        bandFindTests.visibility = View.GONE
+        ui.add(adv.content, bandFindTests, topDp = 12)
+        ui.add(bandCallTests, ui.cardTitle("Band 8 arama ekranı denemesi"))
+        ui.add(bandCallTests, ui.caption("Deneysel: gerçek telefon araması başlatmaz. Yalnızca bileklikteki ekranı dener; bağlantı sürerse 15 saniye sonra kapatmayı dener."), topDp = 4)
+        val callStart = ui.secondary("Arama ekranını dene") { testBandCallScreen(start = true) }
+        val callStop = ui.secondary("Arama ekranını kapat") { testBandCallScreen(start = false) }
+        actionButtons += callStart
+        actionButtons += callStop
+        ui.add(bandCallTests, callStart, topDp = 8)
+        ui.add(bandCallTests, callStop, topDp = 4)
+        bandCallTests.visibility = View.GONE
+        ui.add(adv.content, bandCallTests, topDp = 12)
+        buildBandProbes()
+        bandProbes.visibility = View.GONE
+        ui.add(adv.content, bandProbes, topDp = 12)
         ui.add(adv.content, ui.cardTitle("Log"), topDp = 20)
         val lr = ui.horizontal()
         ui.add(lr, ui.secondary("Logu kopyala") { copyLog() }, width = 0, weight = 1f)
@@ -1459,27 +1619,115 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(body, adv.view, topDp = 20)
 
         // Hakkında
-        val footer = ui.caption("Finn's Watch ${versionName()}")
+        val footer = ui.caption(BuildIdentity.label)
         footer.setGravity(Gravity.CENTER)
         ui.add(body, footer, topDp = 20)
 
         refreshLog()
     }
 
-    private fun versionName(): String = try {
-        act.packageManager.getPackageInfo(act.packageName, 0).versionName ?: "0.6.0"
-    } catch (e: Exception) {
-        "0.6.0"
-    }
-
     override fun refresh() {
         val caps = WatchManager.caps(act)
         weatherViews.forEach { it.visibility = if (caps.weather) View.VISIBLE else View.GONE }
         remote.view.visibility = if (caps.musicRemote || caps.findPhone) View.VISIBLE else View.GONE
+        bandFindTests.visibility =
+            if (WatchRegistry.active(act)?.type == WatchType.BAND8) View.VISIBLE else View.GONE
+        bandCallTests.visibility = bandFindTests.visibility
+        bandProbes.visibility = bandFindTests.visibility
         refreshSetup()
         refreshWatchInfo()
         theme.select(Prefs.themeMode(act))
         onReady(WatchHub.ready)
+    }
+
+    private fun testBandFind(start: Boolean) {
+        val service = act.readyService() ?: return
+        if (!service.testBandFind(start)) act.toast("Band 8 komutu gönderilemedi. Biraz bekleyip tekrar dene.")
+    }
+
+    /** Band 8 denemeleri: her düğme tek komut gönderir, yalnızca elle. */
+    private fun buildBandProbes() {
+        ui.add(bandProbes, ui.cardTitle("Band 8 denemeleri"))
+        ui.add(bandProbes, ui.caption("Her düğme banda tek komut gönderir. Logda yalnızca komut türü ve yanıt türü görünür. Bantta ne olduğunu gözle."), topDp = 4)
+        fun group(title: String, vararg items: Pair<String, Band8Probe>) {
+            ui.add(bandProbes, ui.caption(title), topDp = 12)
+            for (row in items.toList().chunked(2)) {
+                val r = ui.horizontal()
+                row.forEachIndexed { i, (label, probe) ->
+                    val b = ui.secondary(label) { bandProbe(probe) }
+                    actionButtons += b
+                    ui.add(r, b, width = 0, weight = 1f, leftDp = if (i == 0) 0 else 8)
+                }
+                if (row.size == 1) ui.add(r, View(act), width = 0, weight = 1f, leftDp = 8)
+                ui.add(bandProbes, r, topDp = 4)
+            }
+        }
+        group("Bildirim: emojiler kısa metne dönüyor mu (<3 (+1) :D :O :( (dua))", "Emoji testi" to Band8Probe.EMOJI_TEST)
+        group("Titreşim: kısa-kısa-uzun desen (kurallarda henüz kullanılmaz)", "Titreşim deseni testi" to Band8Probe.VIBRATION_TEST)
+        group("Arama (gelen arama ve kapatma yukarıdaki denemede)", "Cevapsız arama" to Band8Probe.MISSED_CALL)
+        group("Alarm: her değişiklikten önce listeyi oku. Test alarmı 2 dakika sonra çalar.",
+            "Alarm listesini oku" to Band8Probe.ALARM_LIST, "Test alarmı kur" to Band8Probe.ALARM_CREATE,
+            "Test alarmını düzenle" to Band8Probe.ALARM_EDIT, "Test alarmını sil" to Band8Probe.ALARM_DELETE,
+            "Test alarmlarını temizle" to Band8Probe.ALARM_CLEANUP)
+        group("Rahatsız etme",
+            "Şimdi aç" to Band8Probe.DND_ON, "Şimdi kapat" to Band8Probe.DND_OFF,
+            "Zamanla 22:00–07:00" to Band8Probe.DND_SCHEDULE, "Zamanlamayı kapat" to Band8Probe.DND_SCHEDULE_OFF)
+        group("Hava durumu (Ayarlar > Hava durumu verisiyle)",
+            "Konum ekle" to Band8Probe.WEATHER_LOCATION, "Anlık hava" to Band8Probe.WEATHER_NOW,
+            "Günlük tahmin" to Band8Probe.WEATHER_FORECAST)
+        group("Hareketsizlik uyarısı: önce ayarı oku",
+            "Ayarı oku" to Band8Probe.IDLE_READ, "Aç" to Band8Probe.IDLE_ON, "Kapat" to Band8Probe.IDLE_OFF)
+        group("Müzik", "Test şarkı gönder" to Band8Probe.MUSIC)
+        group("Sağlık dosyaları (yalnızca okuma, bandan silinmez)", "Şimdi çek" to Band8Probe.FETCH_NOW)
+        val export = ui.secondary("Band 8 ham verisini dışa aktar") { Band8RawExport.start(act) }
+        ui.add(bandProbes, export, topDp = 12)
+        ui.add(bandProbes, ui.caption("Arşivdeki dosyaları ve index.txt'yi tek zip olarak kaydeder. Değerler uygulamada gösterilmez."), topDp = 4)
+    }
+
+    /** Her deneme düğmesi en çok 2 saniyede bir komut gönderir (çift alarm gibi tekrarları önler). */
+    private val lastProbeAt = HashMap<Band8Probe, Long>()
+
+    private fun bandProbe(p: Band8Probe) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val last = lastProbeAt[p]
+        if (last != null && now - last < PROBE_DEBOUNCE_MS) {
+            act.toast("Biraz bekle; komut az önce gönderildi.")
+            return
+        }
+        lastProbeAt[p] = now
+        val service = act.readyService() ?: return
+        if (p == Band8Probe.ALARM_CLEANUP) {
+            confirmAlarmCleanup(service)
+            return
+        }
+        service.bandProbe(p)?.let { act.toast(it) }
+    }
+
+    /** Deneme imzasına uyan alarmları (bir kez, normal) saatleriyle gösterir; onaylanırsa tek 17/4 ile siler. */
+    private fun confirmAlarmCleanup(service: WatchService) {
+        val list = service.bandAlarmCleanupCandidates()
+        if (list == null) {
+            act.toast("Önce alarm listesini oku.")
+            return
+        }
+        if (list.isEmpty()) {
+            act.toast("Silinecek test alarmı yok.")
+            return
+        }
+        val times = list.sortedWith(compareBy({ it.hour }, { it.minute })).joinToString(", ") { Fmt.hm(it.hour, it.minute) }
+        val d = AlertDialog.Builder(act)
+            .setTitle("Test alarmlarını temizle")
+            .setMessage("Bir kez çalan ve akıllı olmayan ${list.size} alarm silinecek: $times. Bunlar arasında kendi alarmın varsa Vazgeç'e bas.")
+            .setPositiveButton("Sil") { _, _ -> service.bandProbe(Band8Probe.ALARM_CLEANUP)?.let { act.toast(it) } }
+            .setNegativeButton("Vazgeç", null)
+            .create()
+        act.track(d)
+        d.show()
+    }
+
+    private fun testBandCallScreen(start: Boolean) {
+        val service = act.readyService() ?: return
+        if (!service.testBandCallScreen(start)) act.toast("Band 8 arama denemesi gönderilemedi. Logu kontrol et.")
     }
 
     /** Özet satırı: "Her şey hazır" ya da eksik sayısı. Eksik varsa liste ilk açılışta açık gelir. */
@@ -1561,10 +1809,19 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         dialog.show()
     }
 
+    fun openWatchConnection() {
+        act.selectTab(3)
+        root.post { root.smoothScrollTo(0, connectionHeading.top) }
+    }
+
     fun refreshWatchInfo() {
         weatherSwitch.toggle.set(Prefs.weatherEnabled(act))
         cityRow.value.text = Prefs.weatherCityName(act).ifEmpty { "Seçilmedi" }
         weatherInfo.text = WeatherSync.summary(act)
+        val band = WatchRegistry.active(act)?.type == WatchType.BAND8
+        idRow.view.visibility = if (band) View.GONE else View.VISIBLE
+        directConnectButtons.visibility = if (band) View.VISIBLE else View.GONE
+        autoTime.view.visibility = if (band) View.GONE else View.VISIBLE
         idRow.value.text = if (hasId()) "Kayıtlı" else "Girilmedi"
         autoTime.toggle.set(Prefs.autoTime(act))
         remote.toggle.set(Prefs.remoteControl(act))
@@ -1586,6 +1843,10 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
 
     fun onReady(ready: Boolean) {
         actionButtons.forEach { ui.enable(it, ready) }
+        if (ready) {
+            ++scanGeneration
+            deviceBox.removeAllViews()
+        }
     }
 
     // ---------- Son görülen yer ----------
@@ -1712,6 +1973,15 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             return
         }
         deviceBox.removeAllViews()
+        scanCandidates = 0
+        val generation = ++scanGeneration
+        ui.add(deviceBox, ui.caption("10 saniye boyunca yakındaki Bluetooth cihazları aranıyor…"), topDp = 8)
+        act.handler.postDelayed({
+            if (scanGeneration == generation && scanCandidates == 0) {
+                deviceBox.removeAllViews()
+                ui.add(deviceBox, ui.caption("Cihaz bulunamadı. Band 8'i yakına getir, Mi Fitness ve Notify bağlantılarını kapat, ardından tekrar Tara'ya bas."), topDp = 8)
+            }
+        }, 11_000L)
         if (WatchHub.service == null) WatchService.start(act)
         act.toast("Saat aranıyor.")
         act.handler.postDelayed({
@@ -1725,7 +1995,14 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             act.requestBlePermissions()
             return
         }
-        if (!hasId()) {
+        val active = WatchRegistry.active(act)
+        if (active?.type == WatchType.BAND8) {
+            if (!SecretStore.has(act, active.id)) {
+                if (Prefs.address(act) != null && WatchHub.service?.resumeBandAuth() == true) return
+                act.toast("Önce Tara ile Band 8'i seç; anahtar cihaz doğrulandıktan sonra istenecek.")
+                return
+            }
+        } else if (!hasId()) {
             WatchHub.log("Kimlik geçersiz veya boş: 8 haneli onaltılık değer gerekli.")
             act.toast("Önce kimliği gir.")
             editId()
@@ -1741,17 +2018,175 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     }
 
     fun onDeviceFound(device: BluetoothDevice, name: String, rssi: Int) {
-        ui.add(deviceBox, ui.row(name, "Bu saati kullan · $rssi dBm", onClick = { useDevice(device) }))
+        if (scanCandidates++ == 0) deviceBox.removeAllViews()
+        val candidate = name.contains("Band 8", true) || name.contains("M2239B1", true) ||
+            name.contains("FE95", true)
+        val subtitle = if (WatchRegistry.active(act)?.type == WatchType.BAND8) {
+            if (candidate) "Olası Band 8 · servisi doğrula · $rssi dBm"
+            else "Diğer Bluetooth cihazı · FE95 kontrolü · $rssi dBm"
+        } else "Bu cihazı seç · $rssi dBm"
+        ui.add(deviceBox, ui.row(name, subtitle, onClick = { useDevice(device) }))
     }
 
     private fun useDevice(device: BluetoothDevice) {
-        if (!hasId()) {
+        if (WatchRegistry.active(act)?.type != WatchType.BAND8 && !hasId()) {
             act.toast("Önce kimliği gir.")
             editId()
             return
         }
+        val active = WatchRegistry.active(act)
+        if (active?.type == WatchType.BAND8) {
+            val likely = device.name?.let {
+                it.contains("Band 8", true) || it.contains("M2239B1", true)
+            } == true
+            if (!likely) {
+                val dlg = AlertDialog.Builder(act)
+                    .setTitle("Cihazı doğrula")
+                    .setMessage("Bu cihazın Band 8 olduğu kesin değil. Xiaomi FE95 servis kontrolü yapılacak. Eşleşme veya sıfırlama yapılmaz.")
+                    .setPositiveButton("Servisi kontrol et") { _, _ ->
+                        deviceBox.removeAllViews()
+                        WatchService.start(act, WatchService.ACTION_CONNECT_NEW, device.address)
+                    }
+                    .setNegativeButton("Vazgeç", null)
+                    .create()
+                act.track(dlg)
+                dlg.show()
+                return
+            }
+        }
         deviceBox.removeAllViews()
         WatchService.start(act, WatchService.ACTION_CONNECT_NEW, device.address)
+    }
+
+    /** Sadece Android'in zaten eşleştirdiği cihazları göster; yeni bond oluşturmaz. */
+    @Suppress("MissingPermission")
+    private fun showBondedDevices() {
+        if (WatchRegistry.active(act)?.type != WatchType.BAND8) return
+        if (!act.hasBlePermissions()) {
+            act.requestBlePermissions()
+            return
+        }
+        val adapter = act.getSystemService(BluetoothManager::class.java)?.adapter
+        if (adapter?.isEnabled != true) {
+            act.toast("Bluetooth'u aç ve tekrar dene.")
+            return
+        }
+        val devices = try { adapter.bondedDevices.orEmpty().sortedBy { it.name ?: "" } }
+            catch (_: SecurityException) {
+                act.toast("Kayıtlı Bluetooth cihazları için izin gerekli.")
+                return
+            }
+        if (devices.isEmpty()) {
+            act.toast("Android'de kayıtlı Bluetooth cihazı bulunamadı. Adresle bağlantıyı dene.")
+            return
+        }
+        val names = devices.map { device ->
+            val name = device.name?.takeIf { it.isNotBlank() } ?: "İsimsiz kayıtlı cihaz"
+            "$name · …${device.address.takeLast(5)}"
+        }
+        val d = AlertDialog.Builder(act)
+            .setTitle("Kayıtlı Bluetooth cihazları")
+            .setMessage("Band 8'i seç. Bağlantı kurulursa Xiaomi FE95 servisi doğrulanır; eşleşmeler silinmez.")
+            .setItems(names.toTypedArray()) { _, index -> connectKnownDevice(devices[index].address) }
+            .setNegativeButton("Vazgeç", null)
+            .create()
+        act.track(d)
+        d.show()
+    }
+
+    /** Kullanıcı girer. Tam adres ekranda, logda veya GitHub'da gösterilmez. */
+    private fun enterKnownBluetoothAddress() {
+        if (WatchRegistry.active(act)?.type != WatchType.BAND8) return
+        if (!act.hasBlePermissions()) {
+            act.requestBlePermissions()
+            return
+        }
+        val box = ui.dialogBox()
+        ui.add(box, ui.caption("Önceki Bluetooth bağlantı kaydındaki 6 baytlık adresi yaz. Örnek biçim: XX:XX:XX:XX:XX:XX. Eşleşme değiştirilmez."), topDp = 8)
+        val input = ui.field("Bluetooth adresi")
+        input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or
+            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        input.filters = arrayOf(android.text.InputFilter.LengthFilter(17))
+        ui.add(box, input, topDp = 12)
+        val d = AlertDialog.Builder(act)
+            .setTitle("Bilinen adrese bağlan")
+            .setView(box)
+            .setPositiveButton("Bağlan", null)
+            .setNegativeButton("Vazgeç", null)
+            .create()
+        d.setOnShowListener {
+            d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val address = input.text.toString().trim().uppercase(java.util.Locale.ROOT)
+                if (!BluetoothAdapter.checkBluetoothAddress(address)) {
+                    act.toast("Geçerli Bluetooth adresi gir. Biçim: XX:XX:XX:XX:XX:XX")
+                    return@setOnClickListener
+                }
+                input.text.clear()
+                d.dismiss()
+                connectKnownDevice(address)
+            }
+        }
+        act.track(d)
+        d.show()
+    }
+
+    /** Tarama olmadan GATT bağlantısını dener; FE95 kontrolü Band8Ble'de kalır. */
+    private fun connectKnownDevice(address: String) {
+        if (WatchRegistry.active(act)?.type != WatchType.BAND8) return
+        if (!act.hasBlePermissions()) {
+            act.requestBlePermissions()
+            return
+        }
+        ++scanGeneration
+        deviceBox.removeAllViews()
+        ui.add(deviceBox, ui.caption("Bilinen Bluetooth adresine bağlanılıyor. Xiaomi FE95 servisi doğrulanacak…"), topDp = 8)
+        if (!WatchService.start(act, WatchService.ACTION_CONNECT_NEW, address)) {
+            act.toast("Saat servisi başlatılamadı. Uygulamadan tekrar dene.")
+        }
+    }
+
+    /** İlk GATT servis doğrulamasından sonra istenir; anahtar kullanıcıya geri gösterilmez. */
+    fun promptBandKey() {
+        val active = WatchRegistry.active(act) ?: return
+        if (active.type != WatchType.BAND8 || bandKeyDialog?.isShowing == true) return
+        val box = ui.dialogBox()
+        ui.add(box, ui.caption("Xiaomi BLE protokol servisi bulundu. Eşleştirilmiş Band 8 için 32 haneli anahtarı gir. Anahtar telefonda şifreli saklanır."), topDp = 8)
+        val input = ui.field("Band 8 anahtarı")
+        input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        input.filters = arrayOf(android.text.InputFilter.LengthFilter(40))
+        ui.add(box, input, topDp = 12)
+        val d = AlertDialog.Builder(act)
+            .setTitle("Band 8 kimlik doğrulama")
+            .setView(box)
+            .setPositiveButton("Bağlan", null)
+            .setNegativeButton("Vazgeç") { _, _ -> WatchHub.service?.cancelBandSetup() }
+            .create()
+        bandKeyDialog = d
+        d.setOnShowListener {
+            d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val value = input.text.toString().trim()
+                val bytes = SecretEnvelope.parseKeyHex(value)
+                if (bytes == null) {
+                    act.toast("32 haneli geçerli onaltılık anahtar gerekli.")
+                    return@setOnClickListener
+                }
+                bytes.fill(0)
+                if (!SecretStore.putHex(act, active.id, value)) {
+                    act.toast("Anahtar güvenli biçimde kaydedilemedi.")
+                    return@setOnClickListener
+                }
+                input.text.clear()
+                d.dismiss()
+                if (WatchHub.service?.resumeBandAuth() != true) {
+                    val address = Prefs.address(act)
+                    if (address != null) WatchService.start(act, WatchService.ACTION_CONNECT_NEW, address)
+                    else act.toast("Bağlantı kesildi; yeniden Tara'ya bas.")
+                }
+            }
+        }
+        d.setOnDismissListener { if (bandKeyDialog === d) bandKeyDialog = null }
+        act.track(d)
+        d.show()
     }
 
     // ---------- Log ----------
@@ -1763,20 +2198,21 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     }
 
     private fun refreshLog() {
-        val lines = WatchHub.logLines.toList().takeLast(logShown)
+        val lines = WatchHub.logForSharing(logShown)
         logCount = lines.size
         logView.text = if (lines.isEmpty()) "" else lines.joinToString("\n", postfix = "\n")
     }
 
     private fun clearLog() {
         WatchHub.logLines.clear()
-        logView.text = ""
-        logCount = 0
+        WatchHub.logLines.addLast(BuildIdentity.label)
+        logView.text = BuildIdentity.label + "\n"
+        logCount = 1
     }
 
     private fun copyLog() {
         val cm = act.getSystemService(ClipboardManager::class.java)
-        val lines = WatchHub.logLines.toList().takeLast(400)
+        val lines = WatchHub.logForSharing()
         cm.setPrimaryClip(ClipData.newPlainText("LS05 log", lines.joinToString("\n")))
         act.toast("Son ${lines.size} satır kopyalandı (bildirim içerikleri gizli, MAC maskeli).")
     }

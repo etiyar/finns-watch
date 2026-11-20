@@ -15,11 +15,16 @@ import java.util.Locale
  * Log yalnızca bellekte tutulur; bildirim içerikleri ve kimlik loga yazılmaz.
  */
 object WatchHub {
+    /** Takvim hatırlatmamız ile takvim uygulamasının bildirimi aynı başlıkla 3 dk içinde gelirse yalnızca biri gider. Bellekte, başlık loga yazılmaz. */
+    val calendarDedupe = com.che.ls05.protocol.TitleDedupe(180_000)
+
     /** Son gelen aramanın bildirimindeki "Reddet" eylemi (saatten reddetmek için). */
     @Volatile var declineAction: android.app.PendingIntent? = null
     @Volatile var declineKey: String? = null
     @Volatile var declineAt: Long = 0
     @Volatile var declineLabel: String = ""
+    /** Reddet eyleminin geldiği paket: VoIP aramada telefon araması kapatılmasın diye. */
+    @Volatile var declinePkg: String = ""
 
 
     interface Observer {
@@ -37,6 +42,7 @@ object WatchHub {
 
         /** Kadran yükleme durumu ya da ilerlemesi değişti. */
         fun onFaceChanged() {}
+        fun onBandKeyRequired() {}
     }
 
     /** Saate gidecek şeyin türü. */
@@ -65,6 +71,12 @@ object WatchHub {
         val kind: NoteKind = NoteKind.MESSAGE,
         /** Kuyrukta en çok ne kadar bekleyebilir (alarm notu için 5 dakika). */
         val ttlMs: Long = PENDING_TTL_MS,
+        val androidId: Int = 0,
+        val androidKey: String? = null,
+        /** Bildirim kuralının titreşimi: -1 varsayılan, 0 titreşimsiz, 1-5 sayı (yalnızca LS05). */
+        val vibration: Int = -1,
+        /** false: uygulama filtresi uygulanmaz (navigasyon kendi anahtarıyla açılır). */
+        val appFilter: Boolean = true,
     )
 
     /** Çalan aramalar (bildirim anahtarına göre). Bildirim dinleyici ve servis ana iş parçacığında kullanır. */
@@ -74,7 +86,7 @@ object WatchHub {
     private val observers = LinkedHashSet<Observer>()
     private val fmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
-    val logLines = ArrayDeque<String>()
+    val logLines = ArrayDeque<String>().apply { addLast(BuildIdentity.label) }
     val pending = ArrayDeque<Note>()
 
     var status: String = "Bağlı değil"
@@ -103,6 +115,9 @@ object WatchHub {
         observers.toList().forEach { it.onLog(stamped) }
     }
 
+    fun logForSharing(limit: Int = 400): List<String> =
+        listOf(BuildIdentity.label) + logLines.filter { it != BuildIdentity.label }.takeLast(limit)
+
     fun setStatus(s: String) = onMain {
         status = s
         observers.toList().forEach { it.onStatus(s) }
@@ -111,6 +126,10 @@ object WatchHub {
     fun setReady(r: Boolean) = onMain {
         ready = r
         observers.toList().forEach { it.onReadyChanged(r) }
+    }
+
+    fun bandKeyRequired() = onMain {
+        observers.toList().forEach { it.onBandKeyRequired() }
     }
 
     fun deviceFound(device: BluetoothDevice, name: String, rssi: Int) = onMain {
@@ -157,6 +176,30 @@ object WatchHub {
             else -> Unit
         }
         observers.toList().forEach { it.onFrame(f) }
+    }
+
+    /** Band 8 cevapları ortak kartlarla paylaşılır; kimlik veya seri numarası kaydedilmez. */
+    fun bandBattery(percent: Int) = onMain {
+        battery = percent
+        settingsChanged()
+    }
+
+    /** Band 8'de başka bir istemcinin izi en son ne zaman görüldü (SystemClock.elapsedRealtime). 0: hiç. */
+    @Volatile var bandForeignAt: Long = 0L
+        private set
+
+    fun bandForeignClient() = onMain {
+        bandForeignAt = android.os.SystemClock.elapsedRealtime()
+        observers.toList().forEach { it.onSettingsChanged() }
+    }
+
+    /** Uyarı son 30 dakikada görüldüyse true. */
+    fun bandForeignRecent(): Boolean =
+        bandForeignAt != 0L && android.os.SystemClock.elapsedRealtime() - bandForeignAt < 30 * 60_000L
+
+    fun bandFirmware(version: String) = onMain {
+        firmware = version
+        settingsChanged()
     }
 
     /** Saat değişti: eski saatin pil ve firmware bilgisi atılır. */

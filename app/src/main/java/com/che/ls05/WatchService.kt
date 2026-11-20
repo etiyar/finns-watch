@@ -29,11 +29,14 @@ import com.che.ls05.protocol.ProfileSetting
 import com.che.ls05.protocol.RemoteAction
 import com.che.ls05.protocol.SettingSync
 import com.che.ls05.protocol.SwitchRules
+import com.che.ls05.protocol.EmojiText
+import com.che.ls05.protocol.TextSanitizer
 import com.che.ls05.protocol.TurkishFold
 import com.che.ls05.protocol.WatchEvent
 import com.che.ls05.protocol.WatchKeys
 import com.che.ls05.protocol.WatchState
 import com.che.ls05.protocol.WatchType
+import com.che.ls05.protocol.band8.B8ForeignGuard
 import java.time.LocalDate
 import java.time.ZonedDateTime
 
@@ -68,6 +71,9 @@ class WatchService : Service(), DriverListener {
 
         /** Saati bul en çok bu kadar titretir. */
         private const val FIND_MAX_MS = 30_000L
+
+        /** Band 8'e aynı anda başka bir istemci bağlıyken gösterilen uyarı (#16). */
+        const val FOREIGN_CLIENT_WARNING = "Banda başka bir uygulama bağlı (Mi Fitness, Notify). O uygulamayı kaldır ya da Bluetooth iznini kapat."
 
         /** Başlatma isteği sisteme iletildiyse true. Arka plan kısıtı (Android 12+) gibi hatalarda false. */
         fun start(context: Context, action: String = ACTION_START, address: String? = null): Boolean {
@@ -105,10 +111,11 @@ class WatchService : Service(), DriverListener {
     /** Gecikmeli işler (onay denetimi, geçmiş istekleri) için ortak etiket; servis kapanınca hepsi iptal edilir. */
     private val delayedToken = Any()
 
-    private val reconnectRunnable = Runnable { connectSaved(autoConnect = true) }
+    private val reconnectRunnable = Runnable { reconnectSaved() }
 
     /** Bu bağlantı doğrulanıp hazır oldu mu. Hiç hazır olmamış bağlantı denemesinin kopması uyarı kurmaz. */
     private var wasReady = false
+    private var bandReadyAt = 0L
 
     /** Geçmiş okuma kapısı: üst üste gelen istekleri ayıklar (bkz. requestHistory). */
     private val historyGate = HistoryGate()
@@ -152,10 +159,37 @@ class WatchService : Service(), DriverListener {
         }
     }
 
+    // ---------- Telefon pili uyarısı ----------
+
+    private val batteryAlerts = com.che.ls05.protocol.BatteryAlerts()
+
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val level = intent.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+            val scale = intent.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100)
+            if (level < 0 || scale <= 0) return
+            val pct = level * 100 / scale
+            val status = intent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
+            val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == android.os.BatteryManager.BATTERY_STATUS_FULL
+            val c = this@WatchService
+            val alert = batteryAlerts.update(pct, charging, Prefs.batteryLow(c), Prefs.batteryLowThreshold(c), Prefs.batteryFull(c)) ?: return
+            val body = when (alert) {
+                com.che.ls05.protocol.BatteryAlerts.Alert.LOW -> "Pil %$pct. Şarja tak."
+                com.che.ls05.protocol.BatteryAlerts.Alert.FULL -> "Pil doldu (%$pct)."
+            }
+            WatchHub.log("Telefon pili uyarısı: ${alert.name}.")
+            val now = System.currentTimeMillis()
+            WatchHub.forward(c, WatchHub.Note(packageName, "Telefon", "Telefon pili", body, MSG_TYPE_GENERIC, now,
+                androidId = (now / 1000).toInt(), androidKey = "battery:${alert.name}:$now"))
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        WatchHub.log(WatchRegistry.diagnosticSummary(this))
         driver = WatchManager.driverFor(WatchRegistry.active(this)?.type ?: WatchType.LS05, applicationContext, this)
         HealthStore.init(applicationContext)
         SettingsStore.sync(applicationContext)
@@ -163,10 +197,13 @@ class WatchService : Service(), DriverListener {
         createChannel()
         LinkAlert.createChannel(this)
         registerReceiver(btReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+        registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        CalendarReminders.refresh(this)
     }
 
     override fun onDestroy() {
         main.removeCallbacks(reconnectRunnable)
+        main.removeCallbacks(foreignReconnect)
         main.removeCallbacks(callSafetyStop)
         main.removeCallbacks(musicStateRunnable)
         main.removeCallbacks(weatherTick)
@@ -177,6 +214,7 @@ class WatchService : Service(), DriverListener {
         stopFind("servis kapandı")
         main.removeCallbacksAndMessages(delayedToken)
         try { unregisterReceiver(btReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(batteryReceiver) } catch (_: Exception) {}
         restarting = true
         driver.release("servis kapandı")
         restarting = false
@@ -195,6 +233,7 @@ class WatchService : Service(), DriverListener {
                 Prefs.setServiceEnabled(this, false)
                 WatchManager.setState(WatchState.STOPPED)
                 main.removeCallbacks(reconnectRunnable)
+                main.removeCallbacks(foreignReconnect)
                 WatchHub.log("Servis kullanıcı tarafından durduruluyor.")
                 LinkAlert.disarm(this, "servis durduruldu")
                 if (driver.isConnected) driver.disconnect()
@@ -209,15 +248,7 @@ class WatchService : Service(), DriverListener {
                 WatchRegistry.ensureActive(this)
                 if (address != null) Prefs.setAddress(this, address)
                 Prefs.setServiceEnabled(this, true)
-                stopping = false
-                resetAuth()
-                main.removeCallbacks(reconnectRunnable)
-                if (driver.isConnected) {
-                    restarting = true
-                    driver.forceClose("yeni bağlantı isteği")
-                    restarting = false
-                }
-                connectSaved(autoConnect = false)
+                connectFresh("yeni bağlantı isteği")
             }
             else -> {
                 stopping = false
@@ -229,7 +260,8 @@ class WatchService : Service(), DriverListener {
 
     // ---------- Bağlantı yönetimi ----------
 
-    fun isWatchReady(): Boolean = driver.isReady && !driver.busy
+    fun isWatchReady(): Boolean = driver.isReady && !driver.busy &&
+        (driver.type != WatchType.BAND8 || SystemClock.uptimeMillis() >= bandReadyAt)
 
     // ---------- Kadran ----------
 
@@ -242,8 +274,10 @@ class WatchService : Service(), DriverListener {
     }
 
     /** Ayarlar ekranından çağrılır. Başlatılamazsa nedeni döner. */
-    fun startFace(file: com.che.ls05.protocol.FaceFile, id: String): String? =
-        ls05?.startFace(file, id) ?: "Bu saatte kadran yüklenemez."
+    fun startFace(file: com.che.ls05.protocol.FaceFile, id: String): String? {
+        val watch = ls05 ?: return "Bu saatte kadran yüklenemez."
+        return watch.startFace(file, id)
+    }
 
     /** Saat ekranındaki deneme bildirimi (sadeleştirme yok, genel tür). */
     fun sendTestNotification(title: String, message: String): Boolean =
@@ -251,6 +285,79 @@ class WatchService : Service(), DriverListener {
 
     /** Kurulumdaki "Tara". */
     fun startScan() = driver.startScan()
+
+    /** Anahtar girilince FE95 bağlantısını yeniden açmadan kimlik doğrulamayı sürdürür. */
+    fun resumeBandAuth(): Boolean = (driver as? Band8Driver)?.resumeAuth() ?: false
+
+    fun testBandFind(start: Boolean): Boolean = (driver as? Band8Driver)?.testFindBand(start) ?: false
+
+    fun testBandCallScreen(start: Boolean): Boolean = (driver as? Band8Driver)?.testCallScreen(start) ?: false
+
+    /** Kullanıcı doğrulama anahtarını girmekten vazgeçtiğinde bağlantıyı sonlandır. */
+    fun cancelBandSetup() { (driver as? Band8Driver)?.disconnect() }
+
+    /** Ayarlar > Saat bağlantısı > Bağlan ile aynı yol: bağlantı kapanır, Band 8 sürücüsü yenilenir. */
+    private fun connectFresh(reason: String) {
+        stopping = false
+        resetAuth()
+        main.removeCallbacks(reconnectRunnable)
+        main.removeCallbacks(foreignReconnect)
+        if (driver.isConnected) {
+            restarting = true
+            driver.forceClose(reason)
+            restarting = false
+        }
+        connectSaved(autoConnect = false, rebuildBandDriver = true)
+    }
+
+    /** Gelişmiş > Band 8 denemeleri. Gönderildiyse null, değilse kısa neden. */
+    fun bandProbe(p: Band8Probe): String? {
+        val band = driver as? Band8Driver ?: return "Band 8 etkin değil."
+        return band.probe(p)
+    }
+
+    /** Band 8 hareketsizlik uyarısı kartı (deneysel). */
+    fun bandIdleWindow(): com.che.ls05.protocol.band8.B8Standing.Window? = (driver as? Band8Driver)?.idleWindow()
+    fun bandIdleRead(): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.idleRead() }
+    fun bandIdleSave(enabled: Boolean, sh: Int, sm: Int, eh: Int, em: Int): String? =
+        (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.idleSave(enabled, sh, sm, eh, em) }
+
+    /** Band 8 alarm kartı. */
+    fun bandAlarms(): com.che.ls05.protocol.band8.B8AlarmList? = (driver as? Band8Driver)?.alarmsForCard()
+    fun bandAlarmRefresh(): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.alarmRefresh() }
+    fun bandAlarmSave(id: Int?, spec: com.che.ls05.protocol.band8.B8AlarmSpec): String? =
+        (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.alarmSave(id, spec) }
+    fun bandAlarmDelete(id: Int): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.alarmDelete(id) }
+
+    /** "Test alarmlarını temizle" için silinecek alarmlar; taze liste yoksa null. */
+    fun bandAlarmCleanupCandidates(): List<com.che.ls05.protocol.band8.B8Alarm>? =
+        (driver as? Band8Driver)?.alarmCleanupCandidates()
+
+    private var lastForeignReconnectAt: Long? = null
+    private val foreignReconnect = Runnable {
+        if (stopping || driver.type != WatchType.BAND8) return@Runnable
+        lastForeignReconnectAt = SystemClock.elapsedRealtime()
+        WatchHub.log("Band 8 başka istemci uyarısı: bekleme doldu; tam yeniden bağlanılıyor")
+        connectFresh("başka istemci")
+    }
+
+    override fun onForeignClient() {
+        if (driver.type != WatchType.BAND8) return
+        WatchHub.bandForeignClient()
+        updateStatus(FOREIGN_CLIENT_WARNING)
+        val now = SystemClock.elapsedRealtime()
+        if (B8ForeignGuard.reconnectAllowed(now, lastForeignReconnectAt)) {
+            WatchHub.log("Band 8 başka istemci uyarısı: tam yeniden bağlanılıyor")
+            main.removeCallbacks(foreignReconnect)
+            // Sürücünün kendi geri çağrısının içinden kapatmamak için bir sonraki döngüde.
+            main.post(foreignReconnect)
+        } else {
+            val wait = lastForeignReconnectAt!! + B8ForeignGuard.RECONNECT_COOLDOWN_MS - now
+            WatchHub.log("Band 8 başka istemci uyarısı: son 5 dakikada yeniden bağlanıldı; ${wait / 1000} sn sonra bir kez daha denenecek")
+            main.removeCallbacks(foreignReconnect)
+            main.postDelayed(foreignReconnect, wait)
+        }
+    }
 
     private fun resetAuth() {
         authBlocked = false
@@ -286,6 +393,7 @@ class WatchService : Service(), DriverListener {
         WatchHub.log("Saat değiştiriliyor (${target.type.label}).")
         // Eski saatin zamanlayıcıları.
         main.removeCallbacks(reconnectRunnable)
+        main.removeCallbacks(foreignReconnect)
         main.removeCallbacks(historyTimeout)
         main.removeCallbacks(musicStateRunnable)
         main.removeCallbacksAndMessages(delayedToken)
@@ -298,7 +406,13 @@ class WatchService : Service(), DriverListener {
         driver.release("saat değiştirildi")
         restarting = false
         WatchHub.setReady(false)
-        WatchRegistry.setActive(this, id)
+        if (!WatchRegistry.setActive(this, id)) {
+            WatchHub.log("Saat değişimi iptal edildi: kayıt diske yazılamadı.")
+            // Eski sürücü kapatıldı, fakat etkin kayıt değişmedi; aynı saate geri dön.
+            driver = WatchManager.driverFor(list.active?.type ?: WatchType.LS05, applicationContext, this)
+            connectSaved(autoConnect = false)
+            return "Saat seçimi kaydedilemedi; mevcut saat korunuyor."
+        }
         SwitchLog.record(this, id)
         resetAuth()
         wasReady = false
@@ -310,7 +424,12 @@ class WatchService : Service(), DriverListener {
         return null
     }
 
-    private fun connectSaved(autoConnect: Boolean) {
+    private fun reconnectSaved() {
+        val band = driver.type == WatchType.BAND8
+        connectSaved(autoConnect = !band, rebuildBandDriver = band)
+    }
+
+    private fun connectSaved(autoConnect: Boolean, rebuildBandDriver: Boolean = false) {
         if (stopping || driver.isConnected) return
         if (!hasConnectPermission()) {
             updateStatus("Bluetooth izni yok")
@@ -341,6 +460,12 @@ class WatchService : Service(), DriverListener {
             updateStatus("Kayıtlı saat adresi geçersiz")
             return
         }
+        if (rebuildBandDriver && driver.type == WatchType.BAND8) {
+            // Saat değişimindeki temiz sürücü başlangıcını kayıtlı saati değiştirmeden uygula.
+            driver.release("Band 8 yeniden bağlanıyor")
+            driver = WatchManager.driverFor(WatchType.BAND8, applicationContext, this)
+            WatchHub.log("Band 8 sürücüsü yenilendi; kayıtlı bilekliğe bağlanılıyor.")
+        }
         if (autoConnect) WatchHub.log("Saat menzile girince bağlanılacak (otomatik bağlantı).")
         driver.connect(device, autoConnect)
     }
@@ -356,7 +481,7 @@ class WatchService : Service(), DriverListener {
         lastNudge = now
         WatchHub.log("Bekleyen bildirim var; yeniden bağlanma öne alındı.")
         main.removeCallbacks(reconnectRunnable)
-        connectSaved(autoConnect = false)
+        connectSaved(autoConnect = false, rebuildBandDriver = true)
     }
 
     private fun scheduleReconnect() {
@@ -427,13 +552,40 @@ class WatchService : Service(), DriverListener {
     fun forward(note: WatchHub.Note) {
         when (note.kind) {
             WatchHub.NoteKind.MESSAGE, WatchHub.NoteKind.MISSED_CALL -> {
-                val sent = driver.sendNotification(fold(note.title), fold(note.body), Prefs.vibrate(this), note.type)
+                val isBand = driver.type == WatchType.BAND8
+                // Cevapsız arama kendi ayarıyla süzülür (Bildirimler > Cevapsız aramalar), uygulama filtresiyle değil.
+                // Uygulamanın kendi uyarıları (telefon pili) ve navigasyon uygulama filtresine takılmaz.
+                if (isBand && !Prefs.forwardingEnabled(this)) {
+                    WatchHub.log("Band 8 bildirim atlandı: iletim kapalı.")
+                    return
+                }
+                if (isBand && note.kind == WatchHub.NoteKind.MESSAGE && note.appFilter && note.pkg != packageName && !Prefs.appEnabled(this, note.pkg)) {
+                    WatchHub.log("Band 8 bildirim atlandı: uygulama filtresinde kapalı.")
+                    return
+                }
+                // Bildirim metni emojili gelir (Band 8 çizer). LS05'in yazı tipi için eski temizleyici burada uygulanır.
+                val text = if (driver.type == WatchType.LS05) {
+                    // Bilinen emoji önce kısa metne döner (❤️ → <3), kalanını eski temizleyici çıkarır.
+                    val t = TextSanitizer.clean(EmojiText.apply(note.title))
+                    val b = TextSanitizer.clean(EmojiText.apply(note.body))
+                    if (t.isEmpty() && b.isEmpty()) {
+                        WatchHub.log("Bildirim atlandı: gösterilecek metin yok.")
+                        return
+                    }
+                    note.copy(title = fold(t.ifEmpty { note.appLabel }), body = fold(b))
+                } else note
+                // Kural titreşimi 0 ise titreşimsiz; sayıyı LS05 sürücüsü uygular.
+                val sent = driver.sendAppNotification(text, Prefs.vibrate(this) && note.vibration != 0)
                 if (sent) {
                     val what = if (note.kind == WatchHub.NoteKind.MISSED_CALL) "Cevapsız arama" else note.appLabel
-                    WatchHub.log("İletildi: $what (tip ${note.type}, ${note.title.length + note.body.length} karakter).")
+                    if (isBand) WatchHub.log("Band 8 bildirim gönderimi sıraya alındı: $what.")
+                    else WatchHub.log("İletildi: $what (tip ${note.type}, ${note.title.length + note.body.length} karakter).")
+                } else if (isBand) {
+                    WatchHub.log("Band 8 bildirim iletilmedi: tür=${note.kind}, hazır=${driver.isReady}.")
                 }
             }
-            WatchHub.NoteKind.CALL_ALERT -> sendCallAlert(fold(note.body))
+            WatchHub.NoteKind.CALL_ALERT ->
+                sendCallAlert(if (driver.type == WatchType.LS05) fold(TextSanitizer.clean(EmojiText.apply(note.body))) else note.body)
             WatchHub.NoteKind.CALL_STOP -> sendCallStop("arama cevaplandı ya da bitti")
         }
     }
@@ -572,6 +724,10 @@ class WatchService : Service(), DriverListener {
      * İstek gönderildiyse true.
      */
     fun requestHistory(includeSleep: Boolean): Boolean {
+        if (driver.type == WatchType.BAND8) {
+            WatchHub.log("Band 8 sağlık geçmişi henüz desteklenmiyor; okuma başlatılmadı.")
+            return false
+        }
         if (driver.busy) {
             WatchHub.log("Kadran yükleniyor; geçmiş daha sonra okunacak.")
             return false
@@ -622,6 +778,8 @@ class WatchService : Service(), DriverListener {
 
     // ---------- DriverListener ----------
 
+    override fun onBandKeyRequired() = WatchHub.bandKeyRequired()
+
     override fun onLog(line: String) = WatchHub.log(line)
 
     override fun onStatus(status: String) = updateStatus(status)
@@ -663,6 +821,19 @@ class WatchService : Service(), DriverListener {
         LinkAlert.disarm(this, "saat yeniden bağlandı")
         reconnectAttempt = 0
         authTimeouts = 0
+        // Band 8 yalnızca normal telefon bildirimlerini alır; LS05'e özel istekler gönderilmez.
+        if (driver.type == WatchType.BAND8) {
+            bandReadyAt = SystemClock.uptimeMillis() + 1_500
+            val readySession = session
+            main.postDelayed({
+                if (driver.type == WatchType.BAND8 && driver.isReady && session == readySession) {
+                    flushPending()
+                    // Yalnızca kullanıcının değiştirdiği ayar (rahatsız etme saatleri) gider.
+                    pushSettings()
+                }
+            }, 1_500)
+            return
+        }
         if (Prefs.autoTime(this)) sendTime("otomatik saat eşitleme (04)")
         // Bağlantı koparken saat çalıyor kaldıysa ve arama artık sürmüyorsa sustur.
         if (callOnWatch && !WatchHub.calls.isRinging) sendCallStop("bağlantı yeniden kuruldu, arama sürmüyor")
@@ -683,6 +854,7 @@ class WatchService : Service(), DriverListener {
     }
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
+        bandReadyAt = 0L
         clearFind("bağlantı koptu")
         val hadLink = wasReady
         wasReady = false
@@ -701,7 +873,9 @@ class WatchService : Service(), DriverListener {
         if (restarting) return
         if (authBlocked) {
             WatchManager.setState(WatchState.AUTH_BLOCKED)
-            updateStatus("Doğrulama durdu; uygulamayı aç")
+            updateStatus(if (driver.type == WatchType.BAND8)
+                "Band 8 doğrulaması durdu; Bağlan ile yeniden dene"
+            else "Doğrulama durdu; uygulamayı aç")
             return
         }
         if (stopping || userInitiated) {
@@ -743,7 +917,9 @@ class WatchService : Service(), DriverListener {
         LinkAlert.disarm(this, "doğrulama durdu")
         main.removeCallbacks(reconnectRunnable)
         WatchHub.log(message)
-        updateStatus("Doğrulama durdu; uygulamayı aç")
+        updateStatus(if (driver.type == WatchType.BAND8)
+            "Band 8 doğrulaması durdu; Bağlan ile yeniden dene"
+        else "Doğrulama durdu; uygulamayı aç")
         if (driver.isConnected) driver.disconnect()
     }
 
@@ -843,6 +1019,28 @@ class WatchService : Service(), DriverListener {
      * olmazsa ANSWER_PHONE_CALLS izni verilmişse TelecomManager.endCall.
      */
     @Suppress("DEPRECATION")
+    /** Band 8 arama ekranında reddet ya da sessize al. Yalnızca bizim açtığımız gerçek arama ekranı için. */
+    override fun onBandCallAction(reject: Boolean) {
+        if (!callOnWatch) {
+            WatchHub.log("Band 8 arama olayı: bantta açık gerçek arama yok; yok sayıldı.")
+            return
+        }
+        if (reject) rejectCallFromWatch() else silenceRinger()
+        sendCallStop(if (reject) "bantta reddedildi" else "bantta sessize alındı")
+    }
+
+    /** Zil sesini susturur; izin yoksa yalnızca loglanır (bantta ekran yine kapanır). */
+    private fun silenceRinger() {
+        val ok = try {
+            getSystemService(android.telecom.TelecomManager::class.java)?.silenceRinger()
+            true
+        } catch (e: Exception) {
+            WatchHub.log("Zil susturulamadı: ${e.javaClass.simpleName}")
+            false
+        }
+        if (ok) WatchHub.log("Arama bantta sessize alındı.")
+    }
+
     private fun rejectCallFromWatch() {
         if (!Prefs.rejectFromWatch(this)) {
             WatchHub.log("Saat aramayı reddetmek istedi (12 02). \"Saatten aramayı reddet\" kapalı; yok sayıldı.")
@@ -859,6 +1057,11 @@ class WatchService : Service(), DriverListener {
             }
         } else {
             WatchHub.log("Arama bildiriminde reddet eylemi bulunamadı; endCall deneniyor.")
+        }
+        // VoIP aramada (WhatsApp, Telegram...) endCall telefon aramasını kapatabilir; denenmez.
+        if (WatchHub.declinePkg in com.che.ls05.protocol.CallClassifier.VOIP_PACKAGES) {
+            WatchHub.log("VoIP arama reddedilemedi: bildirim eylemi yok ya da çalışmadı.")
+            return
         }
         if (android.os.Build.VERSION.SDK_INT < 28 ||
             checkSelfPermission(android.Manifest.permission.ANSWER_PHONE_CALLS) != android.content.pm.PackageManager.PERMISSION_GRANTED

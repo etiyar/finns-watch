@@ -127,6 +127,10 @@ class Ls05Driver(
     override fun sendNotification(title: String, body: String, vibrate: Boolean, type: Int): Boolean =
         ble.sendNotification(title, body, vibrate, type) > 0
 
+    /** Bildirim kuralının titreşim sayısı (1-5) varsa o, yoksa kayıttaki mesaj titreşimi (2). */
+    override fun sendAppNotification(note: WatchHub.Note, vibrate: Boolean): Boolean =
+        ble.sendNotification(note.title, note.body, vibrate, note.type, if (note.vibration > 0) note.vibration else 2) > 0
+
     override fun sendIncomingCall(name: String): Boolean = ble.sendIncomingCall(name) > 0
 
     override fun sendCallStop(): Boolean = ble.sendCallStop()

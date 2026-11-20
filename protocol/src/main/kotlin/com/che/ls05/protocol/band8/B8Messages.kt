@@ -20,6 +20,7 @@ object B8Type {
     const val F_HEALTH = 10
     const val F_WEATHER = 12
     const val F_SCHEDULE = 19
+    const val F_MUSIC = 20
     const val F_DATA_UPLOAD = 24
     const val F_STATUS = 100
 }
@@ -166,32 +167,16 @@ object B8Messages {
 
     // ---------- Bildirim ----------
 
-    /** UTF-8 bayt sınırına göre, karakter bölmeden kısaltır. Kısalırsa sona "…" ekler. */
-    fun truncateUtf8(s: String, maxBytes: Int): String {
-        if (s.toByteArray(Charsets.UTF_8).size <= maxBytes) return s
-        val ell = "…"
-        val budget = maxBytes - ell.toByteArray(Charsets.UTF_8).size
-        val sb = StringBuilder()
-        var used = 0
-        var i = 0
-        while (i < s.length) {
-            val cp = s.codePointAt(i)
-            val n = String(Character.toChars(cp)).toByteArray(Charsets.UTF_8).size
-            if (used + n > budget) break
-            sb.appendCodePoint(cp)
-            used += n
-            i += Character.charCount(cp)
-        }
-        return sb.append(ell).toString()
-    }
+    /** UTF-8 bayt sınırına göre, görünür birim (emoji dizisi dahil) bölmeden kısaltır ([B8Text.truncate]). */
+    fun truncateUtf8(s: String, maxBytes: Int): String = B8Text.truncate(s, maxBytes)
 
     fun notification(n: B8Notification): ByteArray {
         val inner = PbWriter()
             .string(1, n.packageName)
             .string(2, n.appName)
-            .string(3, truncateUtf8(n.title, TITLE_MAX_BYTES))
+            .string(3, truncateUtf8(B8Text.forBand(n.title), TITLE_MAX_BYTES))
             .string(4, "")
-            .string(5, truncateUtf8(n.body, BODY_MAX_BYTES))
+            .string(5, truncateUtf8(B8Text.forBand(n.body), BODY_MAX_BYTES))
             .string(6, n.timestamp)
             .uint(7, n.id)
         if (n.isCall) inner.bool(8, true)
