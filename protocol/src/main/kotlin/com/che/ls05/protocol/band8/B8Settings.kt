@@ -36,6 +36,12 @@ data class B8AlarmList(val alarms: List<B8Alarm>, val max: Int?) {
     val ids: List<Int> get() = alarms.map { it.id }
 }
 
+/**
+ * Kullanıcı alarmı. [days]: bit 0 pazartesi ... bit 6 pazar; 0 bir kez, 0x7F her gün, diğerleri haftalık.
+ * Akıllı alarm yok (normal).
+ */
+data class B8AlarmSpec(val hour: Int, val minute: Int, val days: Int, val enabled: Boolean)
+
 /** Alarm: 17/0 liste, 17/1 oluştur, 17/2 düzenle, 17/4 sil (belge 8.1). Kimlikleri band verir. */
 object B8Alarms {
     private const val ONCE = 0
@@ -80,6 +86,32 @@ object B8Alarms {
     /** Bir kez çalan, açık, normal (akıllı olmayan) alarm. */
     private fun details(hour: Int, minute: Int): PbWriter =
         PbWriter().message(2, hourMinute(hour, minute)).uint(3, ONCE).bool(5, true).uint(7, NORMAL)
+
+    private const val DAILY = 1
+    private const val WEEKLY = 5
+
+    private fun details(a: B8AlarmSpec): PbWriter {
+        val d = PbWriter().message(2, hourMinute(a.hour, a.minute))
+        when (a.days and 0x7F) {
+            0 -> d.uint(3, ONCE)
+            0x7F -> d.uint(3, DAILY)
+            else -> d.uint(3, WEEKLY).uint(4, a.days and 0x7F)
+        }
+        return d.bool(5, a.enabled).uint(7, NORMAL)
+    }
+
+    fun create(a: B8AlarmSpec): ByteArray =
+        cmd(B8Type.SCHEDULE, 1, B8Type.F_SCHEDULE, PbWriter().message(2, details(a)))
+
+    fun edit(id: Int, a: B8AlarmSpec): ByteArray =
+        cmd(B8Type.SCHEDULE, 2, B8Type.F_SCHEDULE, PbWriter().message(3, PbWriter().uint(1, id).message(2, details(a))))
+
+    /** Listedeki alarmın gün maskesi (bir kez 0, her gün 0x7F, haftalıkta bayraklar). */
+    fun days(a: B8Alarm): Int = when (a.repeat) {
+        DAILY -> 0x7F
+        WEEKLY -> (a.dayFlags ?: 0) and 0x7F
+        else -> 0
+    }
 
     fun create(hour: Int, minute: Int): ByteArray =
         cmd(B8Type.SCHEDULE, 1, B8Type.F_SCHEDULE, PbWriter().message(2, details(hour, minute)))
