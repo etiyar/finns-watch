@@ -50,7 +50,7 @@ Hepsi açık hedefli: `setPackage("com.urbandroid.sleep")`.
 | `HR_DATA_UPDATE` | `DATA` float[] | Geliş sırasıyla nabız (vuruş/dk). Belge "birkaç dakikada bir göndermek yeterli" diyor. |
 | `DISMISS_FROM_WATCH` | yok | Bantta alarm ekranında reddet. |
 | `SNOOZE_FROM_WATCH` | yok | Bantta alarm ekranında sessize al. |
-| `DATA_UPDATE` | `MAX_DATA`, `MAX_RAW_DATA` float[] | **Gönderilmez** (bkz. 5). |
+| `DATA_UPDATE` | `MAX_DATA`, `MAX_RAW_DATA` float[] | "Hareket gönder" açıkken (alpha2). 10 sn'lik pencereler, batch boyu kadar pencere dolunca. Duraklatmada 0. Bkz. 5.1. |
 | `PAUSE_FROM_WATCH`, `RESUME_FROM_WATCH` | yok | Kullanılmaz. |
 
 ## 5. Band 8 tarafı
@@ -59,12 +59,37 @@ Hepsi açık hedefli: `setPackage("com.urbandroid.sleep")`.
 |---|---|---|
 | Canlı nabız | 8/45 başlat, 8/46 durdur, 8/47 olayı. Health alan 39 > 4 nabız. 11-250 dışı geçersiz. | güçlü kanıt (BAND8_PROTOKOL 7.1). Gelişmiş > "Canlı nabız 30 sn" ile cihazda denenecek |
 | Akış tazeleme | 60 sn olay gelmezse 8/45 yeniden (en çok dakikada bir). Gadgetbridge tazeleme yapmıyor; band akışı durdurulana kadar sürdürüyor olabilir | tahmin |
-| Hareket verisi | **Yok.** Bandda ham ivme komutu bilinmiyor. Sahte hareket gönderilmez. Gadgetbridge Xiaomi bantlarında gizli bir antrenman başlatarak hareket aldığını yazıyor; bu yol bizde yok | güçlü kanıt (yokluk) |
+| Hareket verisi | alpha1'de yoktu. alpha2: "Hareket gönder (deneysel)" açıkken gizli antrenman ve ivme akışı (5.1) | güçlü kanıt, cihazda denenmedi |
 | Alarm | Bantta "Alarm" adlı arama ekranı (7/0) ve 5 sn'de bir 2/59 titreşimi (üç uzun vuruş). En çok 5 dk. | 2/59 doğrulandı (build 191), arama ekranının alarm için kullanımı tahmin |
 | Banttan kapat/ertele | Arama ekranında reddet (7/2) = kapat, sessize al (7/5) = ertele. Gerçek arama sürüyorsa olay aramaya aittir | 7/2 doğrulandı, eşleme tahmin |
 | İpucu | 2/59, 200 ms vuruş, 400 ms ara, REPEAT kez | 2/59 doğrulandı |
 
-Bağlıyım onayı yalnızca Band 8 hazırken gider. Onay verilince SAA saati sensör sayar. Hareket gelmediği için SAA'nın hareket grafiği boş kalabilir ya da telefon sensörüne dönebilir (tahmin, cihazda bakılacak).
+Bağlıyım onayı yalnızca Band 8 hazırken gider. Onay verilince SAA saati sensör sayar.
+
+### 5.1 Hareket: gizli antrenman ve ivme (alpha2)
+
+**Cihaz gözlemi (build 212, alpha1):** SAA "SmartWatch connected: update interval 10s" gösterdi; "Test sensor (Wearables)" ekranı yalnızca döndü, grafik çıkmadı. Bizim log: onay, 8/45, SET_BATCH_SIZE, nabız paketleri (5 ve 23 paket), 8/46. Yani nabız gitti, hareket gitmedi.
+
+**Neden (güçlü kanıt):**
+- SAA belgesi hareket verisini 10 sn'lik pencerelerle bekliyor ve batch boyuna uyulmazsa "grafikte boşluk" olacağını yazıyor (doğrulandı). Nabzın tek başına yeterli olduğunu hiçbir yerde yazmıyor (doğrulandı: belgede yok).
+- "update interval 10s" = SAA batch boyunu 1 yaptı, yani her 10 sn'de bir `DATA_UPDATE` bekliyor (forumdaki geliştirici yanıtı, güçlü kanıt).
+- Gadgetbridge Xiaomi bantları için hareket verisini almak üzere gizli antrenman başlatıyor; Bangle.js için ayrı ivme uygulaması şart koşuyor. Nabızla yetinmiyorlar (güçlü kanıt).
+- Notify da `DATA_UPDATE` gönderiyor (`MAX_DATA`, `MAX_RAW_DATA`, ayrıca belgede olmayan `MIN_DATA`, `SUM_DATA`).
+
+**Nabız yayınımız belgeyle aynı (doğrulandı):** eylem `com.urbandroid.sleep.watch.HR_DATA_UPDATE`, ek `DATA`, tür float[] (int değil), hedef paket `com.urbandroid.sleep`, zaman damgası yok (belgede de yok). Notify da aynı biçimi kullanıyor.
+
+**Bandın ivme kaynağı (güçlü kanıt, Notify incelemesi, kod alınmadı):**
+- Notify SAA takibi başlayınca 8/45 ile birlikte 8/26 gönderiyor: Health alan 20 { 1 Unix sn, 2 { 1 saat farkı (15 dk, zigzag) }, 3 = 810 (uyku türü), 4 = 0 başlat, 6 = 3 }. Bitirirken 4 = 1 (duraklat), 500 ms sonra 4 = 3 (bitir).
+- Band ivmeyi Health alan 15 içinde gönderiyor: alan 5 tekrarlı { 1 zaman, 2 x, 3 y, 4 z } float, mili-g. Notify ±1200 dışını atıyor. Hangi 8/x alt türünde geldiği bulunamadı; uygulama Health alan 15 taşıyan her 8/x'i okur ve alt türü ilk görüşte loga yazar.
+- Hesap (SAA belgesi): her örnekte |Δx|+|Δy|+|Δz|, m/s²'ye çevrilir (× 9,806 / 1000). 10 sn'lik pencerenin en büyüğü `MAX_DATA`'ya, ivme büyüklüğü √(x²+y²+z²) en büyüğü `MAX_RAW_DATA`'ya. Örnek gelmeyen pencere eklenmez (uydurma yok), duraklatmada 0 eklenir.
+- Bantta antrenman ekranı görünür (Gadgetbridge belgesi). Sabah bantta bir antrenman kaydı kalabilir (tahmin).
+- Kimsenin istemediği ivme gelirse en çok dakikada bir antrenman bitirilir.
+
+**"Hareket = adım değişimi" seçeneği neden yok:** 8/47'deki adım günlük birikmiş değer ve uykuda hemen hep 0 değişir. SAA bunu bütün gece "hiç kıpırdamadı" diye okur, derin uyku gibi yanlış bir grafik çıkar. İvme kaynağı bulunduğu için adım yolu eklenmedi. İvme cihazda çalışmazsa ayrı bir anahtar olarak, açıkça "adım değişimi" diye etiketlenip yeniden değerlendirilir.
+
+**Varsayılan kapalı:** 8/26 cihazda doğrulanmadı. Önce Gelişmiş > "Gizli antrenman 30 sn" ile ivme sayısı görülmeli, sonra Ayarlar > Sleep as Android > "Hareket gönder (deneysel)" açılır.
+
+**Log:** SAA'ya giden her yayının tam eylem adı ve değer sayısı yazılır (ör. `com.urbandroid.sleep.watch.DATA_UPDATE (1 değer)`). Değerler yazılmaz. `CONFIRM_CONNECTED` dakikada bir özetlenir. Takip özeti ivme örneği, pencere ve hareket paketi sayısını da verir.
 
 ## 6. LS05
 
@@ -81,6 +106,6 @@ LS05'te istekle açılan canlı nabız komutu yok. Saat `18 03` ile 10 dakikada 
 
 1. 8/47 hangi sıklıkla geliyor, akış kendiliğinden duruyor mu (deneme: "Canlı nabız 30 sn").
 2. SAA DIY onayı ve nabız paketi kabul ediliyor mu (SAA grafiğinde nabız çizgisi).
-3. Hareket gelmeyince SAA ne yapıyor.
+3. Gizli antrenman (8/26) bantta ivme akışını açıyor mu, hangi alt türde, saniyede kaç örnek. SAA sensör testinde grafik çıkıyor mu.
 4. Bantta "Alarm" arama ekranı, reddet ve sessize al SAA'da alarmı kapatıyor/erteliyor mu.
 5. Bir gecelik pil tüketimi.
