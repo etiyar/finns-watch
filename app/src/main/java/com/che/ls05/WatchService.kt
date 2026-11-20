@@ -315,6 +315,13 @@ class WatchService : Service(), DriverListener {
         return band.probe(p)
     }
 
+    /** Band 8 alarm kartı. */
+    fun bandAlarms(): com.che.ls05.protocol.band8.B8AlarmList? = (driver as? Band8Driver)?.alarmsForCard()
+    fun bandAlarmRefresh(): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.alarmRefresh() }
+    fun bandAlarmSave(id: Int?, spec: com.che.ls05.protocol.band8.B8AlarmSpec): String? =
+        (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.alarmSave(id, spec) }
+    fun bandAlarmDelete(id: Int): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.alarmDelete(id) }
+
     /** "Test alarmlarını temizle" için silinecek alarmlar; taze liste yoksa null. */
     fun bandAlarmCleanupCandidates(): List<com.che.ls05.protocol.band8.B8Alarm>? =
         (driver as? Band8Driver)?.alarmCleanupCandidates()

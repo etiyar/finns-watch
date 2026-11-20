@@ -456,6 +456,8 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
 
     // Etkin saatin desteklemediği bölümler gizlenir (Capabilities). LS05'te hepsi görünür.
     private val alarmViews = ArrayList<View>()
+    private val band8Alarms = Band8AlarmsCard(act)
+    private var alarmSection: View? = null
     private val faceViews = ArrayList<View>()
     private val profileViews = ArrayList<View>()
     private var dndView: View? = null
@@ -510,8 +512,11 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         // Alarmlar: saatte üç yuva; yalnızca kurulmuş olanlar görünür. Yoğunluk: saat 28 sp, kart içi 14 dp, kart arası 10 dp.
         ui.add(body, watchList.view)
         val alarmSec = ui.section("Alarmlar")
-        alarmViews += alarmSec
+        alarmSection = alarmSec
         ui.add(body, alarmSec, topDp = 20)
+        // Band 8: bandın kendi alarm listesi (LS05 yuvaları yerine).
+        band8Alarms.view.visibility = View.GONE
+        ui.add(body, band8Alarms.view)
         for (slot in 1..UteAlarm.SLOTS) {
             val key = AlarmSetting.key(slot)
             alarms += alarmCard(
@@ -674,6 +679,10 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         val slots = minOf(caps.alarmSlots, UteAlarm.SLOTS)
         fun show(v: View?, on: Boolean) { v?.visibility = if (on) View.VISIBLE else View.GONE }
         alarmViews.forEach { show(it, slots > 0) }
+        val band = WatchRegistry.active(act)?.type == WatchType.BAND8
+        show(alarmSection, slots > 0 || band)
+        show(band8Alarms.view, band)
+        if (band) band8Alarms.refresh()
         faceViews.forEach { show(it, caps.faces) }
         profileViews.forEach { show(it, caps.profile) }
         show(dndView, caps.dnd)
