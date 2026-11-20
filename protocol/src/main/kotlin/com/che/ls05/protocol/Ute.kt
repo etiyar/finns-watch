@@ -95,6 +95,9 @@ object UteCommand {
      */
     val VIBRATE_TEXT: ByteArray = byteArrayOf(0x06, 0, 0, 0, 0x02, 0x02, 0, 0)
 
+    /** Bildirim kuralının titreşimi: 06 00 00 00 [sayı 1-5] 02 00 00. Yalnızca sayı 2 kayıtla doğrulandı. */
+    fun vibrateCount(count: Int): ByteArray = byteArrayOf(0x06, 0, 0, 0, count.coerceIn(1, 5).toByte(), 0x02, 0, 0)
+
     /**
      * Gelen arama titreşimi. Düzen Haylou Fun SetVibrateEvent: 06 00 00 00 [sayı] [süre] 00 00.
      * Değer (FF FF) yalnızca kayıttan: 11 Kasım kaydında Haylou Fun gelen aramada bunu gönderdi, saat 06 00 ile onayladı.
