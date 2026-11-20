@@ -4,6 +4,16 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.15.0-beta1 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
+
+- Band 8 adım, nabız ve uyku Bugün ekranında görünür. Uyku evrelerinde REM ayrı renkte; REM, derin, hafif, uyanık süreleri, uyanma sayısı ve uyku boyunca ortalama nabız gösterilir. Veri, arşivdeki dosyalardan uygulama açılışında ve her çekme bitince ayrıştırılır. Aynı arşiv yeniden ayrıştırılınca çift kayıt oluşmaz.
+- Birleşik sağlık görünümü: adımda her saat için saatlerin en büyüğü alınır, toplanmaz. Gün toplamı, saatlik toplam ile bandın günlük özetinin büyüğüdür. Nabızda her dakika için o an etkin saat seçilir. Uykuda çakışan gecelerden daha ayrıntılı, sonra kesintisiz, sonra uzun olan seçilir. Yalnızca LS05 verisi olan günler v0.12'deki gibi görünür.
+- CSV dışa aktarmada her dosyanın sonuna `kaynak` sütunu eklendi. Uyku dosyasına REM satırları eklendi.
+- Bugün ekranını aşağı çekmek Band 8'de sağlık dosyalarını hemen çeker.
+- Band 8 cevapsız aramaları otomatik iletir (Bildirimler > Cevapsız aramalar ayarıyla).
+- Band 8'de rahatsız etme kartı açıldı: saat aralığı bantta zamanlı uyku modu olarak ayarlanır, "Şimdi aç" ve "Kapat" hemen uygular.
+- Band 8 denemeleri: her düğme 2 saniyede en çok bir komut gönderir. Test alarmı artık listedeki saatinden bulunur; kurma, düzenleme ve silme taze liste ister. "Test alarmlarını temizle" deneme imzalı (bir kez, akıllı olmayan) alarmları saatleriyle gösterip onayla siler. Alarm, müzik, hava ve hareketsizlik yalnızca elle denemede kalır.
+
 ## v0.15.0-alpha1 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
 
 - Band 8'e aynı anda başka bir uygulama (Mi Fitness, Notify) bağlıysa uyarı: "Banda başka bir uygulama bağlı (Mi Fitness, Notify). O uygulamayı kaldır ya da Bluetooth iznini kapat." Uygulama en çok 5 dakikada bir tam yeniden bağlanır. Logda yalnızca çerçeve başlığı baytları görünür. #16'nın kök nedeni buydu.

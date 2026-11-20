@@ -1,6 +1,6 @@
 # Finn's Watch | Güncel plan
 
-**20 Kasım 2026:** Kararlı dal `main` v0.12.0; Band 8 geliştirme dalı `dev/v0.13.1-band8-daily`. [#16](https://github.com/etiyar/ls05-controller/issues/16) kök nedeni bulundu: bantla aynı anda konuşan ikinci istemci (önce Notify, sonra Mi Fitness). Mi Fitness kaldırılınca build 175 ile dört Bluetooth turunda bildirimler göründü (`TEST_RESULTS.md`). Sıradaki aday v0.15.0-alpha1 (`feat/v015-apk1`): yabancı istemci uyarısı, sağlık dosyası arşivi, ham veri dışa aktarma ve elle Band 8 denemeleri. Değerlerin gösterilmesi, gerçek gelen arama ve müzik entegrasyonu henüz yok.
+**20 Kasım 2026:** PR #28 (v0.15.0-alpha1) birleşti, build 182 cihazda denendi: sağlık dosyaları (11 dosya, CRC tamam), test bildirimi, bulma, cevapsız arama, rahatsız etme aç/kapat ve alarm kurma çalıştı; müzik ve hava bantta görünmedi (`TEST_RESULTS.md`). Sıradaki aday v0.15.0-beta1 (`feat/v015-apk2`): Band 8 uyku, adım ve nabzın Bugün ekranında birleşik gösterimi, CSV kaynak sütunu, otomatik cevapsız arama ve rahatsız etme, alarm denemesi düzeltmesi. [#16](https://github.com/etiyar/ls05-controller/issues/16) kök nedeni ikinci istemciydi.
 
 | İş | Takip | Sahip/dal | Yayın kapısı |
 | --- | --- | --- | --- |

@@ -422,7 +422,7 @@ Kayıtta görülen kimlikler (doğrulandı, değerler yazılmadı):
 - Bu yapı Gadgetbridge'in davranışından çıkarıldı ve kayıttaki dosyanın boyutları ve hizalamasıyla doğrulandı. Değerleri (adım, nabız) ilk cihaz denemesinde dolu bir günle karşılaştıracağız.
 - Dosyada saatlik toplam yok. **Saatlik adım, 60 dakikalık kayıtların toplamıyla çıkarılır** (güçlü kanıt).
 
-### 7.6 Uyku (güçlü kanıt, ayrıntılar tahmin)
+### 7.6 Uyku (sürüm 2 yapısı doğrulandı 20.11.2026; aşağıdaki eski notlar bölüm 17'ye göre okunmalı)
 
 - **Uyku dosyası (alt tür 8):** dolgudan sonra 1 bayt başlık bayrakları, 1 bayt "uyanık mı", 4 bayt yatma zamanı, 4 bayt kalkma zamanı. Bazı sürümlerde 1 bayt uyku kalitesi. Sonra bayraklara bağlı ek ölçüm blokları (nabız, SpO2, horlama; her biri: birim, sayı, isteğe bağlı ilk kayıt zamanı, kayıtlar). En sonda evre paketleri.
 - Evre paketleri 4 baytlık sabit bir işaretle başlar. Her paketin bir türü var (17 = evreler, 16 = özet, 2 = uykuya dalma, 3 = uyanma, diğerleri bilinmiyor). Evre kayıtlarında evre kodu üst 4 bittedir.
@@ -752,3 +752,34 @@ Her düğme tek komut gönderir. Logda komut türü/alt türü ve gelen yanıtı
 Alarm kimliğini band verir. Oluşturma yanıtı kimlik vermeyebilir; uygulama oluşturmadan önceki ve sonraki listede tek yeni kimlik varsa onu test alarmı sayar. Banddan gelen 18/x müzik olayları yalnızca alt türüyle loglanır.
 
 Xiaomi hava kodu eşlemesi (tahmin): güneşli 0, parçalı bulutlu 1, kapalı 2, sağanak 3, gök gürültülü 4, karla karışık 6, çisenti 7, şiddetli yağmur 9, kar 14, sis 18, toz 29, diğer 2.
+
+## 17. Cihaz arşiviyle doğrulanan dosya biçimleri (20.11.2026)
+
+Kullanıcının dışa aktardığı arşiv repo dışında çözüldü ve bandın ekranıyla karşılaştırıldı. Değerler bu belgeye yazılmadı.
+
+### 17.1 Uyku: tür 0, alt tür 8, ayrıntı 0, sürüm 2 (doğrulandı)
+
+- Dosya kimliğindeki zaman uykunun **bitişidir**.
+- Gövde: `f0 xx`, başlangıç u32 LE, bitiş u32 LE, u16 (bilinmiyor), sayı u16 LE, nabız başlangıcı u32 LE, sonra [sayı] bayt dakikalık nabız (0 = ölçüm yok). Sayı, oturumun dakika sayısından az olabilir.
+- Kalan kısım `fb fa fc ff` işaretiyle ayrılmış kayıtlardır. Kayıt: `11` + 8 bayt anahtar + 2 bayt etiket + 1 bayt (0) + yük. Oturum kayıtlarının anahtarı: başlangıç u32 LE + 4 sıfır.
+- Etiket `00 10` ya da `01 10` **özet**: `0d`, sürüm (`10`/`11`), sonra büyük endian u16: toplam, uyanık, hafif, REM, derin (dakika). Toplam = hafif + REM + derin.
+- Etiket `00 11` ya da `01 11` **evreler**: uzunluk baytı, sonra (evre, dakika) çiftleri. Evre `00` uyanık, `10` hafif, `20` derin, `30` REM. Çiftlerin toplamı oturum süresine eşit. Uyanık parça sayısı bandın "uyanma" sayısı.
+- Aynı oturum için birden çok kayıt olabilir (geçici ya da boş). Anahtarı tutan, boş olmayan son kayıt geçerlidir. Diğer kayıt türleri bilinmiyor, kullanılmaz.
+- Dakikalık nabızların ortalaması bandın uyku "ortalama nabız" değeriyle eşleşti.
+- Yerel doğrulama: üç oturumun üçünde toplam = hafif + REM + derin, evre toplamı = süre, evre başına toplam = özet.
+
+### 17.2 Günlük özet: tür 0, alt tür 0, ayrıntı 1, sürüm 5
+
+- 69 bayt. Gövde `ff ff ff ff`, sonra toplam adım u32 LE (7.7).
+- Kimlik zamanı özetin alındığı andır; aynı gün için en son özet kullanılır.
+
+### 17.3 Günlük ayrıntı: sürüm 3
+
+- 17297 bayt: 8 bayt kimlik ve dolgu, 5 bayt başlık, 1440 × 12 bayt dakika kaydı, 4 bayt CRC (7.5).
+- Yerel doğrulama: dört ayrıntı dosyasından üçünde dakika adımlarının toplamı aynı günün özetiyle tam eşit (yarım gün dahil). Bir tam günde özet, dakika toplamından %1-5 büyük. Neden bilinmiyor; birleşik görünüm günlük toplam olarak ikisinin büyüğünü kullanır.
+- Bu arşivde dakika kayıtlarında nabız neredeyse hiç yok (gün başına 0-5 dakika). Bandın sürekli nabız ölçüm ayarı ayrıca kontrol edilmeli. Uyku dosyasındaki dakikalık nabız ayrıntı dosyasında olmayan dakikaları doldurur.
+
+### 17.4 Alarm (20.11.2026 cihaz sonucu)
+
+- 17/1 alarmı kurar ve alarm çalar. Yanıtta kimlik yok. Kimlik, 17/0 listesindeki sıra numarasıdır.
+- Uygulama deneme alarmını listede saatine ve imzasına (bir kez, normal, gün bayrağı yok) göre bulur. Kurma, düzenleme ve silme taze liste ister.
