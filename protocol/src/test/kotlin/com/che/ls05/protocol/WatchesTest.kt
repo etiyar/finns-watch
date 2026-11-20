@@ -198,6 +198,10 @@ class WatchesTest {
         assertEquals(Capabilities.LS05, Capabilities.of(null))
         val b = Capabilities.of(WatchType.BAND8)
         assertFalse(b.faces || b.alarmNote || b.alarmVibration)
+        // v0.15.0-beta1: cevapsız arama, rahatsız etme ve sağlık geçmişi otomatik; alarm, hava, müzik yalnızca elle denemede.
+        assertTrue(b.missedCall && b.dnd && b.steps && b.heart && b.sleep)
+        assertEquals(0, b.alarmSlots)
+        assertFalse(b.weather || b.musicRemote || b.incomingCall)
         assertTrue(Capabilities.MAX_ALARM_SLOTS >= l.alarmSlots)
     }
 

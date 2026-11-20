@@ -27,6 +27,9 @@ class B8SettingsTest {
         assertEquals("Cevapsız arama", n.string(5))
         assertNull(n.bool(8), "arama mı alanı yazılmaz")
         assertEquals(B8Calls.MISSED_CALL_ID, n.int(7))
+        val real = cmd(B8Calls.missedCall("Arayan", "20250101T093000", id = 42)).body(9)!!.message(3)!!.message(1)!!
+        assertEquals(42, real.int(7))
+        assertEquals("missed:42", real.string(12))
     }
 
     // ---------- Alarm ----------
@@ -55,6 +58,42 @@ class B8SettingsTest {
         val l = B8Alarms.parseList(c)!!
         assertEquals(emptyList<Int>(), l.ids)
         assertEquals(10, l.max)
+    }
+
+    private fun alarmEntry(id: Int, h: Int, m: Int, repeat: Int, enabled: Boolean, smart: Int, days: Int? = null): PbWriter {
+        val d = PbWriter().message(2, PbWriter().uint(1, h).uint(2, m)).uint(3, repeat)
+        if (days != null) d.uint(4, days)
+        d.bool(5, enabled).uint(7, smart)
+        return PbWriter().uint(1, id).message(2, d)
+    }
+
+    private fun listReply(vararg entries: PbWriter): B8Command {
+        val alarms = PbWriter()
+        for (e in entries) alarms.message(1, e)
+        alarms.uint(2, 10)
+        return cmd(B8Messages.command(17, 0).message(19, PbWriter().message(1, alarms)).toByteArray())
+    }
+
+    @Test
+    fun alarmListParsesDetails() {
+        val l = B8Alarms.parseList(listReply(alarmEntry(2, 6, 45, 5, true, 2, days = 0x1F), alarmEntry(5, 7, 1, 0, false, 2)))!!
+        assertEquals(listOf(B8Alarm(2, 6, 45, 5, true, 2, 0x1F), B8Alarm(5, 7, 1, 0, false, 2)), l.alarms)
+        assertEquals(listOf(2, 5), l.ids)
+    }
+
+    @Test
+    fun probeSignatureIsOnceNormalWithoutDays() {
+        val l = B8Alarms.parseList(listReply(
+            alarmEntry(1, 6, 45, 5, true, 2, days = 0x1F), // haftalık, kullanıcının
+            alarmEntry(2, 8, 0, 1, true, 2),               // her gün
+            alarmEntry(3, 9, 0, 0, true, 1),               // bir kez ama akıllı
+            alarmEntry(4, 6, 33, 0, false, 2),             // deneme imzası, çalmış
+            alarmEntry(6, 6, 34, 0, true, 2),              // deneme imzası
+        ))!!
+        assertEquals(listOf(4, 6), B8Alarms.probeCandidates(l).map { it.id })
+        assertEquals(6, B8Alarms.findTest(l, 6, 34)?.id)
+        assertNull(B8Alarms.findTest(l, 8, 0), "her gün alarmı deneme değil")
+        assertNull(B8Alarms.findTest(l, 6, 35))
     }
 
     @Test
@@ -86,13 +125,6 @@ class B8SettingsTest {
         val c = cmd(B8Alarms.delete(listOf(4)))
         assertTrue(c.matches(17, 4))
         assertEquals(listOf(4L), c.body(19)!!.message(5)!!.all(1).map { it.value })
-    }
-
-    @Test
-    fun newAlarmIdIsTheOneMissingBefore() {
-        assertEquals(5, B8Alarms.newId(listOf(1, 3), listOf(1, 3, 5)))
-        assertNull(B8Alarms.newId(listOf(1, 3), listOf(1, 3)))
-        assertNull(B8Alarms.newId(listOf(1), listOf(1, 2, 3)), "belirsizse tahmin yok")
     }
 
     @Test

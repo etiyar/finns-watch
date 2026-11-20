@@ -152,6 +152,11 @@ class Band8HealthFetcher(
             main.post {
                 val n = stored + unchanged
                 log("Band 8: $n dosya arşivlendi ($what; yeni ya da güncellenen=$stored, zaten vardı=$unchanged, kaydedilemedi=$saveFailed)")
+                if (what == "çekme" && WatchRegistry.active(app)?.type == com.che.ls05.protocol.WatchType.BAND8) {
+                    Prefs.setLastSync(app, System.currentTimeMillis())
+                }
+                // Arşivden ayrıştır: gün dosyaları ve Bugün ekranı güncellenir.
+                if (what == "çekme" || stored > 0) Band8HealthStore.rebuild(app, what)
                 stored = 0
                 unchanged = 0
                 saveFailed = 0

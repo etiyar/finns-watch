@@ -54,9 +54,9 @@ data class Capabilities(
 
         /** Doğrulanan Band 8 özellikleri yazıldıkça açılır. */
         val BAND8_BASE = Capabilities(
-            notifications = true, incomingCall = false, callReject = false, missedCall = false,
-            alarmSlots = 0, alarmNote = false, alarmVibration = false, dnd = false, profile = false,
-            weather = false, timeSync = false, steps = false, heart = false, sleep = false, liveSteps = false,
+            notifications = true, incomingCall = false, callReject = false, missedCall = true,
+            alarmSlots = 0, alarmNote = false, alarmVibration = false, dnd = true, profile = false,
+            weather = false, timeSync = false, steps = true, heart = true, sleep = true, liveSteps = false,
             findWatch = false, findPhone = false, musicRemote = false, faces = false,
         )
 

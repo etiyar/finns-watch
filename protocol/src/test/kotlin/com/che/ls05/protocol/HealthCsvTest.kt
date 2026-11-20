@@ -40,9 +40,9 @@ class HealthCsvTest {
         val v = HealthView(emptyList())
         val s = HealthCsv.steps(v, d12, d14)
         assertTrue(s.startsWith("﻿"), "BOM")
-        assertEquals("﻿tarih,saat,adim\r\n", s)
-        assertEquals("﻿tarih_saat,nabiz\r\n", HealthCsv.heart(v, d12, d14))
-        assertEquals("﻿gece,baslangic,bitis,tur,dakika\r\n", HealthCsv.sleep(v, d12, d14))
+        assertEquals("﻿tarih,saat,adim,kaynak\r\n", s)
+        assertEquals("﻿tarih_saat,nabiz,kaynak\r\n", HealthCsv.heart(v, d12, d14))
+        assertEquals("﻿gece,baslangic,bitis,tur,dakika,kaynak\r\n", HealthCsv.sleep(v, d12, d14))
         val bytes = HealthCsv.files(v, d12, d14)[0].second
         assertEquals(0xEF, bytes[0].toInt() and 0xFF)
         assertEquals(0xBB, bytes[1].toInt() and 0xFF)
@@ -54,7 +54,7 @@ class HealthCsvTest {
         // Kayıtlar karışık sırada; 13 Kasım boş gün; 11 Kasım aralık dışında.
         val v = HealthView(listOf(e(step(14, 9, 120)), e(step(12, 7, 300)), e(step(12, 6, 50)), e(step(12, 8, 0)), e(step(11, 6, 999))))
         assertEquals(
-            listOf("tarih,saat,adim", "2026-11-12,06:00,50", "2026-11-12,07:00,300", "2026-11-14,09:00,120"),
+            listOf("tarih,saat,adim,kaynak", "2026-11-12,06:00,50,", "2026-11-12,07:00,300,", "2026-11-14,09:00,120,"),
             body(HealthCsv.steps(v, d12, d14)),
         )
     }
@@ -73,7 +73,7 @@ class HealthCsvTest {
             ),
         )
         assertEquals(
-            listOf("tarih_saat,nabiz", "2026-11-12 07:20,72", "2026-11-13 07:00,70", "2026-11-13 08:00,75", "2026-11-13 09:05,80"),
+            listOf("tarih_saat,nabiz,kaynak", "2026-11-12 07:20,72,", "2026-11-13 07:00,70,", "2026-11-13 08:00,75,", "2026-11-13 09:05,80,"),
             body(HealthCsv.heart(v, d12, d13)),
         )
     }
@@ -83,14 +83,37 @@ class HealthCsvTest {
         val v = HealthView(listOf(e("1D 01 07 EA 0B 0D 04"), e("1E 17 1E 02 01 00 3C 00 1E 01 01 00 5A 02 00 02 01 00 64 03 28 03 01 00 0A")))
         assertEquals(
             listOf(
-                "gece,baslangic,bitis,tur,dakika",
-                "2026-11-13,2026-11-12 23:30,2026-11-13 00:30,hafif,60",
-                "2026-11-13,2026-11-13 00:30,2026-11-13 02:00,derin,90",
-                "2026-11-13,2026-11-13 02:00,2026-11-13 03:40,hafif,100",
+                "gece,baslangic,bitis,tur,dakika,kaynak",
+                "2026-11-13,2026-11-12 23:30,2026-11-13 00:30,hafif,60,",
+                "2026-11-13,2026-11-13 00:30,2026-11-13 02:00,derin,90,",
+                "2026-11-13,2026-11-13 02:00,2026-11-13 03:40,hafif,100,",
             ),
             body(HealthCsv.sleep(v, d12, d14)),
         )
         assertEquals(1, body(HealthCsv.sleep(v, d14, d14)).size, "aralık dışındaki gece yazılmaz")
+    }
+
+    @Test
+    fun mergedRowsCarrySourceAndRem() {
+        val ls = HealthSource("ls", "Saat LS05", SourceKind.LS05)
+        val b8 = HealthSource("b8", "Band 8", SourceKind.BAND8)
+        val start = LocalDateTime.of(2026, 11, 13, 23, 40)
+        val parts = listOf(SleepPart(start, 30, SleepStage.LIGHT), SleepPart(start.plusMinutes(30), 20, SleepStage.REM))
+        val night = Band8SleepSession(start, start.plusMinutes(50), parts, 0, null, 0, 30, 20, 0)
+        val band = Band8Health(
+            mapOf((d14 to 9) to 500), emptyMap(), mapOf(LocalDateTime.of(2026, 11, 14, 9, 1) to 66), listOf(night),
+        )
+        val m = MergedHealth(listOf(ls to HealthView(listOf(e(step(14, 9, 120))))), listOf(b8 to band), { null }, "ls")
+        assertEquals(listOf("tarih,saat,adim,kaynak", "2026-11-14,09:00,500,Band 8"), body(HealthCsv.steps(m, d14, d14)))
+        assertEquals(listOf("tarih_saat,nabiz,kaynak", "2026-11-14 09:01,66,Band 8"), body(HealthCsv.heart(m, d14, d14)))
+        assertEquals(
+            listOf(
+                "gece,baslangic,bitis,tur,dakika,kaynak",
+                "2026-11-14,2026-11-13 23:40,2026-11-14 00:10,hafif,30,Band 8",
+                "2026-11-14,2026-11-14 00:10,2026-11-14 00:30,rem,20,Band 8",
+            ),
+            body(HealthCsv.sleep(m, d14, d14)),
+        )
     }
 
     @Test
@@ -118,6 +141,6 @@ class HealthCsvTest {
             }
         }
         assertEquals(listOf("adim.csv", "nabiz.csv", "uyku.csv"), names)
-        assertEquals("﻿tarih,saat,adim\r\n2026-11-12,07:00,300\r\n", steps)
+        assertEquals("﻿tarih,saat,adim,kaynak\r\n2026-11-12,07:00,300,\r\n", steps)
     }
 }

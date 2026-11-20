@@ -15,6 +15,7 @@
     <color name="danger">#E78D93</color>
     <color name="sleep_deep">#5769CC</color>
     <color name="sleep_light">#A9B7F5</color>
+    <color name="sleep_rem">#D586C2</color>
     <color name="heart">#F09AA5</color>
     <color name="switch_off_track">#3A414A</color>
     <color name="switch_off_thumb">#C8CED3</color>

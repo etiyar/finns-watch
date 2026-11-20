@@ -434,6 +434,17 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         return ready
     }
 
+    /** Otomatik özellik komutu (cevapsız arama, rahatsız etme). Logda yalnızca etiket, tür ve alt tür. */
+    fun sendFeature(command: ByteArray, label: String): Boolean {
+        if (!ready || released || gatt == null || channel.session == null || channel.pending >= MAX_PENDING_COMMANDS) {
+            listener.onLog("Band 8 komut reddi ($label): hazır=$ready, bekleyen=${channel.pending}")
+            return false
+        }
+        listener.onLog("Band 8 komut: $label")
+        sendAuthenticated(command)
+        return ready
+    }
+
     /** Sağlık dosyalarını şimdi çek (yalnızca okuma). Sürüyorsa ya da oturum hazır değilse false. */
     fun fetchHealthNow(): Boolean = ready && fetcher?.startNow() == true
 

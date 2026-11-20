@@ -1,6 +1,7 @@
 package com.che.ls05
 
 import android.content.Context
+import com.che.ls05.protocol.WatchRecord
 import com.che.ls05.protocol.WatchType
 import com.che.ls05.protocol.band8.B8Activity
 import com.che.ls05.protocol.band8.B8ActivityFile
@@ -26,8 +27,12 @@ object Band8HealthArchive {
 
     private fun directory(c: Context): File? {
         val watch = WatchRegistry.active(c)?.takeIf { it.type == WatchType.BAND8 } ?: return null
-        return File(File(c.filesDir, HealthStore.dirName(c)), SUBDIR)
+        return directoryFor(c, watch)
     }
+
+    /** Belirli bir Band 8 kaydının arşiv klasörü (etkin olmasa da). */
+    fun directoryFor(c: Context, watch: WatchRecord): File =
+        File(File(c.filesDir, HealthStore.dirNameFor(watch)), SUBDIR)
 
     private fun fileName(id: B8FileId): String = id.encode().joinToString("") { "%02x".format(it.toInt() and 0xff) } + ".bin"
 
@@ -67,8 +72,10 @@ object Band8HealthArchive {
     fun readAll(c: Context): List<B8ActivityFile> = readEntries(c).map { it.file }
 
     /** Dışa aktarma için: dosya ve telefonda son yazıldığı an (ms). */
-    fun readEntries(c: Context): List<B8ArchiveZip.Entry> {
-        val dir = directory(c) ?: return emptyList()
+    fun readEntries(c: Context): List<B8ArchiveZip.Entry> = readEntriesIn(directory(c))
+
+    fun readEntriesIn(dir: File?): List<B8ArchiveZip.Entry> {
+        if (dir == null) return emptyList()
         return (dir.listFiles() ?: emptyArray()).asSequence()
             .filter { it.isFile && NAME.matches(it.name) }
             .mapNotNull { stored ->

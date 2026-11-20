@@ -78,6 +78,15 @@ object Prefs {
     fun setProfileVerified(c: Context, value: Boolean) = p(c).edit().putBoolean(k(c, "profileVerified"), value).apply()
 
     /** Son başarılı adım geçmişi okuması (ms); 0 = hiç. */
+    /** Band 8 deneme alarmının son kurulan saati ("Test alarmlarını temizle" ve düzenle/sil için). */
+    fun band8TestAlarm(c: Context): Pair<Int, Int>? {
+        val v = p(c).getInt("band8TestAlarm", -1)
+        return if (v < 0) null else (v / 60) to (v % 60)
+    }
+
+    fun setBand8TestAlarm(c: Context, hour: Int, minute: Int) =
+        p(c).edit().putInt("band8TestAlarm", hour * 60 + minute).apply()
+
     fun lastSync(c: Context): Long = p(c).getLong(k(c, "lastSync"), 0L)
     fun setLastSync(c: Context, at: Long) = p(c).edit().putLong(k(c, "lastSync"), at).apply()
 

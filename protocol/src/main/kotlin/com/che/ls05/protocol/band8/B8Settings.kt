@@ -18,17 +18,23 @@ object B8Calls {
     const val MISSED_CALL_ID = 1
     const val MISSED_CALL_TEXT = "Cevapsız arama"
 
-    fun missedCall(caller: String, timestamp: String): ByteArray = B8Messages.notification(
+    /** 20.11.2026: bantta göründü. Gerçek cevapsız aramada [id] telefondaki bildirimin kimliğidir. */
+    fun missedCall(caller: String, timestamp: String, id: Int = MISSED_CALL_ID): ByteArray = B8Messages.notification(
         B8Notification(
             packageName = B8Messages.CALL_PACKAGE, appName = B8Messages.CALL_PACKAGE,
             title = caller, body = MISSED_CALL_TEXT, timestamp = timestamp,
-            id = MISSED_CALL_ID, key = "missed:$MISSED_CALL_ID", isCall = false,
+            id = id, key = "missed:$id", isCall = false,
         )
     )
 }
 
-/** 17/0 yanıtındaki alarm kimlikleri ve bandın izin verdiği en çok alarm sayısı. Saatler tutulmaz. */
-data class B8AlarmList(val ids: List<Int>, val max: Int?)
+/** Banddaki bir alarm. [repeat]: 0 bir kez, 1 her gün, 5 haftalık. [smart]: 1 akıllı, 2 normal. */
+data class B8Alarm(val id: Int, val hour: Int, val minute: Int, val repeat: Int, val enabled: Boolean, val smart: Int, val dayFlags: Int? = null)
+
+/** 17/0 yanıtı: alarmlar ve bandın izin verdiği en çok alarm sayısı. Saatler loga yazılmaz. */
+data class B8AlarmList(val alarms: List<B8Alarm>, val max: Int?) {
+    val ids: List<Int> get() = alarms.map { it.id }
+}
 
 /** Alarm: 17/0 liste, 17/1 oluştur, 17/2 düzenle, 17/4 sil (belge 8.1). Kimlikleri band verir. */
 object B8Alarms {
@@ -40,8 +46,24 @@ object B8Alarms {
     fun parseList(c: B8Command): B8AlarmList? {
         if (!c.matches(B8Type.SCHEDULE, 0)) return null
         val alarms = c.body(B8Type.F_SCHEDULE)?.message(1) ?: return null
-        return B8AlarmList(alarms.messages(1).mapNotNull { it.int(1) }, alarms.int(2))
+        val list = alarms.messages(1).mapNotNull { a ->
+            val id = a.int(1) ?: return@mapNotNull null
+            val d = a.message(2)
+            val t = d?.message(2)
+            B8Alarm(id, t?.int(1) ?: -1, t?.int(2) ?: -1, d?.int(3) ?: -1, d?.bool(5) ?: false, d?.int(7) ?: -1, d?.int(4))
+        }
+        return B8AlarmList(list, alarms.int(2))
     }
+
+    /** Deneme düğmesinin kurduğu alarmın imzası: bir kez, normal (akıllı değil), gün bayrağı yok. */
+    fun matchesProbe(a: B8Alarm): Boolean = a.repeat == ONCE && a.smart == NORMAL && (a.dayFlags ?: 0) == 0
+
+    /** Deneme imzasına uyan bütün alarmlar ("Test alarmlarını temizle" adayları). */
+    fun probeCandidates(l: B8AlarmList): List<B8Alarm> = l.alarms.filter { matchesProbe(it) }
+
+    /** Belirli saatte kurulan deneme alarmı; birden çok varsa en büyük kimlik (en son eklenen). */
+    fun findTest(l: B8AlarmList, hour: Int, minute: Int): B8Alarm? =
+        l.alarms.filter { matchesProbe(it) && it.hour == hour && it.minute == minute }.maxByOrNull { it.id }
 
     /** Bir kez çalan, açık, normal (akıllı olmayan) alarm. */
     private fun details(hour: Int, minute: Int): PbWriter =
@@ -58,9 +80,6 @@ object B8Alarms {
         for (id in ids) d.uint(1, id)
         return cmd(B8Type.SCHEDULE, 4, B8Type.F_SCHEDULE, PbWriter().message(5, d))
     }
-
-    /** Oluşturma yanıtı kimlik vermiyor olabilir: önceki ve sonraki listede tek yeni kimlik varsa odur. */
-    fun newId(before: List<Int>, after: List<Int>): Int? = (after - before.toSet()).singleOrNull()
 
     fun plusMinutes(hour: Int, minute: Int, add: Int): Pair<Int, Int> {
         val total = ((hour * 60 + minute + add) % 1440 + 1440) % 1440
