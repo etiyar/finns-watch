@@ -321,7 +321,7 @@ Notification mesajı (Command alan 9) > alan 3 > alan 1 > asıl bildirim:
 - Notify bunlara ek olarak alan 17 (tekrarlı: 36 karakterlik kimlik, etiket, tür, isteğe bağlı seçenek listesi; tahmin: eylem düğmeleri ve hazır yanıtlar) ve alan 18 (ek içerik) gönderdi. Biz bunları göndermeyeceğiz.
 - "Arama mı" (alan 8) false iken Notify alanı yazmadı (doğrulandı).
 - **Simge akışı (doğrulandı):** Band yeni bir paket görünce 7/16 gönderir (Notification alan 16 > 1 paket adı). Telefon 7/15 ile sorar (alan 14 > 1 paket adı). Band 7/15 ile yanıt verir: alan 15 > 1 durum (0), 2 piksel biçimi, 3 kenar boyu (piksel). Telefon simgeyi veri yüklemeyle (bkz. 9) gönderir. Kayıtta band aynı paket için art arda üç boy istedi: 28, 44 ve 80 piksel. Piksel biçimi 3 idi. Gadgetbridge'e göre 3 = ARGB 8888 küçük endian: her piksel 4 bayt, bellekte mavi, yeşil, kırmızı, alfa (güçlü kanıt). Yüklenen boyutlar kenar × kenar × 4 ile birebir tuttu (doğrulandı).
-- Simge göndermezsek band varsayılan simge gösterir (tahmin). İlk sürümde simge yüklemesi yok. 7/16 gelirse yok sayılır.
+- Simge göndermezsek band varsayılan simge gösterir (tahmin). v0.16.0-alpha1'den beri Gelişmiş anahtarı açıksa 7/16'ya uygulamanın başlatıcı simgesiyle yanıt verilir (bkz. 18.2).
 - Uzun bildirimler parçalı gider (doğrulandı: 814 baytlık bildirim sorunsuz gitti). Türkçe karakterler UTF-8 (güçlü kanıt).
 - Uzunluk sınırları: bkz. 12.1.
 
@@ -520,13 +520,13 @@ Weather mesajı Command alan 12 içine yazılır.
 - Open-Meteo WMO kodlarından Xiaomi hava kodlarına bir eşleme tablosu gerekir. Xiaomi kod listesi 6. adımda çıkarılacak (tahmin: 0 güneşli, 1 parçalı bulutlu, 2 kapalı, sonra yağmur, kar ve fırtına türleri).
 - Konum adı kişisel veridir. Loga yazılmaz. Gadgetbridge konum kodu olarak adın özetinden türetilmiş bir sayı kullanıyor. Biz sabit bir kod kullanacağız.
 
-## 9. Kadran ve veri yükleme (doğrulandı. Kadran ve yazılım uygulanmayacak)
+## 9. Kadran ve veri yükleme (doğrulandı. Yazılım uygulanmayacak; kadran deneysel, bkz. 18)
 
-- Yükleme isteği: 22/0. Alan 24 > 1: 1 tür (16 kadran, 32 yazılım, 50 bildirim simgesi), 2 MD5 (16 bayt), 3 boyut. Band 22/0 ile onaylar: alan 24 > 2: 1 MD5 (aynısı), 2 devam konumu (0), 4 (0, anlamı bilinmiyor). Band 8 parça boyu **göndermedi** (doğrulandı).
+- Yükleme isteği: 22/0. Alan 24 > 1: 1 tür (16 kadran, 32 yazılım, 50 bildirim simgesi), 2 MD5 (16 bayt), 3 boyut. Band 22/0 ile onaylar: alan 24 > 2: 1 MD5 (aynısı), 2 (0), 4 (0). Band 8 bölüm boyu (alan 5) **göndermedi** (doğrulandı). Gadgetbridge'e göre alan 2 bilinmeyen durum, alan 4 devam konumu, alan 5 bölüm boyu (güçlü kanıt; eski not alan 2'yi devam konumu sanıyordu, bkz. 18.1).
 - Veri 0x0055'e yazılır. Yüklenen blok: 1 bayt 0, 1 bayt tür, 16 bayt MD5 (yalnızca verinin), 4 bayt uzunluk (LE), veri, sonda 4 bayt CRC32 (son 4 bayt hariç bütün blok üstünden). Bu blok 4092 baytlık bölümlere bölünür. Her bölümün başında 2 bayt toplam bölüm ve 2 bayt bölüm sırası. Her bölüm ayrı şifrelenir (sayaç 0) ve 2.3'teki gibi parçalı gönderilir (doğrulandı: MD5 ve CRC kayıttaki üç yüklemede de tuttu).
 - **Kayıttaki 0x0055 yüklemesi neydi:** Notify'ın test bildirimi için üç **bildirim simgesi** (tür 50). Band aynı paket için 28, 44 ve 80 piksel kare simge istedi. Veri boyları 3136, 7744 ve 25600 bayt (kenar × kenar × 4). Sırasıyla 1, 2 ve 7 bölüm. Veri ham ARGB 8888 bitmap, sıkıştırma yok (doğrulandı).
 - Yükleme hızı: 25 KB'lık simge yaklaşık 0,8 saniyede gitti (doğrulandı). Yanıtsız yazmalar araya bekleme koymadan arka arkaya yazıldı.
-- Kadran listesi 4/0 (yanıt Command alan 6, doğrulandı), seçme 4/1, silme 4/2, kurma 4/4.
+- Kadran listesi 4/0 (yanıt Command alan 6, doğrulandı), seçme 4/1, silme 4/2, kurma 4/4 (güçlü kanıt, ayrıntı 18.3).
 - **Yazılım güncellemesi:** tür 32 yükleme ve 2/5 kurma komutu var (güçlü kanıt). Mi Fitness'ta da bu model için güncelleme türü tanımlı. **Uygulanmayacak.** Yanlış dosya bandı kullanılamaz hâle getirebilir.
 
 ## 10. Yetenek karşılaştırması (Capabilities modeli için)
@@ -818,3 +818,60 @@ Kullanıcının dışa aktardığı arşiv repo dışında çözüldü ve bandı
 - Bizde bildirim simgesi akışı doğrulandı (bkz. 9 ve bildirim simgesi notları): band bilmediği paket için 7/16 ile simge ister, simge tür 50 veri yüklemesiyle gider. Her manevra için ayrı bir sahte paket adı ve ok simgesi yüklenirse bildirimde büyük ok görünebilir (tahmin, cihazda denenmedi). Bu iş veri yükleme kanalının (0x0055) uygulamada kurulmasını gerektiriyor. rc2'de yapılmadı.
 - Kadran yoluyla tam ekran navigasyon: kadran dosya biçimi gerekiyor, kadran yüklemesi kapsam dışı (bkz. 9). **Uygulanmayacak.**
 - rc2 yedeği: bildirim başlığı kısa manevra adı ("Sola dön", "Hafif sağa", "Göbek", "Varış"), gövde mesafe, yönerge ve sokak. Manevra tanınmazsa başlık yönergenin kendisi, 20 karakteri aşarsa sözcük sınırında sağdan kısaltılır. Build 197'de uzun başlık bantta baştan kesik görünmüştü.
+
+## 18. Veri yükleme kanalı ve kadran (v0.16.0-alpha1, 20.11.2026)
+
+### 18.1 Yükleme kanalı (kayıtta doğrulandı, uygulamada cihazda denenecek)
+
+Kayıttaki üç simge yüklemesi yeniden çözüldü (yalnızca yapı ve boylar):
+
+| Adım | Ne oldu |
+|---|---|
+| 1 | Band 7/16 gönderdi (Notification alan 16 > 1 paket adı) |
+| 2 | Telefon 7/15 sordu (alan 14 > 1 aynı paket adı), band 7/15 yanıtladı: alan 15 > 1 durum 0, 2 biçim 3, 3 kenar 28 / 44 / 80 |
+| 3 | Telefon 22/0 gönderdi (düz boy 32, 32, 33 bayt). Band 22/0 ile yanıtladı (alan 24 > 2 { 1 MD5, 2 = 0, 4 = 0 }) |
+| 4 | 0x0055'te her bölüm: `00 00 00 01` + parça sayısı, band `00 00 01 01`, parçalar, band `00 00 01 00`. Sonra sıradaki bölüm. Arada `00 00 03 00` yok |
+| 5 | Son bölümden sonra band ayrıca bir mesaj göndermedi. Band aynı paket için bir sonraki boyu yeni bir 7/16 ile istedi |
+
+- Bölüm: 4096 bayt (4 bayt başlık + 4092 veri), son bölüm kısa. Şifreli bölüm = düz + 4 bayt etiket, 242 baytlık parçalara bölünür. Parça sayıları 14 | 17, 16 | 6 × 17, 5 (doğrulandı). Testler bu sayıları sentetik veriyle yeniden üretir (`B8UploadTest`).
+- Bölüm sırası (başlığın 3-4. baytı) 1'den başlar; son bölümde toplam ve sıra eşit (`07 00 07 00`, doğrulandı).
+- Komut sayacı (0x0052) bölümler için ilerlemez; bölümler hep sayaç 0 ile şifrelenir (doğrulandı).
+- Devam konumu: kayıtta hep 0. Uygulama sıfırdan farklı değeri bloktaki bayt konumu sayar, yalnızca bölüm sınırındaysa o bölümden devam eder, değilse yüklemeyi durdurur (tahmin).
+- Band `00 00 01 05` + parça sıraları gönderirse o parçalar yeniden yazılır; `00 00 01 02` ya da olumsuz onay gelirse yükleme durur (güçlü kanıt, 2.1).
+- Uygulama kuralları: aynı anda tek yükleme; 22/0 yanıtı ve her bölüm onayı için 15 sn; yükleme sürerken sağlık dosyası çekilmez; bağlantı ya da yeniden auth yüklemeyi düşürür. Yazılım türü (32) uygulamada reddedilir.
+
+### 18.2 Bildirim simgesi (akış doğrulandı, uygulama cihazda denenecek)
+
+- Gelişmiş > "Uygulama simgesini gönder" açıksa (varsayılan kapalı): 7/16 gelince paket telefonda aranır (önce tam ad, yoksa tek bir önek eşleşmesi; band adı kısaltmış olabilir, güçlü kanıt Gadgetbridge), 7/15 sorulur, başlatıcı simgesi istenen kenarda çizilir ve tür 50 ile gider.
+- Biçim 3 (ARGB 8888 LE, bellekte B, G, R, A) doğrulandı. 0, 1 (RGB 565) ve 2 (XRGB 8888) Gadgetbridge tablosundan, Band 8'de görülmedi. 7 ve 8 (ARGB 8565) desteklenmiyor; o durumda simge gönderilmez.
+- Band simgeyi pakete göre saklıyor gibi (tahmin). Yanlış bir simge giderse nasıl silineceği bilinmiyor; bu yüzden anahtar varsayılan kapalı.
+
+### 18.3 Kadran dosyası ve kurulum (güçlü kanıt; cihazda denenmedi)
+
+Kaynak: Gadgetbridge'in herkese açık davranışı (kod alınmadı) ve kayıttaki 4/0 yanıtı. Notify kaynağı karartılmış; kadran kurulum kodu orada güvenle bulunamadı.
+
+| Konu | Bulgu | Etiket |
+|---|---|---|
+| Liste 4/0 | Watchface alan 1 > tekrarlı 1 { 1 kimlik (metin, 9 rakam), 2 ad, 3 etkin, 4 silinebilir, 5, 6, 11 (0) }. Kayıtta 8 kadran, 7'si silinebilir, etkin olan silinebilir | doğrulandı |
+| Kimlik | Bütün kimlikler aynı 3 haneyle başlıyor. Önek modeli gösteriyor olabilir; uygulama farklı önekte ayrıca uyarır | tahmin |
+| Etkin yap 4/1 | Watchface alan 2 = kimlik | güçlü kanıt |
+| Sil 4/2 | Watchface alan 2 = kimlik. Gadgetbridge yalnızca silinebilir ve etkin olmayanı siler; biz de öyle | güçlü kanıt |
+| Kurulum 4/4 | Telefon: Watchface alan 6 { 1 kimlik, 2 dosya boyu }. Band: Watchface alan 5 kurulum durumu (0 = yükle, 2 = zaten kurulu) | güçlü kanıt |
+| Yükleme | Durum 0 ise dosyanın tamamı tür 16 ile 18.1'deki gibi gider | güçlü kanıt |
+| Kurulum sonu | Gadgetbridge yüklemeden sonra 4/1 ile kadranı seçer ve listeyi okur. Bandın alan 7 { 1 kimlik, 2 (2), 3, 4 } ile bitiş mesajı gönderebildiği proto tanımında var | güçlü kanıt (mesaj), anlam tahmin |
+| Dosya başlığı | 0x00: `5A A5`. 0x28: kimlik, sıfırla biten rakamlar. 0x68: ad, sıfırla biten UTF-8; `FF FF FF FF` ise ad çok dilli tabloda (0x74 konum, 0x78 boy) | güçlü kanıt |
+| Dosya kaynağı | Mi Fitness kadranları ve topluluk araçlarının `.face`/`.bin` çıktısı. Topluluk belgeleri Smart Band 8'i bozuk kadranda kurtarması zayıf ya da olmayan cihazlar arasında sayıyor | güçlü kanıt |
+| Bölüm boyu | Gadgetbridge Band 8'de alan 5 gelmeyince 2048 kullanıyor, Notify simgelerde 4096 kullandı. Biz alan 5 yoksa 4096 kullanıyoruz | doğrulandı (simge), kadranda tahmin |
+
+Uygulama (Gelişmiş > "Band 8 kadran (deneysel)", her adım elle):
+
+1. "Listeyi oku" (4/0). Kurulum ve silme taze liste olmadan yapılmaz.
+2. "Dosya yükle": başlık denetlenir (imza, rakam kimlik, en çok 8 MB), ad, kimlik ve boy onay penceresinde gösterilir. Kimlik bantta varsa yükleme yapılmaz.
+3. Onaylanınca 4/4; durum 0 ise yükleme. İlerleme %10 adımlarla görünür. Bitince liste yeniden okunur. **Kadran kendiliğinden etkin yapılmaz**; kullanıcı listedeki "Etkin yap" ile seçer (4/1).
+4. "Sil" yalnızca silinebilir ve etkin olmayan kadranda görünür.
+5. Log: tür, alt tür, kimlik, boy, durum, alan numaraları. Kadran adı loga yazılmaz.
+
+### 18.4 Navigasyon oku (sıradaki adım)
+
+Kanal çalışınca yapılabilir: her manevra için ayrı bir sanal paket adı ile 7/0 gönderilir, band o paket için 7/16 ile simge isteyince manevra oku çizilip gönderilir (17.8). Gerekenler: manevra başına ok çizimi (yaklaşık 30 tür), sanal paket adlarının bandın simge önbelleğini doldurmaması için küçük sabit bir küme, simge cihaz testinin geçmesi. Bu sürümde yapılmadı.
+
