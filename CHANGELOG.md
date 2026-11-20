@@ -4,6 +4,17 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.15.0 | 20 Kasım 2026 (kararlı sürüm)
+
+İlk Band 8 sürümü. v0.13.1–v0.15.0-rc2 arasındaki tüm değişiklikleri içerir.
+
+- Xiaomi Smart Band 8 desteği: bağlantı, kimlik doğrulama, yabancı istemci uyarısı (Mi Fitness, Notify).
+- Bildirim, gelen ve cevapsız arama, banttan reddetme, bilekliği bul, rahatsız etme, alarmlar (10 yuva), müzik kumandası ve ses düzeyi.
+- Band 8 sağlık verisi: uyku (derin, hafif, REM, uyanma, nabız), adım, nabız; LS05 ile birleşik görünüm, CSV'de kaynak sütunu.
+- Bildirim kuralları (filtre, iş profili, sessiz saatler, okunana kadar tekrar, titreşim), navigasyon yönergeleri, WhatsApp/Telegram aramaları, telefon pili uyarısı, emojinin metne çevrilmesi.
+- Hatırlatıcılar, takvim hatırlatmaları, Band 8 hareketsizlik ayarı (deneysel).
+- Cihazda doğrulanan (build 200): müzik ses düzeyi kademeli değişiyor, navigasyon bildirimi kısa manevra başlığıyla görünüyor.
+
 ## v0.15.0-rc2 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
 
 - Band 8 müzik sesi: banda telefon müzik sesinin yüzdesi bildirilir. Bandın ses olayı bu yüzdeye yakınsa uygulanır, uzaksa telefon sesi bir çentik oynar; uca sıçrama olmaz. Log bandın ham değerlerini (yalnızca sayılar) yazar.
