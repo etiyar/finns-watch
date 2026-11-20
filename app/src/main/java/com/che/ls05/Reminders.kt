@@ -203,8 +203,16 @@ class ReminderReceiver : BroadcastReceiver() {
                 if (id > 0 && at > 0L) Reminders.fireCustom(app, id, at)
                 return
             }
-            CalendarReminders.KIND_EVENT -> { CalendarReminders.fire(app, intent); return }
-            CalendarReminders.KIND_REFRESH -> { CalendarReminders.refresh(app); return }
+            CalendarReminders.KIND_EVENT -> {
+                val pending = goAsync()
+                CalendarReminders.fire(app, intent) { pending.finish() }
+                return
+            }
+            CalendarReminders.KIND_REFRESH -> {
+                val pending = goAsync()
+                CalendarReminders.refresh(app) { pending.finish() }
+                return
+            }
         }
         val slot = intent.getIntExtra(Reminders.EXTRA_SLOT, 0)
         val at = intent.getLongExtra(Reminders.EXTRA_AT, 0L)

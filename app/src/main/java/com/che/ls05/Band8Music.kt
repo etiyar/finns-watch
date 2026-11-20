@@ -79,7 +79,13 @@ class Band8Music(
             B8Music.KEY_PAUSE -> t?.pause() ?: PhoneRemote.mediaKey(app, KeyEvent.KEYCODE_MEDIA_PAUSE)
             B8Music.KEY_PREVIOUS -> t?.skipToPrevious() ?: PhoneRemote.mediaKey(app, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
             B8Music.KEY_NEXT -> t?.skipToNext() ?: PhoneRemote.mediaKey(app, KeyEvent.KEYCODE_MEDIA_NEXT)
-            B8Music.KEY_VOLUME -> k.volume?.let { setVolume(it) }
+            B8Music.KEY_VOLUME -> {
+                val v = k.volume ?: run { log("Band 8 müzik sesi: düzey yok, yok sayıldı"); return }
+                setVolume(v)
+                // Bandın ses çubuğu telefonla aynı kalsın: güncel düzey hemen geri gider.
+                sendInfo("ses")
+                return
+            }
             else -> {
                 log("Band 8 müzik tuşu tanınmadı: kod=${k.key}")
                 return
@@ -89,10 +95,13 @@ class Band8Music(
         scheduleUpdate()
     }
 
-    private fun setVolume(percent: Int) {
+    /** Bandın ses düzeyi (0-100) telefon müzik akışının adımına çevrilir; sistem ses çubuğu gösterilmez. */
+    private fun setVolume(level: Int) {
         val a = audio ?: return
         val max = a.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        a.setStreamVolume(AudioManager.STREAM_MUSIC, (percent.coerceIn(0, 100) * max + 50) / 100, 0)
+        val step = com.che.ls05.protocol.MusicVolume.toStreamStep(level, max)
+        if (a.getStreamVolume(AudioManager.STREAM_MUSIC) != step) a.setStreamVolume(AudioManager.STREAM_MUSIC, step, 0)
+        log("Band 8 müzik sesi: adım $step/$max")
     }
 
     private fun scheduleUpdate() {

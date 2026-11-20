@@ -44,6 +44,19 @@ class B8MusicVibrationTest {
     }
 
     @Test
+    fun flatKeyAndVolumeAreReadToo() {
+        // 20.11.2026 (build 191): band ses ekranında 18/2 gönderdi, Music alanları "1v 2v".
+        val c = musicFrom(2, PbWriter().uint(1, 5).uint(2, 60))
+        assertEquals(B8Music.MediaKey(5, 60), B8Music.mediaKey(c))
+        assertEquals("1v 2v", B8Music.describe(c))
+    }
+
+    @Test
+    fun stateInfoIsNotAKey() {
+        assertNull(B8Music.mediaKey(cmd(B8Music.info("a", "b", B8Music.STATE_PLAYING, 1, 0, 10))))
+    }
+
+    @Test
     fun describeNeverShowsStrings() {
         val c = musicFrom(1, PbWriter().message(1, PbWriter().uint(1, 1).string(4, "Gizli şarkı")))
         val d = B8Music.describe(c)
