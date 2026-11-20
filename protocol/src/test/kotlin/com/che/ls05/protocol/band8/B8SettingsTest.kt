@@ -81,6 +81,38 @@ class B8SettingsTest {
         assertEquals(listOf(2, 5), l.ids)
     }
 
+    /** Band sıfır değerli alanları yazmayabilir (bir kez = 0, dakika 0). */
+    private fun sparseEntry(id: Int, h: Int, m: Int, enabled: Boolean): PbWriter {
+        val t = PbWriter()
+        if (h != 0) t.uint(1, h)
+        if (m != 0) t.uint(2, m)
+        val d = PbWriter().message(2, t)
+        if (enabled) d.bool(5, true)
+        return PbWriter().uint(1, id).message(2, d)
+    }
+
+    @Test
+    fun missingZeroFieldsReadAsDefaults() {
+        val l = B8Alarms.parseList(listReply(sparseEntry(3, 17, 0, false), sparseEntry(4, 0, 5, true)))!!
+        assertEquals(B8Alarm(3, 17, 0, 0, false, 0), l.alarms[0])
+        assertEquals(B8Alarm(4, 0, 5, 0, true, 0), l.alarms[1])
+        assertEquals(3, B8Alarms.findTest(l, 17, 0)?.id, "yazılmayan tekrar (0) ve akıllı alanıyla da bulunur")
+    }
+
+    @Test
+    fun smartAlarmIsNeverProbe() {
+        val l = B8Alarms.parseList(listReply(alarmEntry(1, 6, 0, 0, true, 1)))!!
+        assertTrue(B8Alarms.probeCandidates(l).isEmpty())
+    }
+
+    @Test
+    fun describeListsFieldShapesWithoutValues() {
+        val c = listReply(alarmEntry(2, 17, 44, 0, false, 2), sparseEntry(5, 0, 0, false))
+        val d = B8Alarms.describe(c)
+        assertEquals(listOf("kimlik=2 ayrıntı=[2m 3v 5v 7v] saat=[1v 2v]", "kimlik=5 ayrıntı=[2m] saat=[]"), d)
+        assertTrue(d.none { it.contains("17") || it.contains("44") })
+    }
+
     @Test
     fun probeSignatureIsOnceNormalWithoutDays() {
         val l = B8Alarms.parseList(listReply(
