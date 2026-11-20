@@ -66,7 +66,8 @@ class RepeatTracker(private val maxPerHour: Int = 20) {
 /**
  * Süren navigasyon bildirimi (Google Maps ve benzerleri). Mesafe ("200 m", "0,4 km") başlıkta ya da metinde olabilir.
  * Manevra (mesafe dışındaki yazı) değişince hemen, yalnızca mesafe değişince en sık [minIntervalMs]'de bir iletilir.
- * Aynı manevra ve mesafe tekrar gitmez. Çıktıda başlık manevra, gövde mesafe ve kalan yazı (sokak).
+ * Aynı manevra ve mesafe tekrar gitmez. Çıktıda başlık kısa manevra adı ("Sola dön"), gövde mesafe, yönerge ve sokak.
+ * Manevra tanınmazsa başlık yönergenin kendisidir. Uzun yazı başa değil gövdeye gider; bant baştan kırpmaz.
  */
 class NavigationFilter(private val minIntervalMs: Long = 30_000) {
     data class Out(val title: String, val body: String)
@@ -100,25 +101,136 @@ class NavigationFilter(private val minIntervalMs: Long = 30_000) {
         }
         if (!go) return null
         last[pkg] = Last(key, distance, now)
-        val body = listOf(distance, rest).filter { it.isNotBlank() }.joinToString(" · ")
-        return Out(maneuver.ifEmpty { title.trim() }, body)
+        val kind = NavManeuver.classify(maneuver)
+        val m = maneuver.ifEmpty { title.trim() }
+        return when {
+            kind != NavManeuver.UNKNOWN -> Out(kind.label, join(distance, maneuver, rest))
+            m.length <= TITLE_MAX -> Out(m, join(distance, rest))
+            else -> Out(shorten(m), join(distance, m, rest))
+        }
     }
 
     fun reset(pkg: String) { last.remove(pkg) }
+
+    private fun join(vararg parts: String) = parts.filter { it.isNotBlank() }.joinToString(" · ")
+
+    /** Sağdan, sözcük sınırında kısaltır; baş her zaman görünür. */
+    private fun shorten(s: String): String {
+        val cut = s.take(TITLE_MAX)
+        val space = cut.lastIndexOf(' ')
+        return (if (space >= TITLE_MAX / 2) cut.substring(0, space) else cut).trimEnd(' ', ',', '·', '-') + "…"
+    }
 
     companion object {
         /** Bilinen navigasyon paketleri. Google Maps dışındakiler cihazda doğrulanmadı. */
         val PACKAGES: Set<String> = setOf("com.google.android.apps.maps", "net.osmand", "net.osmand.plus", "de.komoot.android")
 
+        /** Bant başlığı kısa olmalı: uzun başlık bandda baştan kesik görüldü (build 197). */
+        const val TITLE_MAX = 20
+
         private val DISTANCE = Regex("\\d+(?:[.,]\\d+)?\\s?(?:km|m|mi|ft|yd)\\b", RegexOption.IGNORE_CASE)
     }
 }
 
-/** Band 8 müzik ses düzeyi: bant 0-100 kullanır (bizim gönderdiğimiz yüzdeyi doğru gösterdi); telefon akış adımına çevrilir. */
+/** Navigasyon yönergesinden kısa manevra adı. Türkçe ve İngilizce anahtar sözcükler; tanınmazsa [UNKNOWN]. */
+enum class NavManeuver(val label: String) {
+    ARRIVE("Varış"),
+    U_TURN("U dönüşü"),
+    ROUNDABOUT("Göbek"),
+    SLIGHT_LEFT("Hafif sola"),
+    SLIGHT_RIGHT("Hafif sağa"),
+    SHARP_LEFT("Keskin sola"),
+    SHARP_RIGHT("Keskin sağa"),
+    LEFT("Sola dön"),
+    RIGHT("Sağa dön"),
+    STRAIGHT("Düz devam"),
+    UNKNOWN("");
+
+    companion object {
+        private val LEFT_WORDS = setOf("sola", "solda", "left")
+        private val RIGHT_WORDS = setOf("saga", "sagda", "right")
+        private val SLIGHT = setOf("hafif", "slight", "keep", "bear")
+        private val SHARP = setOf("keskin", "sharp")
+
+        fun classify(text: String): NavManeuver {
+            val w = NotifyRules.norm(text).split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
+            fun has(vararg words: String) = words.any { it in w }
+            fun pair(a: Set<String>, b: Set<String>) = (0 until w.size - 1).any { w[it] in a && w[it + 1] in b }
+            return when {
+                has("ulastiniz", "vardiniz", "arrive", "arrived", "destination") -> ARRIVE
+                (has("u") && has("donusu", "donus", "turn")) || has("uturn") -> U_TURN
+                has("gobek", "gobekten", "gobekte", "roundabout") -> ROUNDABOUT
+                pair(SLIGHT, LEFT_WORDS) -> SLIGHT_LEFT
+                pair(SLIGHT, RIGHT_WORDS) -> SLIGHT_RIGHT
+                pair(SHARP, LEFT_WORDS) -> SHARP_LEFT
+                pair(SHARP, RIGHT_WORDS) -> SHARP_RIGHT
+                w.any { it in LEFT_WORDS } -> LEFT
+                w.any { it in RIGHT_WORDS } -> RIGHT
+                has("duz", "straight", "continue", "devam", "head", "ilerleyin") -> STRAIGHT
+                else -> UNKNOWN
+            }
+        }
+    }
+}
+
+/**
+ * Band 8 müzik ses düzeyi. 18/1 içinde STREAM_MUSIC yüzdesi (0-100) bildirilir.
+ * Bantın 18/2 ile gönderdiği değerin anlamı kesin değil (build 197: yukarıda en üst, aşağıda en alt sıçraması).
+ * [decide]: değer son bildirdiğimiz yüzdeye yakınsa yüzde sayılır ve uygulanır; uzaksa yalnızca yön sayılır, bir çentik oynatılır.
+ */
 object MusicVolume {
+    /** Yüzde sayılacak en büyük fark (puan). */
+    const val PLAUSIBLE_DELTA = 10
+
+    /** Bir çentik: akışın on beşte biri, en az bir adım. */
+    fun notch(streamMax: Int): Int = maxOf(1, streamMax / 15)
+
     fun toStreamStep(level: Int, streamMax: Int): Int = ((level.coerceIn(0, 100) * streamMax + 50) / 100).coerceIn(0, streamMax)
 
     fun toPercent(step: Int, streamMax: Int): Int = if (streamMax <= 0) 0 else Math.round(step * 100f / streamMax).coerceIn(0, 100)
+
+    /** Bantın ses olayından hedef akış adımı. [raw]: 18/2 ses alanının ham değeri. */
+    fun decide(raw: Int, lastReportedPercent: Int?, currentStep: Int, streamMax: Int): Int {
+        if (streamMax <= 0) return 0
+        val base = lastReportedPercent ?: toPercent(currentStep, streamMax)
+        if (raw == base) return currentStep.coerceIn(0, streamMax)
+        if (raw in 0..100 && kotlin.math.abs(raw - base) <= PLAUSIBLE_DELTA) return toStreamStep(raw, streamMax)
+        val dir = if (raw > base) 1 else -1
+        return (currentStep + dir * notch(streamMax)).coerceIn(0, streamMax)
+    }
+}
+
+/** Aynı başlık kısa sürede ikinci kez gelirse yakalar (takvim hatırlatması ve takvim uygulaması bildirimi). Başlık yalnızca bellekte, sadeleştirilmiş tutulur. */
+class TitleDedupe(private val windowMs: Long = 180_000) {
+    private val seen = LinkedHashMap<String, Long>()
+
+    private fun prune(now: Long) {
+        val it = seen.entries.iterator()
+        while (it.hasNext()) if (now - it.next().value > windowMs) it.remove()
+    }
+
+    @Synchronized
+    fun seenRecently(title: String, now: Long): Boolean {
+        prune(now)
+        val k = NotifyRules.norm(title)
+        if (k.isEmpty()) return false
+        val at = seen[k] ?: return false
+        return now - at <= windowMs
+    }
+
+    @Synchronized
+    fun mark(title: String, now: Long) {
+        prune(now)
+        val k = NotifyRules.norm(title)
+        if (k.isNotEmpty()) seen[k] = now
+    }
+
+    companion object {
+        /** Kendi etkinlik bildirimini gösteren takvim uygulamaları. Google Takvim dışındakiler cihazda doğrulanmadı. */
+        val CALENDAR_PACKAGES: Set<String> = setOf(
+            "com.google.android.calendar", "com.samsung.android.calendar", "com.android.calendar", "com.xiaomi.calendar",
+        )
+    }
 }
 
 /** Telefon pili uyarıları: düşük (eşik, şarjda değilken) ve dolu (şarjda %100). Her geçişte bir kez. */

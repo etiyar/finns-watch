@@ -15,6 +15,9 @@ import java.util.Locale
  * Log yalnızca bellekte tutulur; bildirim içerikleri ve kimlik loga yazılmaz.
  */
 object WatchHub {
+    /** Takvim hatırlatmamız ile takvim uygulamasının bildirimi aynı başlıkla 3 dk içinde gelirse yalnızca biri gider. Bellekte, başlık loga yazılmaz. */
+    val calendarDedupe = com.che.ls05.protocol.TitleDedupe(180_000)
+
     /** Son gelen aramanın bildirimindeki "Reddet" eylemi (saatten reddetmek için). */
     @Volatile var declineAction: android.app.PendingIntent? = null
     @Volatile var declineKey: String? = null

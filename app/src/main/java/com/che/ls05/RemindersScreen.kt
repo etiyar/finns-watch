@@ -21,6 +21,7 @@ class RemindersScreen(private val act: MainActivity) {
         const val GAP_DP = 8
         const val SECTION_GAP_DP = 20
         const val PERMISSION_REQUEST = 7
+        const val CALENDAR_HINT = "Takvim uygulamasının bildirimleri zaten açıksa bu ayara gerek yok. İkisi de açıksa aynı etkinlik 3 dk içinde bir kez gider."
         val DAY_NAMES = listOf("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")
         val REPEAT_LABELS = linkedMapOf(
             ReminderRepeat.ONCE to "Bir kez",
@@ -89,6 +90,7 @@ class RemindersScreen(private val act: MainActivity) {
             }
         }
         ui.add(box, cal, topDp = Style.GAP_DP)
+        ui.add(box, ui.caption(Style.CALENDAR_HINT), topDp = Style.GAP_DP)
     }
 
     private fun repeatText(r: CustomReminder): String = when (r.repeat) {

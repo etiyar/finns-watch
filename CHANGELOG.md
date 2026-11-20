@@ -4,6 +4,14 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.15.0-rc2 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
+
+- Band 8 müzik sesi: banda telefon müzik sesinin yüzdesi bildirilir. Bandın ses olayı bu yüzdeye yakınsa uygulanır, uzaksa telefon sesi bir çentik oynar; uca sıçrama olmaz. Log bandın ham değerlerini (yalnızca sayılar) yazar.
+- Navigasyon bildirimi: başlık kısa manevra adı ("Sola dön", "Hafif sağa", "Göbek", "Varış"), gövde mesafe, yönerge ve sokak. Uzun başlık sağdan kısalır, baş her zaman görünür.
+- Takvim: hatırlatmamız ile takvim uygulamasının bildirimi aynı başlıkla 3 dk içinde gelirse yalnızca biri gider. Takvim bölümüne not eklendi.
+- Band 8 navigasyon ekranı araştırıldı: ayrı bir protokol komutu bulunmadı (docs/BAND8_PROTOKOL.md 17.8).
+- Cihazda doğrulanan (build 197): hatırlatıcılar, gelen arama ve açınca kapanma, WhatsApp ve okunana kadar tekrar, hareketsizlik ayarı okuma, takvim hatırlatmasının zamanı.
+
 ## v0.15.0-rc1 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
 
 - Band 8 müzik ses düzeyi: bandın gönderdiği düzey (0-100) telefonun müzik sesine aynen çevrilir, sistem ses çubuğu gösterilmez; güncel düzey banda geri gider. Önce ses en yükseğe ya da sıfıra gidiyordu.
