@@ -60,14 +60,6 @@ class B8TextTest {
     }
 
     @Test
-    fun notificationKeepsEmojiInTitleAndBody() {
-        val n = B8Notification("p", "App", "Ali $heart", "Reacted 👍 to x", "20250101T093000", 1, "k")
-        val inner = B8Command.parse(B8Messages.notification(n))!!.body(9)!!.message(3)!!.message(1)!!
-        assertEquals("Ali $heart", inner.string(3))
-        assertEquals("Reacted 👍 to x", inner.string(5))
-    }
-
-    @Test
     fun emojiProbeText() {
         assertEquals("$heart 👍 😂 😮 😢 🙏", B8Text.EMOJI_TEST)
     }

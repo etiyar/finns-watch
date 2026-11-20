@@ -1,7 +1,8 @@
 package com.che.ls05.protocol.band8
 
 /**
- * Band 8 metin kuralları. Band yazıyı kendisi çizer: emoji, ZWJ dizileri, değişken seçiciler ve ten rengi kalır.
+ * Band 8 metin kuralları. [clean] emojiyi korur (ortak ön temizlik); banda giden metin [forBand] ile emojiyi kısa
+ * metne çevirir, çünkü bandın yazı tipi emoji çizemiyor (20.11.2026: boş kutucuk).
  * Kontrol karakterleri ve görünmez yön işaretleri çıkar, satır sonları boşluk olur, boşluklar tekleşir.
  * LS05'in yazı tipi için olan [com.che.ls05.protocol.TextSanitizer] değişmez; LS05 metni bunun üstüne onu uygular.
  */
@@ -11,6 +12,9 @@ object B8Text {
 
     private const val ZWJ = 0x200D
     private const val ELLIPSIS = "…"
+
+    /** Banda giden metin: temizlenir, emoji kısa metne döner ya da çıkar (bant emoji çizemiyor, 20.11.2026). */
+    fun forBand(input: String): String = com.che.ls05.protocol.EmojiText.apply(clean(input))
 
     fun clean(input: String): String {
         val sb = StringBuilder(input.length)
