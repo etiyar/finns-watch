@@ -202,3 +202,20 @@ class MergedHealth(
     override fun sleepSource(day: UteDate): String? =
         chosen(day).map { it.source.name }.distinct().joinToString("+").ifEmpty { null }
 }
+
+/** Saat değişim günlüğü: `epochSaniye<TAB>saatKimliği` satırları. Bozuk satırlar atlanır. */
+class SwitchTimeline private constructor(private val entries: List<Pair<Long, String>>) {
+    /** [epochSec] anında etkin saat; günlük boşsa ya da ilk satırdan önceyse null. */
+    fun activeAt(epochSec: Long): String? = entries.lastOrNull { it.first <= epochSec }?.second
+
+    companion object {
+        fun parse(text: String): SwitchTimeline = SwitchTimeline(
+            text.split('\n').mapNotNull { line ->
+                val p = line.trim().split('\t')
+                val t = p.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
+                val id = p.getOrNull(1)?.takeIf { it.isNotEmpty() && p.size == 2 } ?: return@mapNotNull null
+                t to id
+            }.sortedBy { it.first },
+        )
+    }
+}
