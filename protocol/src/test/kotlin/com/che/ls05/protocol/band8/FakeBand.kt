@@ -30,9 +30,56 @@ internal class FakeBand(
     var decryptFailures = 0
     var authOk = false
 
+    // ---------- Veri yükleme (0x0055) ----------
+    private val uploadReasm = B8Reassembler()
+    /** Alınan bölümler (şifresi çözülmüş, 4 bayt başlıklı). */
+    val uploadParts = ArrayList<ByteArray>()
+    /** Tamamlanan yüklemeler. */
+    val uploads = ArrayList<B8Upload.Parsed>()
+    /** Her bölümün kaç parçayla geldiği. */
+    val uploadChunkCounts = ArrayList<Int>()
+    /** 22/0 yanıtının durumu ve devam konumu. */
+    var uploadStatus = 0
+    var uploadResumeAt = 0
+    var uploadPartSize: Int? = null
+    /** Bu sıradaki parça ilk gelişinde kaybolur, band 01 05 ile yeniden ister (bir kez). */
+    var dropUploadChunk: Int? = null
+    /** 7/15 sorusuna verilecek yanıt. */
+    var iconSpec = B8Icons.Spec(0, 3, 28)
+    private var resumeBase = 0
+
+    private fun onUploadWrite(ev: B8Frame.Event, out: MutableList<Notify>) {
+        when (ev) {
+            is B8Frame.Event.ChunkStart -> {
+                uploadReasm.start(ev.count, ev.encrypted)
+                uploadChunkCounts.add(ev.count)
+                out.add(Notify(B8Char.UPLOAD, B8Frame.READY))
+            }
+            is B8Frame.Event.Chunk -> {
+                if (dropUploadChunk == ev.index) {
+                    dropUploadChunk = null
+                    out.add(Notify(B8Char.UPLOAD, byteArrayOf(0, 0, 1, 5, (ev.index and 0xFF).toByte(), (ev.index ushr 8).toByte())))
+                    return
+                }
+                val done = uploadReasm.add(ev.index, ev.data) ?: return
+                val plain = session?.decryptAsBand(done.first, 0) ?: run { decryptFailures++; return }
+                uploadParts.add(plain)
+                out.add(Notify(B8Char.UPLOAD, B8Frame.ALL_RECEIVED))
+                val total = (plain[0].toInt() and 0xFF) or ((plain[1].toInt() and 0xFF) shl 8)
+                if (resumeBase + uploadParts.size == total) {
+                    if (resumeBase == 0) B8Upload.join(uploadParts)?.let { uploads.add(it) }
+                    uploadParts.clear()
+                    resumeBase = 0
+                }
+            }
+            else -> {}
+        }
+    }
+
     fun onWrite(char: B8Char, v: ByteArray): List<Notify> {
         val out = ArrayList<Notify>()
         val ev = B8Frame.decode(v)
+        if (char == B8Char.UPLOAD) { onUploadWrite(ev, out); return out }
         if (char != B8Char.CMD_OUT) {
             when (ev) {
                 is B8Frame.Event.Ack, is B8Frame.Event.AllReceived -> {
@@ -126,6 +173,12 @@ internal class FakeBand(
                     B8Activity.splitParts(f).take(maxPartsPerFile).forEach { part -> sendActivityPart(part, out) }
                 }
             }
+            c.matches(22, 0) -> {
+                val m = c.body(24)!!.message(1)!!.bytes(2)!!
+                if (uploadResumeAt > 0) resumeBase = uploadResumeAt / ((uploadPartSize ?: B8Upload.DEFAULT_PART_SIZE) - 4)
+                send(B8Char.CMD_IN, B8Upload.ack(m, uploadStatus, uploadResumeAt, uploadPartSize), out)
+            }
+            c.matches(7, 15) -> send(B8Char.CMD_IN, B8Icons.spec(iconSpec), out)
             c.matches(8, 5) -> files.remove(B8FileId.decode(c.body(10)!!.bytes(3)!!))
             // Diğerleri (saat, bildirim, bul): yalnızca kaydedilir.
         }
