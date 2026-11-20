@@ -783,3 +783,14 @@ Kullanıcının dışa aktardığı arşiv repo dışında çözüldü ve bandı
 
 - 17/1 alarmı kurar ve alarm çalar. Yanıtta kimlik yok. Kimlik, 17/0 listesindeki sıra numarasıdır.
 - Uygulama deneme alarmını listede saatine ve imzasına (bir kez, normal, gün bayrağı yok) göre bulur. Kurma, düzenleme ve silme taze liste ister.
+
+### 17.5 Alarm listesinde sıfır alanlar ve düzenleme (20.11.2026, build 184)
+
+- Düzenleme (17/2) bantta alarmı değiştirmedi. Olası neden: band sıfır değerli alanları (tekrar = 0 bir kez, dakika 0, akıllı alanı) yazmıyor olabilir. Eski ayrıştırıcı eksik alanı -1 sayıyordu, test alarmı imzaya uymuyor ve 17/2 hiç gönderilmiyordu. Artık eksik alan 0 okunur, akıllı alarm (1) dışındaki her değer "akıllı değil" sayılır.
+- 17/2 yapısı: Ç3 > 1 kimlik, 2 ayrıntı (2 saat {1 saat, 2 dakika}, 3 tekrar, 5 açık, 7 akıllı/normal). Gadgetbridge de kimlik olarak liste sırasını (1'den) kullanıyor.
+- Tanı logu: her 17/0 yanıtında alarm başına `kimlik=N ayrıntı=[alan biçimi] saat=[alan biçimi]` satırı. Değer yazılmaz. Düzenleme gönderilince kimlik, yanıtta durum loglanır.
+
+### 17.6 Gelen arama (otomatik, cihazda doğrulanacak)
+
+- Telefon çalınca 7/0 (paket "phone", arama mı = true, başlık arayan adı ya da numara). Cevap, ret ya da bitişte 7/1 (kimlik 0, paket "phone"). Elle arama ekranı denemesi bu iki komutun çalıştığını gösterdi.
+- Banddan 7/2 reddet, 7/5 sessize al. Uygulama yalnızca kendi açtığı gerçek arama ekranı için tepki verir.
