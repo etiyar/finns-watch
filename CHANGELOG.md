@@ -4,6 +4,14 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.15.0-rc1 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
+
+- Band 8 müzik ses düzeyi: bandın gönderdiği düzey (0-100) telefonun müzik sesine aynen çevrilir, sistem ses çubuğu gösterilmez; güncel düzey banda geri gider. Önce ses en yükseğe ya da sıfıra gidiyordu.
+- Navigasyon Band 8'e gider: uygulama filtresi Maps bildirimini sessizce atıyordu. Başlık manevra, gövde mesafe ve sokak; manevra değişince hemen, yalnızca mesafe değişince en sık 30 sn'de bir. LS05'te de aynı.
+- Band 8 bildirimi iletim kapalı ya da uygulama filtresi nedeniyle atlanınca logda nedeni yazar.
+- Takvim sorguları arka planda yapılır.
+- Cihazda doğrulanan (build 191): Band 8 müzik bilgisi ve tuşları, titreşim deseni, bildirim kuralları, emoji metni.
+
 ## v0.15.0-beta4 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
 
 - **Hatırlatıcılar** (Saat > Hatırlatıcılar ve takvim): başlık, ilk gün, saat ve tekrar (bir kez, her gün, hafta içi, seçili günler, her N günde). Zamanı gelince telefon etkin saate bildirim gönderir; alarm notlarıyla aynı tam zamanlı alarm yolu, telefon açılışı ve saat değişiminde yeniden kurulur. 5 dakikadan çok geciken hatırlatma gönderilmez.

@@ -19,7 +19,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = ciRunNumber?.let { 1000 + it } ?: 34
-        versionName = "0.15.0-beta4"
+        versionName = "0.15.0-rc1"
         buildConfigField("String", "BUILD_NUMBER", buildString(ciRunNumber?.toString() ?: "yerel"))
         buildConfigField("String", "BUILD_RUN", buildString(if (ciRunNumber == null) "yerel" else "$ciRunId-$ciRunAttempt"))
         buildConfigField("String", "BUILD_COMMIT", buildString(ciCommit))
