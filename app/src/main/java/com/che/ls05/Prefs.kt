@@ -178,6 +178,12 @@ object Prefs {
     fun weatherCityName(c: Context): String = p(c).getString("weatherCity", "") ?: ""
     fun weatherLat(c: Context): Double? = p(c).getString("weatherLat", null)?.toDoubleOrNull()
     fun weatherLon(c: Context): Double? = p(c).getString("weatherLon", null)?.toDoubleOrNull()
+
+    // Sleep as Android (yalnızca Band 8). Nabız değerleri saklanmaz.
+    fun saaEnabled(c: Context): Boolean = p(c).getBoolean("saaOn", false)
+    fun setSaaEnabled(c: Context, on: Boolean) = p(c).edit().putBoolean("saaOn", on).apply()
+    fun saaHeartRate(c: Context): Boolean = p(c).getBoolean("saaHr", true)
+    fun setSaaHeartRate(c: Context, on: Boolean) = p(c).edit().putBoolean("saaHr", on).apply()
     fun setWeatherCity(c: Context, name: String, lat: Double, lon: Double) = p(c).edit()
         .putString("weatherCity", name).putString("weatherLat", lat.toString()).putString("weatherLon", lon.toString())
         .remove("weatherCache").putLong("weatherAt", 0L).apply()

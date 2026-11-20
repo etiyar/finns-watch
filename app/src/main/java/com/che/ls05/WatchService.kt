@@ -218,6 +218,7 @@ class WatchService : Service(), DriverListener {
         restarting = true
         driver.release("servis kapandı")
         restarting = false
+        SleepAsAndroidBridge.onBandReady(false)
         WatchHub.setReady(false)
         WatchHub.service = null
         WatchManager.setState(WatchState.STOPPED)
@@ -830,6 +831,7 @@ class WatchService : Service(), DriverListener {
                     flushPending()
                     // Yalnızca kullanıcının değiştirdiği ayar (rahatsız etme saatleri) gider.
                     pushSettings()
+                    SleepAsAndroidBridge.onBandReady(true)
                 }
             }, 1_500)
             return
@@ -855,6 +857,7 @@ class WatchService : Service(), DriverListener {
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
         bandReadyAt = 0L
+        SleepAsAndroidBridge.onBandReady(false)
         clearFind("bağlantı koptu")
         val hadLink = wasReady
         wasReady = false
@@ -1021,6 +1024,8 @@ class WatchService : Service(), DriverListener {
     @Suppress("DEPRECATION")
     /** Band 8 arama ekranında reddet ya da sessize al. Yalnızca bizim açtığımız gerçek arama ekranı için. */
     override fun onBandCallAction(reject: Boolean) {
+        // Gerçek arama yokken bantta açık "Alarm" ekranı Sleep as Android'indir.
+        if (!callOnWatch && SleepAsAndroidBridge.onBandCallAction(reject)) return
         if (!callOnWatch) {
             WatchHub.log("Band 8 arama olayı: bantta açık gerçek arama yok; yok sayıldı.")
             return

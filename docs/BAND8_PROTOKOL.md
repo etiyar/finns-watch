@@ -659,7 +659,7 @@ Yeni Gradle modülü yok. Paket adı `band8`.
 
 ## 14. 7. adım için: Sleep as Android ve gece verisi
 
-Bu bölüm 7. adımın fizibilitesidir. Kod yok.
+Bu bölüm 7. adımın fizibilitesidir. Uygulama v0.16.0-alpha1'de yapıldı: [SLEEP_AS_ANDROID.md](SLEEP_AS_ANDROID.md).
 
 ### 14.1 Sleep as Android ne ister
 
