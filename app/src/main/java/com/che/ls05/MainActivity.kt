@@ -421,6 +421,10 @@ class MainActivity : Activity(), WatchHub.Observer {
             HealthExport.onResult(this, resultCode, data)
             return
         }
+        if (requestCode == Band8FaceCard.REQ) {
+            settings.bandFaces.onResult(resultCode, data)
+            return
+        }
         if (requestCode == Band8RawExport.REQ) {
             Band8RawExport.onResult(this, resultCode, data)
             return

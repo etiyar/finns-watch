@@ -8,7 +8,7 @@ enum class B8Char(val uuid16: Int) {
     CMD_OUT(0x0052),
     /** Etkinlik dosyaları. */
     ACTIVITY(0x0053),
-    /** Veri yükleme. Bu aşamada kullanılmıyor. */
+    /** Veri yükleme: bildirim simgesi, kadran (belge 9). */
     UPLOAD(0x0055);
 
     val uuid: String get() = "0000%04x-0000-1000-8000-00805f9b34fb".format(uuid16)
@@ -30,6 +30,12 @@ sealed class B8Incoming {
     class DecryptFailed(val char: B8Char) : B8Incoming()
     /** Band gönderimimizi reddetti. */
     class SendRejected(val code: Int) : B8Incoming()
+    /** Yükleme bölümü band tarafından alındı. [done] 1'den sayılır, [total] bölüm sayısı. */
+    class UploadProgress(val done: Int, val total: Int) : B8Incoming()
+    /** Bütün bölümler alındı. */
+    object UploadDone : B8Incoming()
+    /** Band yüklemeyi reddetti ya da oturum yok. */
+    class UploadFailed(val reason: String) : B8Incoming()
 }
 
 /**
@@ -64,6 +70,16 @@ class B8Channel(var mtu: Int = 247) {
     private var wait = Wait.NONE
     private val reassemblers = HashMap<B8Char, B8Reassembler>()
 
+    // ---------- Veri yükleme (0x0055) ----------
+    private val uploadParts = ArrayDeque<ByteArray>()
+    private var uploadChunks: List<ByteArray> = emptyList()
+    private var uploadWait = Wait.NONE
+    private var uploadDone = 0
+    private var uploadTotal = 0
+
+    /** Bir yükleme sürüyor mu. */
+    val uploading: Boolean get() = uploadWait != Wait.NONE
+
     val pending: Int get() = queue.size + (if (inFlight != null) 1 else 0)
     val busy: Boolean get() = inFlight != null
 
@@ -90,6 +106,7 @@ class B8Channel(var mtu: Int = 247) {
      * auth mesajı şifresiz ve öncelikli gider.
      */
     fun beginAuth(plainAuth: ByteArray): List<B8Write> {
+        abortUpload()
         session = null
         counter = 0
         requeueInFlight()
@@ -110,8 +127,66 @@ class B8Channel(var mtu: Int = 247) {
         return pump()
     }
 
-    /** Bağlantı koptu: oturum ve yarım parçalar düşer, kuyruk korunur. */
+    /**
+     * Yükleme bölümlerini sırayla 0x0055'e gönderir (belge 9). Her bölüm sayaç 0 ile şifrelenir ve
+     * parçalı gider: başlatma, band "hazırım", parçalar, band "hepsi alındı", sonra sıradaki bölüm.
+     * [doneBefore] devam konumuyla atlanan bölüm sayısı, [total] bütün bölüm sayısı (ilerleme için).
+     */
+    fun startUpload(parts: List<ByteArray>, doneBefore: Int = 0, total: Int = parts.size): Result {
+        if (uploading) return Result(emptyList(), listOf(B8Incoming.UploadFailed("başka yükleme sürüyor")))
+        if (session == null) return Result(emptyList(), listOf(B8Incoming.UploadFailed("oturum yok")))
+        if (parts.isEmpty()) return Result(emptyList(), listOf(B8Incoming.UploadDone))
+        uploadParts.clear()
+        uploadParts.addAll(parts)
+        uploadDone = doneBefore
+        uploadTotal = total
+        return Result(nextUploadPart(), emptyList())
+    }
+
+    /** Yükleme yarıda kesilir (zaman aşımı, kullanıcı). Band tarafında yarım kalan bölüm atılır. */
+    fun abortUpload() {
+        uploadParts.clear()
+        uploadChunks = emptyList()
+        uploadWait = Wait.NONE
+    }
+
+    private fun nextUploadPart(): List<B8Write> {
+        val part = uploadParts.removeFirstOrNull() ?: return emptyList()
+        val s = session ?: run { abortUpload(); return emptyList() }
+        val split = B8Frame.split(s.encryptToBand(part, 0), true, mtu, forceChunked = true)
+        uploadChunks = split.chunks
+        uploadWait = Wait.READY
+        return listOf(B8Write(B8Char.UPLOAD, split.first))
+    }
+
+    private fun onUploadChannel(ev: B8Frame.Event): Result? {
+        return when (ev) {
+            is B8Frame.Event.Ready -> if (uploadWait == Wait.READY) {
+                uploadWait = Wait.ALL_RECEIVED
+                Result(uploadChunks.map { B8Write(B8Char.UPLOAD, it) }, emptyList())
+            } else Result.EMPTY
+            is B8Frame.Event.AllReceived -> if (uploadWait == Wait.ALL_RECEIVED) {
+                uploadDone++
+                val progress = B8Incoming.UploadProgress(uploadDone, uploadTotal)
+                if (uploadParts.isEmpty()) {
+                    abortUpload()
+                    Result(emptyList(), listOf(progress, B8Incoming.UploadDone))
+                } else Result(nextUploadPart(), listOf(progress))
+            } else Result.EMPTY
+            is B8Frame.Event.Resend -> if (uploadWait == Wait.ALL_RECEIVED) {
+                Result(ev.indexes.mapNotNull { uploadChunks.getOrNull(it - 1) }.map { B8Write(B8Char.UPLOAD, it) }, emptyList())
+            } else Result.EMPTY
+            is B8Frame.Event.Rejected, is B8Frame.Event.Nack -> if (uploading) {
+                abortUpload()
+                Result(emptyList(), listOf(B8Incoming.UploadFailed(if (ev is B8Frame.Event.Nack) "olumsuz onay ${ev.code}" else "reddedildi")))
+            } else Result.EMPTY
+            else -> null
+        }
+    }
+
+    /** Bağlantı koptu: oturum ve yarım parçalar düşer, kuyruk korunur. Yükleme düşer. */
     fun onDisconnected() {
+        abortUpload()
         session = null
         counter = 0
         requeueInFlight()
@@ -173,6 +248,7 @@ class B8Channel(var mtu: Int = 247) {
     fun onNotify(char: B8Char, value: ByteArray): Result {
         val ev = B8Frame.decode(value)
         if (char == B8Char.CMD_OUT) return onOwnChannel(ev)
+        if (char == B8Char.UPLOAD) onUploadChannel(ev)?.let { return it }
         val writes = ArrayList<B8Write>()
         val incoming = ArrayList<B8Incoming>()
         val re = reassemblers.getOrPut(char) { B8Reassembler() }

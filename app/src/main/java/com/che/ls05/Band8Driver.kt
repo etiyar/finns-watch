@@ -26,6 +26,7 @@ import com.che.ls05.protocol.band8.B8Realtime
 import com.che.ls05.protocol.band8.B8Standing
 import com.che.ls05.protocol.band8.B8Text
 import com.che.ls05.protocol.band8.B8Vibration
+import com.che.ls05.protocol.band8.B8Sub
 import com.che.ls05.protocol.band8.B8Type
 import com.che.ls05.protocol.band8.B8Weather
 import com.che.ls05.protocol.band8.B8WeatherMeta
@@ -80,6 +81,15 @@ class Band8Driver(
     private val music: Band8Music by lazy {
         Band8Music(appContext, main, { listener.onLog(it) }) { ble.sendFeature(it, "müzik bilgisi 18/1") }
     }
+
+    private val icons = Band8Icons(appContext, { listener.onLog(it) }, { c, l -> ble.sendFeature(c, l) }, ble::startUpload)
+    private val faces = Band8Faces(main, { listener.onLog(it) }, { c, l -> ble.sendFeature(c, l) }, ble::startUpload)
+
+    /** Gelişmiş > Band 8 kadran (deneysel). Gönderildiyse null, değilse kısa neden. */
+    fun faceRead(): String? = if (!ble.isReady) "Band 8 hazır değil." else faces.read()
+    fun faceSet(id: String): String? = if (!ble.isReady) "Band 8 hazır değil." else faces.setActive(id)
+    fun faceDelete(id: String): String? = if (!ble.isReady) "Band 8 hazır değil." else faces.delete(id)
+    fun faceInstall(bytes: ByteArray): String? = if (!ble.isReady) "Band 8 hazır değil." else faces.install(bytes)
 
     /** Gönderilen düzenlemenin saati; yanıt gelince kaydedilir. */
     private var pendingEditTime: Pair<Int, Int>? = null
@@ -271,7 +281,10 @@ class Band8Driver(
 
     /** Deneme yanıtları. Loga yalnızca sayı, alan numarası ve durum yazılır. */
     override fun onBandCommand(command: B8Command) {
+        if (faces.onCommand(command)) return
         when {
+            command.matches(B8Type.NOTIFICATION, B8Sub.NOTIF_ICON_QUERY) -> icons.onQuery(command)
+            command.matches(B8Type.NOTIFICATION, B8Sub.NOTIF_ICON_REQUEST) -> icons.onSpec(command)
             B8Realtime.isEvent(command) -> onRealtime(command)
             command.matches(B8Type.SCHEDULE, 0) -> B8Alarms.parseList(command)?.let { list ->
                 alarmList = list
@@ -490,6 +503,7 @@ class Band8Driver(
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
         clearCallTest()
+        faces.onDisconnected()
         clearLiveProbe()
         alarmListFresh = false
         dndSettingPending = false

@@ -16,6 +16,13 @@ Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihaz
 - Gelişmiş > Band 8 denemeleri: "Canlı nabız 30 sn". Logda yalnızca olay sayısı, nabız değeri yazılmaz.
 - Ayrıntı: docs/SLEEP_AS_ANDROID.md.
 
+### Band 8 veri yükleme, simge ve kadran
+
+- Band 8 veri yükleme kanalı (0x0055): 22/0 isteği, MD5 ve CRC32, 4096 baytlık bölümler, yeniden gönderme ve ret. Yapı Notify kaydındaki üç simge yüklemesiyle birebir.
+- Band 8 bildirim simgesi (deneysel, Gelişmiş, varsayılan kapalı): band bir uygulamanın simgesini isteyince o uygulamanın simgesi istenen boyda gider.
+- Band 8 kadran (deneysel, Gelişmiş): kadran listesini oku, .bin kadran dosyası yükle, etkin yap, sil. Her adım elle; yüklenen kadran kendiliğinden seçilmez.
+- Kadran dosya biçimi ve kurulum komutu belgelendi (docs/BAND8_PROTOKOL.md bölüm 18). Navigasyon oku sonraki adım.
+
 ## v0.15.0 | 20 Kasım 2026 (kararlı sürüm)
 
 İlk Band 8 sürümü. v0.13.1–v0.15.0-rc2 arasındaki tüm değişiklikleri içerir.
