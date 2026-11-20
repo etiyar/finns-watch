@@ -184,6 +184,11 @@ object CalendarReminders {
             return
         }
         Prefs.addCalendarSent(c, key)
+        if (title.isNotBlank() && WatchHub.calendarDedupe.seenRecently(title, now)) {
+            WatchHub.log("Takvim hatırlatması atlandı: takvim uygulamasının bildirimi 3 dk içinde zaten gönderildi.")
+            return
+        }
+        WatchHub.calendarDedupe.mark(title, now)
         val time = Fmt.hm(Instant.ofEpochMilli(begin).atZone(ZoneId.systemDefault()).hour, Instant.ofEpochMilli(begin).atZone(ZoneId.systemDefault()).minute)
         WatchHub.log("Takvim hatırlatması saate gönderiliyor.")
         WatchHub.forward(

@@ -800,3 +800,21 @@ Kullanıcının dışa aktardığı arşiv repo dışında çözüldü ve bandı
 - Bandın yazı tipi emoji çizemiyor: "Emoji testi" altı boş kutucuk gösterdi. Banda giden metinde yaygın emojiler kısa metne çevrilir, diğerleri çıkar (`EmojiText`, LS05 ile ortak).
 - Müzik: kendiliğinden giden 18/1 `ACK` aldı ama görünmedi. Band müzik ekranı açılınca ve tuşlara basınca şifreli 18/0 gönderdi. Uygulama 18/0'ı durum isteği sayar ve 18/1 ile yanıtlar (Music alan 1: 1 durum, 2 ses, 4 şarkı, 5 sanatçı, 6 konum, 7 süre; tahmin). 18/0 içinde Music alan 2 (1 tuş, 2 ses) varsa tuş olayı sayılır: 0 çal, 1 duraklat, 3 önceki, 4 sonraki, 5 ses (tahmin). Gelen her 18/x'in alan biçimi loga yazılır; sonraki cihaz testi yapıyı doğrulayacak.
 - Titreşim deseni 2/59: System alan 41 > tekrarlı 1 { 1 titreşim 1/0, 2 süre ms } (güçlü kanıt, cihazda denenmedi).
+
+### 17.8 Müzik sesi ve navigasyon ekranı (20.11.2026, build 197)
+
+**Müzik sesi**
+
+- Build 197: bandda sesi artırınca telefon en yükseğe (adım 150/150), azaltınca sıfıra (0/150) gitti. 18/2 içinde Music alanları `1v 2v` (build 191). Alan 1 bizim tuş kodu 5 saydığımız değer, alan 2 ses sanılan değer (tahmin). Alan 2'nin yüzde olmadığı ya da bizim 18/1'de bildirdiğimiz düzeyden başka bir ölçekte olduğu anlaşılıyor (güçlü kanıt: iki yönde de uç değer).
+- rc2: 18/1 içinde STREAM_MUSIC yüzdesi (0-100) bildirilir. Bandın 18/2 değeri son bildirdiğimiz yüzdeye 10 puandan yakınsa yüzde sayılır ve uygulanır. Uzaksa yalnızca yön sayılır, telefon sesi bir çentik (akışın on beşte biri) oynar (`MusicVolume.decide`).
+- Log: her 18/2 için ham alan 1 ve alan 2 (yalnızca sayılar), son bildirilen yüzde, akış adımı ve seçilen yol ("yüzde", "çentik", "aynı"). Her 18/1 için bildirilen yüzde. Sonraki cihaz testi alan 2'nin gerçek anlamını gösterecek.
+
+**Navigasyon ekranı**
+
+- Notify'ın Band 8'de gösterdiği büyük ok, "Turn left", "400m" ve "ETA" ekranı bir protokol komutu değil. Notify bu ekranı telefonda bir resim olarak çiziyor ve banda **kadran olarak yüklüyor**. Sabit bir kadran kimliği kullanıyor, resim her yönergede yenileniyor (güçlü kanıt: Notify kaynak incelemesi; yalnızca başvuru, kod alınmadı).
+- Notify manevrayı Google Maps bildiriminin büyük simgesinden (ok resmi) tanıyor. Sola, sağa, hafif, keskin, göbek çıkışları, rampa, çatal, varış gibi otuzu aşkın manevra türü var (güçlü kanıt).
+- Notify kaynağında Band 8 için ayrı bir navigasyon komutu (tür ve alt tür) bulunmadı. Aranan anahtar sözcükler yalnızca manevra listesini buldu (güçlü kanıt, eksiksiz değil: kaynak karartılmış).
+- Gadgetbridge belgelerine göre Xiaomi protobuf saatlerde navigasyon yönergesi **bildirim olarak, yönerge simgesiyle** gidiyor; ayrı bir navigasyon ekranı listelenmiyor (güçlü kanıt: gadgetbridge.org navigasyon sayfası; kod incelenmedi).
+- Bizde bildirim simgesi akışı doğrulandı (bkz. 9 ve bildirim simgesi notları): band bilmediği paket için 7/16 ile simge ister, simge tür 50 veri yüklemesiyle gider. Her manevra için ayrı bir sahte paket adı ve ok simgesi yüklenirse bildirimde büyük ok görünebilir (tahmin, cihazda denenmedi). Bu iş veri yükleme kanalının (0x0055) uygulamada kurulmasını gerektiriyor. rc2'de yapılmadı.
+- Kadran yoluyla tam ekran navigasyon: kadran dosya biçimi gerekiyor, kadran yüklemesi kapsam dışı (bkz. 9). **Uygulanmayacak.**
+- rc2 yedeği: bildirim başlığı kısa manevra adı ("Sola dön", "Hafif sağa", "Göbek", "Varış"), gövde mesafe, yönerge ve sokak. Manevra tanınmazsa başlık yönergenin kendisi, 20 karakteri aşarsa sözcük sınırında sağdan kısaltılır. Build 197'de uzun başlık bantta baştan kesik görünmüştü.

@@ -58,23 +58,23 @@ class NotifyExtrasTest {
     fun navigationForwardsManeuverChangeAndThrottlesDistanceTo30s() {
         val n = NavigationFilter()
         val first = n.decide("maps", "200 m", "Atatürk Cd. yönünde sola dönün", 0)!!
-        assertEquals("Atatürk Cd. yönünde sola dönün", first.title)
-        assertEquals("200 m", first.body)
+        assertEquals("Sola dön", first.title)
+        assertEquals("200 m · Atatürk Cd. yönünde sola dönün", first.body)
         assertNull(n.decide("maps", "150 m", "Atatürk Cd. yönünde sola dönün", 10_000), "yalnızca mesafe, 30 sn dolmadı")
-        assertEquals("150 m", n.decide("maps", "150 m", "Atatürk Cd. yönünde sola dönün", 31_000)?.body)
+        assertEquals("150 m · Atatürk Cd. yönünde sola dönün", n.decide("maps", "150 m", "Atatürk Cd. yönünde sola dönün", 31_000)?.body)
         val later = NavigationFilter()
         later.decide("maps", "200 m", "Sola dönün", 0)
-        assertEquals("100 m", later.decide("maps", "100 m", "Sola dönün", 30_000)?.body, "30 sn sonra mesafe güncellemesi")
+        assertEquals("100 m · Sola dönün", later.decide("maps", "100 m", "Sola dönün", 30_000)?.body, "30 sn sonra mesafe güncellemesi")
         assertNull(later.decide("maps", "100 m", "Sola dönün", 90_000), "aynı mesafe ve yönerge tekrar gitmez")
-        assertEquals("Sağa dönün", later.decide("maps", "50 m", "Sağa dönün", 31_000)?.title, "yönerge değişince hemen")
+        assertEquals("Sağa dön", later.decide("maps", "50 m", "Sağa dönün", 31_000)?.title, "yönerge değişince hemen")
     }
 
     @Test
     fun navigationFindsDistanceInEitherFieldAndKeepsStreet() {
         val n = NavigationFilter()
         val o = n.decide("osmand", "Sola dönün", "0,4 km · İstiklal Cd.", 0)!!
-        assertEquals("Sola dönün", o.title)
-        assertEquals("0,4 km · İstiklal Cd.", o.body)
+        assertEquals("Sola dön", o.title)
+        assertEquals("0,4 km · Sola dönün · İstiklal Cd.", o.body)
         val noDist = NavigationFilter().decide("maps", "Varış 12:30", "Hedefe yaklaşıyorsunuz", 0)!!
         assertEquals("Varış 12:30", noDist.title)
     }
@@ -97,6 +97,74 @@ class NotifyExtrasTest {
         assertEquals(8, MusicVolume.toStreamStep(50, 15))
         assertEquals(15, MusicVolume.toStreamStep(250, 15), "aralık dışı kırpılır")
         assertEquals(53, MusicVolume.toPercent(8, 15))
+    }
+
+    @Test
+    fun bandVolumeEventPlausiblePercentIsApplied() {
+        // Son bildirdiğimiz %40; bant %47 diyor: yakın, yüzde sayılır.
+        assertEquals(71, MusicVolume.decide(raw = 47, lastReportedPercent = 40, currentStep = 60, streamMax = 150))
+    }
+
+    @Test
+    fun bandVolumeEventFarValueStepsOneNotch() {
+        // 20.11.2026 build 197: yukarıda 150/150, aşağıda 0/150 sıçraması. Uzak değer yön sayılır, bir çentik (max/15).
+        assertEquals(70, MusicVolume.decide(raw = 255, lastReportedPercent = 40, currentStep = 60, streamMax = 150))
+        assertEquals(50, MusicVolume.decide(raw = 0, lastReportedPercent = 40, currentStep = 60, streamMax = 150))
+        assertEquals(150, MusicVolume.decide(raw = 999, lastReportedPercent = 100, currentStep = 145, streamMax = 150), "üstte kırpılır")
+        assertEquals(0, MusicVolume.decide(raw = 0, lastReportedPercent = 3, currentStep = 4, streamMax = 150), "altta kırpılır")
+        assertEquals(60, MusicVolume.decide(raw = 40, lastReportedPercent = 40, currentStep = 60, streamMax = 150), "aynı düzey: değişmez")
+    }
+
+    @Test
+    fun bandVolumeEventWithoutReportUsesDirectionFromCurrent() {
+        assertEquals(1, MusicVolume.decide(raw = 101, lastReportedPercent = null, currentStep = 0, streamMax = 15))
+    }
+
+    // ---------- Navigasyon manevrası ----------
+
+    @Test
+    fun maneuverIsClassifiedToShortTitle() {
+        assertEquals(NavManeuver.LEFT, NavManeuver.classify("Çınar Sk. yönünde sola dönün"))
+        assertEquals(NavManeuver.RIGHT, NavManeuver.classify("Turn right onto Main St"))
+        assertEquals(NavManeuver.SLIGHT_LEFT, NavManeuver.classify("Hafif sola dönün"))
+        assertEquals(NavManeuver.U_TURN, NavManeuver.classify("U dönüşü yapın"))
+        assertEquals(NavManeuver.ROUNDABOUT, NavManeuver.classify("Göbekten 2. çıkışa girin"))
+        assertEquals(NavManeuver.STRAIGHT, NavManeuver.classify("Continue straight"))
+        assertEquals(NavManeuver.ARRIVE, NavManeuver.classify("Hedefinize ulaştınız"))
+        assertEquals(NavManeuver.UNKNOWN, NavManeuver.classify("Atatürk Cd."))
+        assertEquals("Sola dön", NavManeuver.LEFT.label)
+    }
+
+    @Test
+    fun navigationOutputHasShortTitleAndFullBody() {
+        val o = NavigationFilter().decide("maps", "200 m", "Çınar Sk. yönünde sola dönün", 0)!!
+        assertEquals("Sola dön", o.title)
+        assertEquals("200 m · Çınar Sk. yönünde sola dönün", o.body)
+        val u = NavigationFilter().decide("maps", "Atatürk Cd.", "", 0)!!
+        assertEquals("Atatürk Cd.", u.title)
+        assertEquals(NavManeuver.STRAIGHT, NavManeuver.classify("Head towards Çınar Sk."))
+    }
+
+    @Test
+    fun longUnknownManeuverIsCutFromTheRightAndKeptInBody() {
+        val o = NavigationFilter().decide("maps", "350 m", "Mustafa Kemal Paşa Bulvarı çıkışını kullanın", 0)!!
+        assertEquals("Mustafa Kemal Paşa…", o.title, "başlık sözcük sınırında sağdan kısalır")
+        assertEquals("350 m · Mustafa Kemal Paşa Bulvarı çıkışını kullanın", o.body)
+    }
+
+    // ---------- Takvim çift bildirim ----------
+
+    @Test
+    fun calendarTitleSeenWithinThreeMinutesIsDuplicate() {
+        val d = TitleDedupe(windowMs = 180_000)
+        assertTrue(!d.seenRecently("Toplantı", 0))
+        d.mark("Toplantı", 0)
+        assertTrue(d.seenRecently("TOPLANTI ", 179_000), "büyük/küçük harf ve boşluk duyarsız")
+        assertTrue(!d.seenRecently("Toplantı", 181_000))
+        assertTrue(!d.seenRecently("Başka", 1_000))
+        assertTrue(!d.seenRecently("", 1_000), "boş başlık eşleşmez")
+        assertTrue("com.google.android.calendar" in TitleDedupe.CALENDAR_PACKAGES)
+        assertTrue("com.whatsapp" !in TitleDedupe.CALENDAR_PACKAGES)
     }
 
     // ---------- Telefon pili ----------

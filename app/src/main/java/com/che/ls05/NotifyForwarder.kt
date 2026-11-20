@@ -18,6 +18,7 @@ import com.che.ls05.protocol.NotifyDecision
 import com.che.ls05.protocol.NotifyRules
 import com.che.ls05.protocol.RepeatTracker
 import com.che.ls05.protocol.TextSanitizer
+import com.che.ls05.protocol.TitleDedupe
 import com.che.ls05.protocol.band8.B8Text
 
 /**
@@ -114,6 +115,14 @@ class NotifyForwarder : NotificationListenerService() {
                 return
             }
             is NotifyDecision.Forward -> d.rule
+        }
+        if (pkg in TitleDedupe.CALENDAR_PACKAGES) {
+            // Takvim hatırlatmamız aynı etkinlik için az önce gittiyse ikincisi gitmez.
+            if (WatchHub.calendarDedupe.seenRecently(cleanTitle, now) || WatchHub.calendarDedupe.seenRecently(cleanText, now)) {
+                WatchHub.log("Bildirim atlandı: aynı takvim etkinliği 3 dk içinde zaten gönderildi.")
+                return
+            }
+            WatchHub.calendarDedupe.mark(cleanTitle, now)
         }
         val label = appLabel(pkg)
         WatchHub.log("Bildirim dinleyiciden iletime geçti: $label, tür=MESSAGE${rule?.let { ", kural ${it.id}" } ?: ""}.")
