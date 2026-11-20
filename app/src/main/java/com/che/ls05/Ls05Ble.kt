@@ -552,19 +552,20 @@ class Ls05Ble(private val context: Context, private val listener: Listener) {
     }
 
     /** Yalnızca kanıtlanmış 0x0F akışı + kayıttaki titreşim. Paketler arası 50 ms boşluk. */
-    fun sendNotification(title: String, body: String, vibrateAfter: Boolean, type: Int = MSG_TYPE_GENERIC): Int {
+    fun sendNotification(title: String, body: String, vibrateAfter: Boolean, type: Int = MSG_TYPE_GENERIC, vibrateCount: Int = 2): Int {
         if (active == null) { log("Hazır değil, bildirim gönderilmedi."); return 0 }
-        return sendPackets(NotificationPacketizer.build(title, body, type), vibrateAfter)
+        return sendPackets(NotificationPacketizer.build(title, body, type), vibrateAfter, vibrateCount)
     }
 
-    private fun sendPackets(packets: List<ByteArray>, vibrateAfter: Boolean): Int {
+    private fun sendPackets(packets: List<ByteArray>, vibrateAfter: Boolean, vibrateCount: Int = 2): Int {
         val c = active ?: run { log("Hazır değil, bildirim gönderilmedi."); return 0 }
         log("Bildirim: ${packets.size} paket (${packets.size - 1} veri + bitiş)${if (vibrateAfter) " + titreşim" else ", titreşimsiz"}. Metin loga yazılmaz.")
         packets.forEachIndexed { i, p ->
             enqueue(Op.Write(c.write, p, "bildirim paket ${i + 1}/${packets.size}", gapAfterMs = 50))
         }
         // Kayıttaki sıra: 0F FD'den hemen sonra mesaj titreşimi. İsteğe bağlı.
-        if (vibrateAfter) enqueue(Op.Write(c.write, UteCommand.VIBRATE_TEXT, "mesaj titreşimi (06)", gapAfterMs = 300))
+        // Kural titreşimi sayısı (varsayılan 2 = kayıttaki mesaj titreşimi).
+        if (vibrateAfter) enqueue(Op.Write(c.write, UteCommand.vibrateCount(vibrateCount), "mesaj titreşimi (06) x$vibrateCount", gapAfterMs = 300))
         return packets.size
     }
 

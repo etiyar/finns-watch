@@ -1134,6 +1134,18 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
         }
     }
 
+    private val navigationRow: SwitchRow = ui.switchRow(
+        "Navigasyon yönergeleri",
+        "Google Maps yönergesi değişince saate gider (OsmAnd, Komoot denenmedi).",
+        Prefs.navigation(act),
+    ) { Prefs.setNavigation(act, it) }
+    private val batteryLowRow: SwitchRow = ui.switchRow(
+        "Telefon pili azaldı", "Eşik: %${Prefs.batteryLowThreshold(act)}. Değiştirmek için uzun bas.", Prefs.batteryLow(act),
+    ) { Prefs.setBatteryLow(act, it) }
+    private val batteryFullRow: SwitchRow = ui.switchRow(
+        "Telefon pili doldu", "Şarjdayken %100 olunca bir kez.", Prefs.batteryFull(act),
+    ) { Prefs.setBatteryFull(act, it) }
+
     // Küçük ikincil düğme: sayfanın asıl işi iletim ayarları, test yardımcı.
     private val ls05NotificationOptions = ui.vertical()
     private val testButton: Button = ui.secondary("Test bildirimi gönder") {
@@ -1163,6 +1175,16 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
         }
         ui.add(main, ls05NotificationOptions)
         ui.add(body, main, topDp = 10)
+
+        // Kurallar ve özel kaynaklar: iki saat için ortak.
+        val extra = ui.card(padDp = 16, padVDp = 6)
+        ui.add(extra, ui.row("Bildirim kuralları", "Uygulama, kişi, kelime, sessiz saatler, tekrar") { NotifyRulesScreen(act).show() })
+        for (row in listOf(navigationRow, batteryLowRow, batteryFullRow)) {
+            ui.add(extra, ui.divider(), height = ui.dp(1))
+            ui.add(extra, row.view)
+        }
+        batteryLowRow.view.setOnLongClickListener { editBatteryThreshold(); true }
+        ui.add(body, extra, topDp = 10)
 
         // "Uygulamalar" + arama simgesi. Arama kutusu simgeye dokununca açılır.
         val head = ui.horizontal()
@@ -1315,6 +1337,22 @@ class NotifyPage(act: MainActivity) : Page(act, "Bildirimler") {
     // ---------- Test bildirimi ----------
 
     /** Gönderildiyse true. Sonuç bu sekmede işaretlenir. */
+    private fun editBatteryThreshold() {
+        val box = ui.dialogBox()
+        val f = ui.field("Yüzde (5-50)")
+        f.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        f.setText(Prefs.batteryLowThreshold(act).toString())
+        ui.add(box, f, topDp = 8)
+        val d = AlertDialog.Builder(act).setTitle("Düşük pil eşiği").setView(box)
+            .setPositiveButton("Kaydet") { _, _ ->
+                f.text.toString().toIntOrNull()?.let { Prefs.setBatteryLowThreshold(act, it) }
+                batteryLowRow.subtitle.text = "Eşik: %${Prefs.batteryLowThreshold(act)}. Değiştirmek için uzun bas."
+            }
+            .setNegativeButton("Vazgeç", null).create()
+        act.track(d)
+        d.show()
+    }
+
     fun sendTest(title: String, message: String): Boolean {
         val s = WatchHub.service
         if (s == null || !s.isWatchReady()) {
@@ -1601,7 +1639,8 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
                 ui.add(bandProbes, r, topDp = 4)
             }
         }
-        group("Bildirim: emojiler bantta görünüyor mu", "Emoji testi" to Band8Probe.EMOJI_TEST)
+        group("Bildirim: emojiler kısa metne dönüyor mu (<3 (+1) :D :O :( (dua))", "Emoji testi" to Band8Probe.EMOJI_TEST)
+        group("Titreşim: kısa-kısa-uzun desen (kurallarda henüz kullanılmaz)", "Titreşim deseni testi" to Band8Probe.VIBRATION_TEST)
         group("Arama (gelen arama ve kapatma yukarıdaki denemede)", "Cevapsız arama" to Band8Probe.MISSED_CALL)
         group("Alarm: her değişiklikten önce listeyi oku. Test alarmı 2 dakika sonra çalar.",
             "Alarm listesini oku" to Band8Probe.ALARM_LIST, "Test alarmı kur" to Band8Probe.ALARM_CREATE,

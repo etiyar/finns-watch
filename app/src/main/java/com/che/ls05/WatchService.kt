@@ -29,6 +29,7 @@ import com.che.ls05.protocol.ProfileSetting
 import com.che.ls05.protocol.RemoteAction
 import com.che.ls05.protocol.SettingSync
 import com.che.ls05.protocol.SwitchRules
+import com.che.ls05.protocol.EmojiText
 import com.che.ls05.protocol.TextSanitizer
 import com.che.ls05.protocol.TurkishFold
 import com.che.ls05.protocol.WatchEvent
@@ -158,6 +159,32 @@ class WatchService : Service(), DriverListener {
         }
     }
 
+    // ---------- Telefon pili uyarısı ----------
+
+    private val batteryAlerts = com.che.ls05.protocol.BatteryAlerts()
+
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val level = intent.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+            val scale = intent.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100)
+            if (level < 0 || scale <= 0) return
+            val pct = level * 100 / scale
+            val status = intent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
+            val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == android.os.BatteryManager.BATTERY_STATUS_FULL
+            val c = this@WatchService
+            val alert = batteryAlerts.update(pct, charging, Prefs.batteryLow(c), Prefs.batteryLowThreshold(c), Prefs.batteryFull(c)) ?: return
+            val body = when (alert) {
+                com.che.ls05.protocol.BatteryAlerts.Alert.LOW -> "Pil %$pct. Şarja tak."
+                com.che.ls05.protocol.BatteryAlerts.Alert.FULL -> "Pil doldu (%$pct)."
+            }
+            WatchHub.log("Telefon pili uyarısı: ${alert.name}.")
+            val now = System.currentTimeMillis()
+            WatchHub.forward(c, WatchHub.Note(packageName, "Telefon", "Telefon pili", body, MSG_TYPE_GENERIC, now,
+                androidId = (now / 1000).toInt(), androidKey = "battery:${alert.name}:$now"))
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -170,6 +197,7 @@ class WatchService : Service(), DriverListener {
         createChannel()
         LinkAlert.createChannel(this)
         registerReceiver(btReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+        registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
     }
 
     override fun onDestroy() {
@@ -185,6 +213,7 @@ class WatchService : Service(), DriverListener {
         stopFind("servis kapandı")
         main.removeCallbacksAndMessages(delayedToken)
         try { unregisterReceiver(btReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(batteryReceiver) } catch (_: Exception) {}
         restarting = true
         driver.release("servis kapandı")
         restarting = false
@@ -511,19 +540,22 @@ class WatchService : Service(), DriverListener {
             WatchHub.NoteKind.MESSAGE, WatchHub.NoteKind.MISSED_CALL -> {
                 val isBand = driver.type == WatchType.BAND8
                 // Cevapsız arama kendi ayarıyla süzülür (Bildirimler > Cevapsız aramalar), uygulama filtresiyle değil.
+                // Uygulamanın kendi uyarıları (telefon pili) uygulama filtresine takılmaz.
                 if (isBand && (!Prefs.forwardingEnabled(this) ||
-                        (note.kind == WatchHub.NoteKind.MESSAGE && !Prefs.appEnabled(this, note.pkg)))) return
+                        (note.kind == WatchHub.NoteKind.MESSAGE && note.pkg != packageName && !Prefs.appEnabled(this, note.pkg)))) return
                 // Bildirim metni emojili gelir (Band 8 çizer). LS05'in yazı tipi için eski temizleyici burada uygulanır.
                 val text = if (driver.type == WatchType.LS05) {
-                    val t = TextSanitizer.clean(note.title)
-                    val b = TextSanitizer.clean(note.body)
+                    // Bilinen emoji önce kısa metne döner (❤️ → <3), kalanını eski temizleyici çıkarır.
+                    val t = TextSanitizer.clean(EmojiText.apply(note.title))
+                    val b = TextSanitizer.clean(EmojiText.apply(note.body))
                     if (t.isEmpty() && b.isEmpty()) {
                         WatchHub.log("Bildirim atlandı: gösterilecek metin yok.")
                         return
                     }
                     note.copy(title = fold(t.ifEmpty { note.appLabel }), body = fold(b))
                 } else note
-                val sent = driver.sendAppNotification(text, Prefs.vibrate(this))
+                // Kural titreşimi 0 ise titreşimsiz; sayıyı LS05 sürücüsü uygular.
+                val sent = driver.sendAppNotification(text, Prefs.vibrate(this) && note.vibration != 0)
                 if (sent) {
                     val what = if (note.kind == WatchHub.NoteKind.MISSED_CALL) "Cevapsız arama" else note.appLabel
                     if (isBand) WatchHub.log("Band 8 bildirim gönderimi sıraya alındı: $what.")
@@ -533,7 +565,7 @@ class WatchService : Service(), DriverListener {
                 }
             }
             WatchHub.NoteKind.CALL_ALERT ->
-                sendCallAlert(if (driver.type == WatchType.LS05) fold(TextSanitizer.clean(note.body)) else note.body)
+                sendCallAlert(if (driver.type == WatchType.LS05) fold(TextSanitizer.clean(EmojiText.apply(note.body))) else note.body)
             WatchHub.NoteKind.CALL_STOP -> sendCallStop("arama cevaplandı ya da bitti")
         }
     }
@@ -1005,6 +1037,11 @@ class WatchService : Service(), DriverListener {
             }
         } else {
             WatchHub.log("Arama bildiriminde reddet eylemi bulunamadı; endCall deneniyor.")
+        }
+        // VoIP aramada (WhatsApp, Telegram...) endCall telefon aramasını kapatabilir; denenmez.
+        if (WatchHub.declinePkg in com.che.ls05.protocol.CallClassifier.VOIP_PACKAGES) {
+            WatchHub.log("VoIP arama reddedilemedi: bildirim eylemi yok ya da çalışmadı.")
+            return
         }
         if (android.os.Build.VERSION.SDK_INT < 28 ||
             checkSelfPermission(android.Manifest.permission.ANSWER_PHONE_CALLS) != android.content.pm.PackageManager.PERMISSION_GRANTED

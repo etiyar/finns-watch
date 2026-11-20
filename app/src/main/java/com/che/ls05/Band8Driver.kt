@@ -24,6 +24,7 @@ import com.che.ls05.protocol.band8.B8Notification
 import com.che.ls05.protocol.band8.B8RawSetting
 import com.che.ls05.protocol.band8.B8Standing
 import com.che.ls05.protocol.band8.B8Text
+import com.che.ls05.protocol.band8.B8Vibration
 import com.che.ls05.protocol.band8.B8Type
 import com.che.ls05.protocol.band8.B8Weather
 import com.che.ls05.protocol.band8.B8WeatherMeta
@@ -39,6 +40,7 @@ import java.util.Locale
 enum class Band8Probe(val label: String) {
     MISSED_CALL("cevapsız arama 7/0"),
     EMOJI_TEST("emoji testi 7/0"),
+    VIBRATION_TEST("titreşim deseni testi 2/59"),
     ALARM_LIST("alarm listesi 17/0"),
     ALARM_CREATE("test alarmı oluştur 17/1"),
     ALARM_EDIT("test alarmını düzenle 17/2"),
@@ -73,6 +75,9 @@ class Band8Driver(
     private val main = Handler(Looper.getMainLooper())
     private var callTestActive = false
     private val appContext = context.applicationContext
+    private val music: Band8Music by lazy {
+        Band8Music(appContext, main, { listener.onLog(it) }) { ble.sendFeature(it, "müzik bilgisi 18/1") }
+    }
 
     /** Gönderilen düzenlemenin saati; yanıt gelince kaydedilir. */
     private var pendingEditTime: Pair<Int, Int>? = null
@@ -115,6 +120,7 @@ class Band8Driver(
         val now = ZonedDateTime.now()
         val command: ByteArray = when (p) {
             Band8Probe.MISSED_CALL -> B8Calls.missedCall(TEST_CALLER, notificationTime(System.currentTimeMillis()))
+            Band8Probe.VIBRATION_TEST -> B8Vibration.pattern(B8Vibration.TEST)
             Band8Probe.EMOJI_TEST -> {
                 val t = System.currentTimeMillis()
                 B8Messages.notification(B8Notification(packageName, "Finn's Watch", "Emoji testi", B8Text.EMOJI_TEST, notificationTime(t), (t / 1000).toInt(), "emoji:$t"))
@@ -240,8 +246,15 @@ class Band8Driver(
                 listener.onLog(if (s != null) "Band 8 hareketsizlik ayarı okundu: Health alanı ${s.field}, alanlar ${s.shape()}"
                     else "Band 8 hareketsizlik ayarı beklenen biçimde değil")
             }
-            command.type == B8Type.MUSIC ->
-                listener.onLog("Band 8 müzik olayı: altTür=${command.subtype}")
+            command.type == B8Type.MUSIC -> {
+                // Yapı tahmin: alan biçimi loga yazılır (metin yok), istek yanıtlanır, tuş uygulanır.
+                listener.onLog("Band 8 müzik olayı: altTür=${command.subtype}, alanlar=${B8Music.describe(command)}")
+                val key = B8Music.mediaKey(command)
+                when {
+                    key != null -> music.onKey(key)
+                    B8Music.isStateRequest(command) -> music.onRequest()
+                }
+            }
         }
     }
 
@@ -258,6 +271,7 @@ class Band8Driver(
     override fun forceClose(reason: String) { clearCallTest(); ble.forceClose() }
     override fun release(reason: String) {
         clearCallTest()
+        music.stop()
         ble.release()
     }
 
@@ -320,6 +334,7 @@ class Band8Driver(
 
     override fun onReady(ready: Boolean) {
         if (!ready) clearCallTest()
+        if (ready) music.start() else music.stop()
         if (ready) listener.onAuth(AuthOutcome(AuthOutcome.Kind.OK))
         listener.onReadyChanged(ready)
     }

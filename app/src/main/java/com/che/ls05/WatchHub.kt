@@ -20,6 +20,8 @@ object WatchHub {
     @Volatile var declineKey: String? = null
     @Volatile var declineAt: Long = 0
     @Volatile var declineLabel: String = ""
+    /** Reddet eyleminin geldiği paket: VoIP aramada telefon araması kapatılmasın diye. */
+    @Volatile var declinePkg: String = ""
 
 
     interface Observer {
@@ -68,6 +70,8 @@ object WatchHub {
         val ttlMs: Long = PENDING_TTL_MS,
         val androidId: Int = 0,
         val androidKey: String? = null,
+        /** Bildirim kuralının titreşimi: -1 varsayılan, 0 titreşimsiz, 1-5 sayı (yalnızca LS05). */
+        val vibration: Int = -1,
     )
 
     /** Çalan aramalar (bildirim anahtarına göre). Bildirim dinleyici ve servis ana iş parçacığında kullanır. */
