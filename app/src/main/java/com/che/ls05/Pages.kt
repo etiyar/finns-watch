@@ -1510,6 +1510,8 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private val bandFindTests = ui.vertical()
     private val bandCallTests = ui.vertical()
     private val bandProbes = ui.vertical()
+    /** Gelişmiş > Band 8 bildirim simgesi ve kadran (deneysel). MainActivity dosya seçici sonucunu buraya verir. */
+    val bandFaces = Band8FaceCard(act)
     private val logView: TextView = ui.mono()
     private var setupOpened = false
 
@@ -1610,6 +1612,8 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         buildBandProbes()
         bandProbes.visibility = View.GONE
         ui.add(adv.content, bandProbes, topDp = 12)
+        bandFaces.view.visibility = View.GONE
+        ui.add(adv.content, bandFaces.view, topDp = 20)
         ui.add(adv.content, ui.cardTitle("Log"), topDp = 20)
         val lr = ui.horizontal()
         ui.add(lr, ui.secondary("Logu kopyala") { copyLog() }, width = 0, weight = 1f)
@@ -1634,6 +1638,8 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             if (WatchRegistry.active(act)?.type == WatchType.BAND8) View.VISIBLE else View.GONE
         bandCallTests.visibility = bandFindTests.visibility
         bandProbes.visibility = bandFindTests.visibility
+        bandFaces.view.visibility = bandFindTests.visibility
+        bandFaces.refresh()
         refreshSetup()
         refreshWatchInfo()
         theme.select(Prefs.themeMode(act))
@@ -1815,6 +1821,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     }
 
     fun refreshWatchInfo() {
+        bandFaces.refresh()
         weatherSwitch.toggle.set(Prefs.weatherEnabled(act))
         cityRow.value.text = Prefs.weatherCityName(act).ifEmpty { "Seçilmedi" }
         weatherInfo.text = WeatherSync.summary(act)

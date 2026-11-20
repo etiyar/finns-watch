@@ -100,6 +100,10 @@ object Prefs {
     fun setProfileVerified(c: Context, value: Boolean) = p(c).edit().putBoolean(k(c, "profileVerified"), value).apply()
 
     /** Son başarılı adım geçmişi okuması (ms); 0 = hiç. */
+    /** Band 8 bildirim simgesi yüklemesi (deneysel, varsayılan kapalı). */
+    fun band8Icons(c: Context): Boolean = p(c).getBoolean("band8Icons", false)
+    fun setBand8Icons(c: Context, value: Boolean) = p(c).edit().putBoolean("band8Icons", value).apply()
+
     /** Band 8 deneme alarmının son kurulan saati ("Test alarmlarını temizle" ve düzenle/sil için). */
     fun band8TestAlarm(c: Context): Pair<Int, Int>? {
         val v = p(c).getInt("band8TestAlarm", -1)
