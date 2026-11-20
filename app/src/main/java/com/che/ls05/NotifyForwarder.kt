@@ -13,6 +13,7 @@ import com.che.ls05.protocol.MSG_TYPE_CALL
 import com.che.ls05.protocol.MSG_TYPE_GENERIC
 import com.che.ls05.protocol.MSG_TYPE_INCOMING_CALL
 import com.che.ls05.protocol.TextSanitizer
+import com.che.ls05.protocol.band8.B8Text
 
 /**
  * Telefon bildirimlerini saate iletir.
@@ -125,7 +126,7 @@ class NotifyForwarder : NotificationListenerService() {
                     rememberDeclineAction(n, sbn.key, now)
                     val (title, text) = texts(n)
                     // Arama uygulamaları arayanı genelde başlıkta verir; yoksa metin.
-                    val name = title.ifEmpty { text }
+                    val name = title.takeIf { TextSanitizer.clean(it).isNotEmpty() } ?: text
                     WatchHub.log("Gelen arama algılandı (${appLabel(pkg)}).")
                     WatchHub.forward(
                         this,
@@ -138,7 +139,8 @@ class NotifyForwarder : NotificationListenerService() {
             CallKind.MISSED -> {
                 if (!forwarding || !Prefs.missedCalls(this)) return
                 val (title, text) = texts(n)
-                val body = listOf(title, text).filter { it.isNotEmpty() }.joinToString(": ").ifEmpty { "Cevapsız arama" }
+                // LS05 ile aynı sonuç için: LS05'te boş kalacak (yalnızca emoji) parçalar birleştirilmez.
+                val body = listOf(title, text).filter { TextSanitizer.clean(it).isNotEmpty() }.joinToString(": ").ifEmpty { "Cevapsız arama" }
                 if (isRepeat("missed|$pkg|${body.hashCode()}", now)) return
                 WatchHub.forward(
                     this,
@@ -177,7 +179,7 @@ class NotifyForwarder : NotificationListenerService() {
 
     // ---------- Yardımcılar ----------
 
-    /** Temizlenmiş başlık ve metin. */
+    /** Temizlenmiş başlık ve metin (kontrol karakterleri çıkar, emoji kalır). */
     private fun texts(n: Notification): Pair<String, String> {
         val extras = n.extras
         val title = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
@@ -186,7 +188,8 @@ class NotifyForwarder : NotificationListenerService() {
                 ?: extras?.getCharSequence(Notification.EXTRA_TEXT)
                 ?: n.tickerText
             )?.toString().orEmpty()
-        return TextSanitizer.clean(title) to TextSanitizer.clean(text)
+        // Emoji korunur (Band 8 çizer); LS05'e gönderirken WatchService eski temizleyiciyi uygular.
+        return B8Text.clean(title) to B8Text.clean(text)
     }
 
     /** 60 sn içinde aynı içerik ikinci kez gelirse true. */

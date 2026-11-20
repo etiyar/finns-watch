@@ -78,4 +78,7 @@ interface DriverListener {
 
     /** Band 8'e aynı anda başka bir uygulama (Mi Fitness, Notify) bağlı. Bağlantı başına bir kez. */
     fun onForeignClient() {}
+
+    /** Band 8 arama ekranında reddet ([reject] true) ya da sessize al basıldı. */
+    fun onBandCallAction(reject: Boolean) {}
 }
