@@ -26,6 +26,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- İsteğe bağlı takvim hatırlatmaları (Saat > Hatırlatıcılar ve takvim). Etkinlik başlığı saklanmaz. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- "Telefonu bul" titreşimi (normal izin, kullanıcıya sorulmaz) -->

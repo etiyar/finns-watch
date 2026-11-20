@@ -457,6 +457,7 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
     // Etkin saatin desteklemediği bölümler gizlenir (Capabilities). LS05'te hepsi görünür.
     private val alarmViews = ArrayList<View>()
     private val band8Alarms = Band8AlarmsCard(act)
+    private val band8Idle = Band8IdleCard(act)
     private var alarmSection: View? = null
     private val faceViews = ArrayList<View>()
     private val profileViews = ArrayList<View>()
@@ -531,6 +532,15 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         ui.add(body, addAlarm, topDp = 10, width = Ui.WRAP)
         exactBanner.view.visibility = View.GONE
         ui.add(body, exactBanner.view, topDp = 10)
+
+        // Hatırlatıcılar ve takvim: iki saat için ortak, telefondan gönderilir.
+        val reminders = ui.card(padDp = 16, padVDp = 6)
+        ui.add(reminders, ui.row("Hatırlatıcılar ve takvim", "Özel hatırlatıcılar ve telefon takvimi saate bildirim olarak gelir") {
+            RemindersScreen(act).show()
+        })
+        ui.add(body, reminders, topDp = 10)
+        band8Idle.view.visibility = View.GONE
+        ui.add(body, band8Idle.view)
 
         // Rahatsız etme ve saati bul yan yana, eşit yükseklikte.
         val pair = LinearLayout(act)
@@ -682,7 +692,11 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         val band = WatchRegistry.active(act)?.type == WatchType.BAND8
         show(alarmSection, slots > 0 || band)
         show(band8Alarms.view, band)
-        if (band) band8Alarms.refresh()
+        show(band8Idle.view, band)
+        if (band) {
+            band8Alarms.refresh()
+            band8Idle.refresh()
+        }
         faceViews.forEach { show(it, caps.faces) }
         profileViews.forEach { show(it, caps.profile) }
         show(dndView, caps.dnd)
