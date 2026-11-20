@@ -1,11 +1,19 @@
 package com.che.ls05
 
 import android.content.Context
+import com.che.ls05.protocol.Band8Health
 import com.che.ls05.protocol.HealthEntry
 import com.che.ls05.protocol.HealthLog
+import com.che.ls05.protocol.HealthQuery
+import com.che.ls05.protocol.HealthSource
 import com.che.ls05.protocol.HealthView
 import com.che.ls05.protocol.Hex
+import com.che.ls05.protocol.MergedHealth
+import com.che.ls05.protocol.SourceKind
 import com.che.ls05.protocol.StepHour
+import com.che.ls05.protocol.SwitchTimeline
+import com.che.ls05.protocol.WatchRecord
+import com.che.ls05.protocol.WatchType
 import java.io.File
 import java.io.FileOutputStream
 import java.time.Instant
@@ -45,10 +53,50 @@ object HealthStore {
         return if (a == null || a.legacy) DIR else "$DIR-${a.id}"
     }
 
+    /** Belirli bir saat kaydının sağlık klasörü adı. */
+    fun dirNameFor(w: WatchRecord): String = if (w.legacy) DIR else "$DIR-${w.id}"
+
+    private var app: Context? = null
+
+    /** Etkin olmayan LS05 saatlerinin son 3 günlük kayıtları (birleşik görünüm için). */
+    private var otherLs05: List<Pair<HealthSource, List<HealthEntry>>> = emptyList()
+    private var switches: SwitchTimeline = SwitchTimeline.parse("")
+
+    private fun source(w: WatchRecord) =
+        HealthSource(w.id, w.name, if (w.type == WatchType.BAND8) SourceKind.BAND8 else SourceKind.LS05)
+
+    private fun readEntries(d: File, days: Long, today: LocalDate): List<HealthEntry> {
+        val list = ArrayList<HealthEntry>()
+        val known = HashSet<String>()
+        for (back in days - 1 downTo 0L) {
+            val f = fileFor(d, today.minusDays(back))
+            try {
+                if (!f.exists()) continue
+                for (e in HealthLog.parseAll(f.readText(Charsets.UTF_8))) if (known.add(e.hex)) list += e
+            } catch (_: Exception) {
+            }
+        }
+        return list
+    }
+
+    private fun readSwitches(c: Context): SwitchTimeline = try {
+        val f = SwitchLog.file(c)
+        SwitchTimeline.parse(if (f.isFile) f.readText(Charsets.UTF_8) else "")
+    } catch (_: Exception) {
+        SwitchTimeline.parse("")
+    }
+
     fun init(c: Context) {
         if (dir != null) return
+        app = c.applicationContext
         val d = File(c.filesDir, dirName(c))
         dir = d
+        val activeId = WatchRegistry.active(c)?.id
+        otherLs05 = WatchRegistry.list(c).watches
+            .filter { it.type == WatchType.LS05 && it.id != activeId }
+            .map { source(it) to readEntries(File(c.filesDir, dirNameFor(it)), VIEW_DAYS, today()) }
+        switches = readSwitches(c)
+        Band8HealthStore.ensureLoaded(c)
         try {
             if (!d.exists()) d.mkdirs()
         } catch (e: Exception) {
@@ -84,6 +132,11 @@ object HealthStore {
     var generation = 0
         private set
 
+    /** Band 8 verisi yeniden ayrıştırıldı: uzun aralık önbellekleri yeniden okunsun. */
+    fun band8Changed() {
+        generation++
+    }
+
     /** Etkin saat değişti: bellek boşaltılır, sonraki çağrı etkin saatin kayıtlarını yükler. */
     fun reset(c: Context) {
         generation++
@@ -92,6 +145,7 @@ object HealthStore {
         seen.clear()
         live.clear()
         trimmedFor = null
+        otherLs05 = emptyList()
         init(c)
     }
 
@@ -156,33 +210,56 @@ object HealthStore {
      * çalıştırılabilir, dosyaları yalnızca okur ve bellekteki duruma dokunmaz. [view] yalnızca son 3 günü tuttuğu için
      * uzun aralık dosyalardan okunur.
      */
-    fun reader(c: Context, days: Long): () -> HealthView {
+    fun reader(c: Context, days: Long): () -> HealthQuery {
         init(c)
-        val d = dir
         val liveCopy = live.values.toList()
         val today = today()
+        val filesDir = c.filesDir
+        val appCtx = c.applicationContext
+        val watches = WatchRegistry.list(c).watches
+        val activeId = WatchRegistry.active(c)?.id
+        val zone = zone()
         return {
-            val list = ArrayList<HealthEntry>()
-            val known = HashSet<String>()
-            if (d != null) {
-                for (back in days - 1 downTo 0L) {
-                    val f = fileFor(d, today.minusDays(back))
-                    try {
-                        if (!f.exists()) continue
-                        for (e in HealthLog.parseAll(f.readText(Charsets.UTF_8))) {
-                            if (known.add(e.hex)) list += e
-                        }
-                    } catch (_: Exception) {
-                    }
-                }
+            val ls = watches.filter { it.type == WatchType.LS05 }.map { w ->
+                val entries = readEntries(File(filesDir, dirNameFor(w)), days, today)
+                source(w) to HealthView(entries, if (w.id == activeId) liveCopy else emptyList())
             }
-            HealthView(list, liveCopy)
+            val band = watches.filter { it.type == WatchType.BAND8 }.map { w ->
+                source(w) to Band8HealthStore.readDays(appCtx, dirNameFor(w), today.minusDays(days - 1), today)
+            }
+            val sw = readSwitches(appCtx)
+            MergedHealth(ls, band, { t -> sw.activeAt(t.atZone(zone).toEpochSecond()) }, activeId)
         }
     }
 
-    /** Son 3 günün kayıtları + bellekteki canlı adımlar. */
-    fun view(): HealthView {
+    /** Son 3 günün kayıtları + bellekteki canlı adımlar, bütün saatlerden birleşik. */
+    fun view(): HealthQuery {
         if (dir != null) trim()
-        return HealthView(entries.toList(), live.values.toList())
+        val c = app ?: return HealthView(entries.toList(), live.values.toList())
+        val list = WatchRegistry.list(c)
+        val active = list.active
+        val ls = ArrayList<Pair<HealthSource, HealthView>>()
+        if (active == null || active.type == WatchType.LS05) {
+            val src = active?.let { source(it) } ?: HealthSource("", "LS05", SourceKind.LS05)
+            ls += src to HealthView(entries.toList(), live.values.toList())
+        }
+        for ((src, e) in otherLs05) ls += src to HealthView(e)
+        val since = today().minusDays(VIEW_DAYS)
+        val snap = Band8HealthStore.snapshot
+        val band = list.watches.filter { it.type == WatchType.BAND8 }.mapNotNull { w ->
+            val h = snap[w.id] ?: return@mapNotNull null
+            source(w) to recent(h, since)
+        }
+        val zone = zone()
+        val sw = switches
+        return MergedHealth(ls, band, { t -> sw.activeAt(t.atZone(zone).toEpochSecond()) }, active?.id)
     }
+
+    /** Ana iş parçacığında birleştirme küçük kalsın: yalnızca son günler. */
+    private fun recent(h: Band8Health, since: LocalDate): Band8Health = Band8Health(
+        h.stepHours.filterKeys { !it.first.isBefore(since) },
+        h.stepDays.filterKeys { !it.isBefore(since) },
+        h.heart.filterKeys { !it.toLocalDate().isBefore(since) },
+        h.sleep.filter { !it.wakeDay.isBefore(since) },
+    )
 }

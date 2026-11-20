@@ -7,6 +7,10 @@ import android.os.Looper
 import com.che.ls05.protocol.AuthOutcome
 import com.che.ls05.protocol.UteWeather
 import com.che.ls05.protocol.WatchType
+import com.che.ls05.protocol.DndSetting
+import com.che.ls05.protocol.WatchEvent
+import com.che.ls05.protocol.band8.B8Alarm
+import com.che.ls05.protocol.band8.B8AlarmList
 import com.che.ls05.protocol.band8.B8Alarms
 import com.che.ls05.protocol.band8.B8Battery
 import com.che.ls05.protocol.band8.B8Calls
@@ -36,6 +40,7 @@ enum class Band8Probe(val label: String) {
     ALARM_CREATE("test alarmı oluştur 17/1"),
     ALARM_EDIT("test alarmını düzenle 17/2"),
     ALARM_DELETE("test alarmını sil 17/4"),
+    ALARM_CLEANUP("test alarmlarını temizle 17/4"),
     DND_ON("rahatsız etme aç 2/23"),
     DND_OFF("rahatsız etme kapat 2/23"),
     DND_SCHEDULE("uyku modu 22:00-07:00 17/9"),
@@ -66,12 +71,11 @@ class Band8Driver(
     private var callTestActive = false
     private val appContext = context.applicationContext
 
-    /** Deneme durumu: alarm kimlikleri ve banddan okunan hareketsizlik ayarı. Saat ve değer loglanmaz. */
-    private var alarmIds: List<Int>? = null
-    private var alarmMax: Int? = null
-    private var idsBeforeCreate: List<Int>? = null
-    private var testAlarmId: Int? = null
+    /** Banddan okunan hareketsizlik ayarı (deneme). Değer loglanmaz. */
     private var standing: B8RawSetting? = null
+
+    /** Ayarlar kartından giden zamanlı rahatsız etme (17/9) yanıt bekliyor. */
+    private var dndSettingPending = false
     private val stopCallTest = Runnable {
         if (callTestActive) {
             listener.onLog("Band 8 arama ekranı testi: 15 saniyelik güvenlik süresi doldu")
@@ -107,21 +111,30 @@ class Band8Driver(
             Band8Probe.MISSED_CALL -> B8Calls.missedCall(TEST_CALLER, notificationTime(System.currentTimeMillis()))
             Band8Probe.ALARM_LIST -> B8Alarms.list()
             Band8Probe.ALARM_CREATE -> {
-                val ids = alarmIds ?: return "Önce alarm listesini oku."
-                if (testAlarmId != null) return "Test alarmı zaten var. Önce sil."
-                alarmMax?.let { if (ids.size >= it) return "Bantta boş alarm yeri yok." }
-                idsBeforeCreate = ids
+                // Çift alarmı önler: her oluşturmadan önce taze liste gerekir, test alarmı varsa yenisi kurulmaz.
+                val list = freshAlarms() ?: return "Önce alarm listesini oku."
+                testAlarm(list)?.let { return "Test alarmı zaten var. Düzenle ya da sil." }
+                list.max?.let { if (list.alarms.size >= it) return "Bantta boş alarm yeri yok." }
                 val (h, m) = B8Alarms.plusMinutes(now.hour, now.minute, 2)
+                Prefs.setBand8TestAlarm(appContext, h, m)
                 B8Alarms.create(h, m)
             }
             Band8Probe.ALARM_EDIT -> {
-                val id = testAlarmId ?: return "Önce test alarmını kur, sonra listeyi yeniden oku."
+                val list = freshAlarms() ?: return "Önce alarm listesini oku."
+                val a = testAlarm(list) ?: return "Listede test alarmı yok. Önce kur, sonra listeyi oku."
                 val (h, m) = B8Alarms.plusMinutes(now.hour, now.minute, 3)
-                B8Alarms.edit(id, h, m)
+                Prefs.setBand8TestAlarm(appContext, h, m)
+                B8Alarms.edit(a.id, h, m)
             }
             Band8Probe.ALARM_DELETE -> {
-                val id = testAlarmId ?: return "Önce test alarmını kur, sonra listeyi yeniden oku."
-                B8Alarms.delete(listOf(id))
+                val list = freshAlarms() ?: return "Önce alarm listesini oku."
+                val a = testAlarm(list) ?: return "Listede test alarmı yok. Önce listeyi oku."
+                B8Alarms.delete(listOf(a.id))
+            }
+            Band8Probe.ALARM_CLEANUP -> {
+                val c = alarmCleanupCandidates() ?: return "Önce alarm listesini oku."
+                if (c.isEmpty()) return "Silinecek test alarmı yok."
+                B8Alarms.delete(c.map { it.id })
             }
             Band8Probe.DND_ON -> B8Dnd.now(true)
             Band8Probe.DND_OFF -> B8Dnd.now(false)
@@ -152,29 +165,46 @@ class Band8Driver(
             Band8Probe.MUSIC -> B8Music.info(TEST_TRACK, "Finn's Watch", playing = true, durationSec = 180, volumePercent = 50)
             Band8Probe.FETCH_NOW -> return null
         }
-        return if (ble.sendProbe(command, p.label)) null else "Band 8 denemesi gönderilemedi. Logu kontrol et."
+        if (!ble.sendProbe(command, p.label)) return "Band 8 denemesi gönderilemedi. Logu kontrol et."
+        // Alarm kimlikleri sıra numarasıdır; değişiklikten sonra liste yeniden okunmalı.
+        if (p == Band8Probe.ALARM_CREATE || p == Band8Probe.ALARM_EDIT || p == Band8Probe.ALARM_DELETE || p == Band8Probe.ALARM_CLEANUP) {
+            alarmListFresh = false
+        }
+        return null
     }
+
+    private fun freshAlarms(): B8AlarmList? = alarmList?.takeIf { alarmListFresh }
+
+    private fun testAlarm(list: B8AlarmList): B8Alarm? {
+        val t = Prefs.band8TestAlarm(appContext) ?: return null
+        return B8Alarms.findTest(list, t.first, t.second)
+    }
+
+    /** "Test alarmlarını temizle" adayları: deneme imzasına uyanlar. Taze liste yoksa null. Saatler yalnızca ekranda. */
+    fun alarmCleanupCandidates(): List<B8Alarm>? = freshAlarms()?.let { B8Alarms.probeCandidates(it) }
 
     /** Deneme yanıtları. Loga yalnızca sayı, alan numarası ve durum yazılır. */
     override fun onBandCommand(command: B8Command) {
         when {
             command.matches(B8Type.SCHEDULE, 0) -> B8Alarms.parseList(command)?.let { list ->
-                alarmIds = list.ids
-                alarmMax = list.max
-                val before = idsBeforeCreate
-                if (before != null && testAlarmId == null) {
-                    B8Alarms.newId(before, list.ids)?.let { testAlarmId = it; idsBeforeCreate = null }
+                alarmList = list
+                alarmListFresh = true
+                val test = testAlarm(list)
+                listener.onLog("Band 8 alarm listesi: ${list.alarms.size} alarm, en çok ${list.max ?: "?"}, " +
+                    "deneme imzalı ${B8Alarms.probeCandidates(list).size}, test alarmı ${if (test != null) "bulundu" else "yok"}")
+            }
+            command.matches(B8Type.SCHEDULE, 1) ->
+                listener.onLog("Band 8 alarm oluşturma yanıtı: durum=${command.status ?: "yok"}; kimlik için listeyi oku")
+            command.matches(B8Type.SCHEDULE, 2) ->
+                listener.onLog("Band 8 alarm düzenleme yanıtı: durum=${command.status ?: "yok"}")
+            command.matches(B8Type.SCHEDULE, 4) ->
+                listener.onLog("Band 8 alarm silme yanıtı: durum=${command.status ?: "yok"}; listeyi yeniden oku")
+            command.matches(B8Type.SCHEDULE, 9) -> {
+                listener.onLog("Band 8 zamanlı rahatsız etme yanıtı: durum=${command.status ?: "yok"}")
+                if (dndSettingPending) {
+                    dndSettingPending = false
+                    listener.onEvent(WatchEvent.SettingAck(DndSetting.KEY, null))
                 }
-                listener.onLog("Band 8 alarm listesi: ${list.ids.size} alarm, en çok ${list.max ?: "?"}, test alarmı ${if (testAlarmId != null) "bulundu" else "yok"}")
-            }
-            command.matches(B8Type.SCHEDULE, 1) -> {
-                val id = command.body(B8Type.F_SCHEDULE)?.message(4)?.int(1)
-                if (id != null && testAlarmId == null) { testAlarmId = id; idsBeforeCreate = null }
-                listener.onLog("Band 8 alarm oluşturma yanıtı: kimlik ${if (id != null) "geldi" else "gelmedi; listeyi yeniden oku"}")
-            }
-            command.matches(B8Type.SCHEDULE, 4) -> {
-                testAlarmId = null
-                listener.onLog("Band 8 alarm silme yanıtı alındı")
             }
             command.matches(B8Type.HEALTH, 12) -> {
                 standing = B8Standing.parse(command)
@@ -211,6 +241,11 @@ class Band8Driver(
     }
 
     override fun sendAppNotification(note: WatchHub.Note, vibrate: Boolean): Boolean {
+        if (note.kind == WatchHub.NoteKind.MISSED_CALL) {
+            // 20.11.2026: "phone" paketinden normal bildirim bantta göründü. Metin loga yazılmaz.
+            val id = note.androidId.takeIf { it != 0 } ?: ((note.at / 1000).toInt() and 0x7FFFFFFF).coerceAtLeast(1)
+            return ble.sendFeature(B8Calls.missedCall(note.body, notificationTime(note.at), id), "cevapsız arama 7/0")
+        }
         val key = note.androidKey ?: run {
             listener.onLog("Band 8 bildirim atlandı: Android anahtarı yok, tür=${note.kind}")
             return false
@@ -230,7 +265,14 @@ class Band8Driver(
     override fun sendIncomingCall(name: String) = false
     override fun sendCallStop() = false
     override fun sendTime(now: ZonedDateTime, label: String) = Unit
-    override fun sendSetting(key: String, value: String) = false
+    /** Ayarlar kartı: rahatsız etme saatleri zamanlı uyku modu (17/9) olarak gider. Diğer ayarlar Band 8'de yok. */
+    override fun sendSetting(key: String, value: String): Boolean {
+        if (key != DndSetting.KEY) return false
+        val d = DndSetting.decode(value) ?: return false
+        val ok = ble.sendFeature(B8Dnd.sleepSchedule(d.enabled, d.startHour, d.startMinute, d.endHour, d.endMinute), "rahatsız etme saatleri 17/9")
+        if (ok) dndSettingPending = true
+        return ok
+    }
     override fun requestHistory(from: LocalDate, includeSleep: Boolean) = Unit
     override fun findStart() = Unit
     override fun findStop(reason: String) = Unit
@@ -250,6 +292,8 @@ class Band8Driver(
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
         clearCallTest()
+        alarmListFresh = false
+        dndSettingPending = false
         listener.onDisconnected(userInitiated, status)
     }
 
@@ -272,6 +316,10 @@ class Band8Driver(
 
     private companion object {
         const val CALL_TEST_MAX_MS = 15_000L
+
+        /** Alarm listesi süreç boyunca tutulur (sürücü yeniden bağlanınca yenilenir); taze değilse değişiklik yapılmaz. */
+        private var alarmList: B8AlarmList? = null
+        private var alarmListFresh = false
         const val TEST_CALLER = "Test arama"
         const val TEST_TRACK = "Test şarkı"
         const val WEATHER_KEY = "finnswatch"

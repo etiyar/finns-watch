@@ -26,7 +26,8 @@ import com.che.ls05.protocol.AlarmReminder
 import com.che.ls05.protocol.AlarmSetting
 import com.che.ls05.protocol.DndSetting
 import com.che.ls05.protocol.HealthLog
-import com.che.ls05.protocol.HealthView
+import com.che.ls05.protocol.HealthQuery
+import com.che.ls05.protocol.MergedHealth
 import com.che.ls05.protocol.NotificationState
 import com.che.ls05.protocol.ProfileSetting
 import com.che.ls05.protocol.SyncEntry
@@ -91,6 +92,9 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
     private val deepText: TextView = ui.caption("")
     private val lightText: TextView = ui.caption("")
     private val awakeText: TextView = ui.caption("")
+    private val remText: TextView = ui.caption("")
+    private val remRow: LinearLayout = ui.horizontal()
+    private val sleepExtra: TextView = ui.caption("")
 
     // Son eşitleme: sayfanın en üstünde küçük açıklama. Yenileme aşağı çekerek yapılır.
     private val syncText: TextView = ui.caption("")
@@ -156,7 +160,14 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
         legendItem(legendRow, R.color.sleep_deep, deepText, 0)
         legendItem(legendRow, R.color.sleep_light, lightText, 12)
         ui.add(legend, legendRow)
+        // Band 8: REM ayrı renkte; LS05 gecesinde gizli.
+        legendItem(remRow, R.color.sleep_rem, remText, 0)
+        ui.add(remRow, View(act), width = 0, weight = 1f, leftDp = 12)
+        remRow.visibility = View.GONE
+        ui.add(legend, remRow, topDp = 4)
         ui.add(legend, awakeText, topDp = 4)
+        sleepExtra.visibility = View.GONE
+        ui.add(legend, sleepExtra, topDp = 4)
         ui.add(body, legend, topDp = 10)
 
         val trends = ui.card()
@@ -193,7 +204,7 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
     }
 
     // Bellekte yalnızca son 3 gün var; daha eski günler arka planda dosyalardan okunur ve günde bir yenilenir.
-    private var olderView: HealthView? = null
+    private var olderView: HealthQuery? = null
     private var olderHeartByDay: Map<java.time.LocalDate, List<com.che.ls05.protocol.HeartPoint>>? = null
     private var olderDate: java.time.LocalDate? = null
     private var olderLoading = false
@@ -221,11 +232,11 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
     }
 
     /** Günlük geçmiş grafikleri. Son sütun bugün (uykuda bu sabah biten gece). Ortalamalar yalnızca verisi olan günlerden. */
-    private fun refreshTrends(recent: HealthView, today: java.time.LocalDate) {
+    private fun refreshTrends(recent: HealthQuery, today: java.time.LocalDate) {
         loadOlder(today)
         val older = olderView
         // Son 3 gün bellekteki güncel veriden, öncesi dosyalardan.
-        fun src(d: java.time.LocalDate): HealthView = if (older != null && d.isBefore(today.minusDays(2))) older else recent
+        fun src(d: java.time.LocalDate): HealthQuery = if (older != null && d.isBefore(today.minusDays(2))) older else recent
         val days = (span - 1 downTo 0).map { today.minusDays(it.toLong()) }
         val names = arrayOf("Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz")
         val labels = Array<String?>(span) { i ->
@@ -291,7 +302,10 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
      */
     private fun requestData(): Boolean {
         if (WatchRegistry.active(act)?.type == WatchType.BAND8) {
-            act.toast("Band 8 sağlık değerleri henüz gösterilmez. Dosyalar bağlıyken 6 saatte bir arşivlenir.")
+            // Band 8: sağlık dosyalarını şimdi çek (yalnızca okuma). Bitince ekran kendiliğinden yenilenir.
+            val s = act.readyService() ?: return false
+            val err = s.bandProbe(Band8Probe.FETCH_NOW)
+            act.toast(err ?: "Band 8 sağlık dosyaları çekiliyor.")
             return false
         }
         val s = act.readyService() ?: return false
@@ -336,7 +350,8 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
         }
 
         // Saatlik adım: eşitleme yapıldıysa boş saat gerçek 0'dır; hiç eşitleme yoksa grafik çizilmez.
-        if (last == 0L) {
+        val band8Today = (view as? MergedHealth)?.hasBand8Steps(today) == true
+        if (last == 0L && !band8Today) {
             bars.visibility = View.GONE
             barsEmpty.visibility = View.VISIBLE
         } else {
@@ -398,13 +413,25 @@ class TodayPage(act: MainActivity) : Page(act, "Bugün") {
             } else {
                 awakeText.visibility = View.GONE
             }
+            // Band 8 gecesi: REM, uyanma sayısı ve ortalama nabız. LS05 gecesinde bu satırlar görünmez.
+            if (night.remMin > 0) {
+                remText.text = "REM ${dur(night.remMin)}"
+                remRow.visibility = View.VISIBLE
+            } else {
+                remRow.visibility = View.GONE
+            }
+            val extra = listOfNotNull(
+                night.wakeUps?.let { "Uyanma $it" },
+                night.avgHeart?.let { "Ortalama nabız $it bpm" },
+            )
+            sleepExtra.text = extra.joinToString(" · ")
+            sleepExtra.visibility = if (extra.isEmpty()) View.GONE else View.VISIBLE
             legend.visibility = View.VISIBLE
         }
 
         refreshTrends(view, now.toLocalDate())
 
-        syncText.text = if (WatchRegistry.active(act)?.type == WatchType.BAND8) "Band 8 sağlık dosyaları arşivleniyor; değerler henüz gösterilmez"
-            else if (last == 0L) "Son eşitleme: henüz yok" else "Son eşitleme: ${Fmt.dayMs(last)}"
+        syncText.text = if (last == 0L) "Son eşitleme: henüz yok" else "Son eşitleme: ${Fmt.dayMs(last)}"
         refreshPullState()
     }
 }
@@ -432,6 +459,17 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
     private val faceViews = ArrayList<View>()
     private val profileViews = ArrayList<View>()
     private var dndView: View? = null
+    private var bandDndRow: View? = null
+    private var lastDndNowAt = 0L
+
+    private fun bandDndNow(on: Boolean) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastDndNowAt < 2_000L) return
+        lastDndNowAt = now
+        val s = act.readyService() ?: return
+        val err = s.bandProbe(if (on) Band8Probe.DND_ON else Band8Probe.DND_OFF)
+        act.toast(err ?: if (on) "Rahatsız etme açılıyor." else "Rahatsız etme kapatılıyor.")
+    }
     private var findView: View? = null
 
     // Saatlerim: kayıtlı saatler ve etkin saat.
@@ -508,6 +546,13 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         val dndRetry = ui.tonal("Yeniden gönder") { SettingsStore.retry(act, DndSetting.KEY) }
         dndRetry.visibility = View.GONE
         ui.add(dndCard, dndRetry, topDp = 8)
+        // Band 8: rahatsız etmeyi hemen aç ya da kapat (2/23). Saat aralığı kartın kendisiyle (17/9) ayarlanır.
+        val dndNow = ui.horizontal()
+        ui.add(dndNow, ui.tonal("Şimdi aç") { bandDndNow(true) }, width = 0, weight = 1f)
+        ui.add(dndNow, ui.tonal("Kapat") { bandDndNow(false) }, width = 0, weight = 1f, leftDp = 6)
+        dndNow.visibility = View.GONE
+        ui.add(dndCard, dndNow, topDp = 8)
+        bandDndRow = dndNow
         dnd = SettingViews(dndMain, ui.caption(""), dndToggle, dndStatus, dndRetry)
         ui.add(pair, dndCard, width = 0, height = Ui.MATCH, weight = 1f)
         dndView = dndCard
@@ -632,6 +677,7 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         faceViews.forEach { show(it, caps.faces) }
         profileViews.forEach { show(it, caps.profile) }
         show(dndView, caps.dnd)
+        show(bandDndRow, WatchRegistry.active(act)?.type == WatchType.BAND8)
         show(findView, caps.findWatch)
         val visible = SettingsStore.visibleAlarms(act).filter { it <= slots }
         for (slot in 1..UteAlarm.SLOTS) {
@@ -1330,6 +1376,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
 
     private companion object {
         const val LAST_SEEN_INFO = "Bağlantı beklenmedik koparsa telefonun konumu kaydedilir. Yalnızca son kayıt tutulur."
+        const val PROBE_DEBOUNCE_MS = 2_000L
     }
 
     private val logShown = 300
@@ -1555,9 +1602,10 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             }
         }
         group("Arama (gelen arama ve kapatma yukarıdaki denemede)", "Cevapsız arama" to Band8Probe.MISSED_CALL)
-        group("Alarm: önce listeyi oku. Test alarmı 2 dakika sonra çalar.",
+        group("Alarm: her değişiklikten önce listeyi oku. Test alarmı 2 dakika sonra çalar.",
             "Alarm listesini oku" to Band8Probe.ALARM_LIST, "Test alarmı kur" to Band8Probe.ALARM_CREATE,
-            "Test alarmını düzenle" to Band8Probe.ALARM_EDIT, "Test alarmını sil" to Band8Probe.ALARM_DELETE)
+            "Test alarmını düzenle" to Band8Probe.ALARM_EDIT, "Test alarmını sil" to Band8Probe.ALARM_DELETE,
+            "Test alarmlarını temizle" to Band8Probe.ALARM_CLEANUP)
         group("Rahatsız etme",
             "Şimdi aç" to Band8Probe.DND_ON, "Şimdi kapat" to Band8Probe.DND_OFF,
             "Zamanla 22:00–07:00" to Band8Probe.DND_SCHEDULE, "Zamanlamayı kapat" to Band8Probe.DND_SCHEDULE_OFF)
@@ -1573,9 +1621,45 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(bandProbes, ui.caption("Arşivdeki dosyaları ve index.txt'yi tek zip olarak kaydeder. Değerler uygulamada gösterilmez."), topDp = 4)
     }
 
+    /** Her deneme düğmesi en çok 2 saniyede bir komut gönderir (çift alarm gibi tekrarları önler). */
+    private val lastProbeAt = HashMap<Band8Probe, Long>()
+
     private fun bandProbe(p: Band8Probe) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val last = lastProbeAt[p]
+        if (last != null && now - last < PROBE_DEBOUNCE_MS) {
+            act.toast("Biraz bekle; komut az önce gönderildi.")
+            return
+        }
+        lastProbeAt[p] = now
         val service = act.readyService() ?: return
+        if (p == Band8Probe.ALARM_CLEANUP) {
+            confirmAlarmCleanup(service)
+            return
+        }
         service.bandProbe(p)?.let { act.toast(it) }
+    }
+
+    /** Deneme imzasına uyan alarmları (bir kez, normal) saatleriyle gösterir; onaylanırsa tek 17/4 ile siler. */
+    private fun confirmAlarmCleanup(service: WatchService) {
+        val list = service.bandAlarmCleanupCandidates()
+        if (list == null) {
+            act.toast("Önce alarm listesini oku.")
+            return
+        }
+        if (list.isEmpty()) {
+            act.toast("Silinecek test alarmı yok.")
+            return
+        }
+        val times = list.sortedWith(compareBy({ it.hour }, { it.minute })).joinToString(", ") { Fmt.hm(it.hour, it.minute) }
+        val d = AlertDialog.Builder(act)
+            .setTitle("Test alarmlarını temizle")
+            .setMessage("Bir kez çalan ve akıllı olmayan ${list.size} alarm silinecek: $times. Bunlar arasında kendi alarmın varsa Vazgeç'e bas.")
+            .setPositiveButton("Sil") { _, _ -> service.bandProbe(Band8Probe.ALARM_CLEANUP)?.let { act.toast(it) } }
+            .setNegativeButton("Vazgeç", null)
+            .create()
+        act.track(d)
+        d.show()
     }
 
     private fun testBandCallScreen(start: Boolean) {

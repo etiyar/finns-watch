@@ -285,6 +285,10 @@ class WatchService : Service(), DriverListener {
         return band.probe(p)
     }
 
+    /** "Test alarmlarını temizle" için silinecek alarmlar; taze liste yoksa null. */
+    fun bandAlarmCleanupCandidates(): List<com.che.ls05.protocol.band8.B8Alarm>? =
+        (driver as? Band8Driver)?.alarmCleanupCandidates()
+
     private var lastForeignReconnectAt: Long? = null
     private val foreignReconnect = Runnable {
         if (stopping || driver.type != WatchType.BAND8) return@Runnable
@@ -505,7 +509,9 @@ class WatchService : Service(), DriverListener {
         when (note.kind) {
             WatchHub.NoteKind.MESSAGE, WatchHub.NoteKind.MISSED_CALL -> {
                 val isBand = driver.type == WatchType.BAND8
-                if (isBand && (!Prefs.forwardingEnabled(this) || !Prefs.appEnabled(this, note.pkg))) return
+                // Cevapsız arama kendi ayarıyla süzülür (Bildirimler > Cevapsız aramalar), uygulama filtresiyle değil.
+                if (isBand && (!Prefs.forwardingEnabled(this) ||
+                        (note.kind == WatchHub.NoteKind.MESSAGE && !Prefs.appEnabled(this, note.pkg)))) return
                 val text = if (driver.type == WatchType.LS05) {
                     note.copy(title = fold(note.title), body = fold(note.body))
                 } else note
@@ -759,7 +765,11 @@ class WatchService : Service(), DriverListener {
             bandReadyAt = SystemClock.uptimeMillis() + 1_500
             val readySession = session
             main.postDelayed({
-                if (driver.type == WatchType.BAND8 && driver.isReady && session == readySession) flushPending()
+                if (driver.type == WatchType.BAND8 && driver.isReady && session == readySession) {
+                    flushPending()
+                    // Yalnızca kullanıcının değiştirdiği ayar (rahatsız etme saatleri) gider.
+                    pushSettings()
+                }
             }, 1_500)
             return
         }

@@ -157,12 +157,13 @@ class BarsView(context: Context) : View(context) {
     }
 }
 
-/** Uyku şeridi: bölümler süreleriyle orantılı; derin, hafif ve uyanık ayrı renkte. Uçlar tam yuvarlak. */
+/** Uyku şeridi: bölümler süreleriyle orantılı; derin, hafif, REM (Band 8) ve uyanık ayrı renkte. Uçlar tam yuvarlak. */
 class SleepStripView(context: Context) : View(context) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val deep = context.getColor(R.color.sleep_deep)
     private val light = context.getColor(R.color.sleep_light)
+    private val rem = context.getColor(R.color.sleep_rem)
     private val awake = context.getColor(R.color.raised)
     private var segments: List<SleepSegment> = emptyList()
 
@@ -191,6 +192,7 @@ class SleepStripView(context: Context) : View(context) {
             paint.color = when (s.type) {
                 SleepSegment.DEEP -> deep
                 SleepSegment.LIGHT -> light
+                SleepSegment.REM -> rem
                 else -> awake
             }
             canvas.drawRect(x, 0f, x + w, height.toFloat(), paint)
