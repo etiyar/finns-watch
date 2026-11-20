@@ -16,6 +16,7 @@ v0.15, v0.16 ve v0.17 planları tek sürümde (v0.15.0) toplandı.
 - **VoIP aramalar:** WhatsApp, Telegram, Signal gibi uygulamaların çalan arama bildirimi saatte arama ekranı açar. Saatten reddetme yalnızca bildirimdeki reddet eylemiyle; telefon araması kapatılmaz.
 - **Telefon pili:** isteğe bağlı düşük pil (eşik varsayılan %15) ve dolu pil uyarısı, her geçişte bir kez.
 - **Emoji:** iki saat de emoji çizemiyor (Band 8'de boş kutucuk). Yaygın emojiler kısa metne döner (❤️ → <3, 👍 → (+1), 😂 → :D, 😮 → :O, 😢 → :(, 🙏 → (dua)); diğer emojiler çıkar. "Reacted 👍 to" → "Reacted (+1) to".
+- **Band 8 alarmları:** Saat > Alarmlar'da bandın kendi alarm listesi. Ekle, saat/gün/açık-kapalı düzenle, sil; bandın en çok alarm sayısına kadar. Her değişiklikten sonra liste yeniden okunur. Kurma, düzenleme ve silme komutları cihazda doğrulandı; deneme düğmeleri Gelişmiş'te kalır.
 - **Band 8 müzik:** band müzik bilgisi isteyince (18/0) telefondaki çalan medyanın durumu, şarkı, sanatçı, süre ve ses düzeyi gider; değişince en sık 1,5 sn'de bir güncellenir. Band tuşları (çal, duraklat, önceki, sonraki, ses) telefonu kumanda eder. Yapı tahmin; gelen 18/x alan biçimi loga yazılır.
 
 ## v0.15.0-beta2 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)

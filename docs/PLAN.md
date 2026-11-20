@@ -1,6 +1,6 @@
 # Finn's Watch | Güncel plan
 
-**20 Kasım 2026:** v0.15, v0.16 ve v0.17 planları tek sürümde, v0.15.0'da toplandı. dev üzerinde beta2 (build 188): Band 8 gerçek gelen arama ve bantta reddet çalıştı; emoji kutucuk göründü; müzik görünmedi; alarm düzenleme sonucu bekleniyor (`TEST_RESULTS.md`). Sıradaki aday v0.15.0-beta3 (`feat/v015-beta3`): bildirim kuralları ve sessiz saatler, okunana kadar tekrar, navigasyon, VoIP arama, telefon pili uyarısı, emoji → metin, Band 8 müzik isteğine yanıt. Kalan: alarm düzenleme doğrulaması, Band 8 hava ve hareketsizlik, Band 8 kural titreşimi.
+**20 Kasım 2026:** v0.15, v0.16 ve v0.17 planları tek sürümde, v0.15.0'da toplandı. dev üzerinde beta2 (build 188): Band 8 gerçek gelen arama ve bantta reddet çalıştı; emoji kutucuk göründü; müzik görünmedi; alarm kurma, düzenleme ve silme doğrulandı (`TEST_RESULTS.md`). Sıradaki aday v0.15.0-beta3 (`feat/v015-beta3`): bildirim kuralları ve sessiz saatler, okunana kadar tekrar, navigasyon, VoIP arama, telefon pili uyarısı, emoji → metin, Band 8 müzik isteğine yanıt. Band 8 alarm kartı eklendi. Kalan: Band 8 hava ve hareketsizlik, Band 8 kural titreşimi.
 
 | İş | Takip | Sahip/dal | Yayın kapısı |
 | --- | --- | --- | --- |
