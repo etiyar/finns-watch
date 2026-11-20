@@ -658,7 +658,10 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             listener.onLog("Band 8 gelen komut çözümlenemedi; şifreli=$encrypted")
             return
         }
-        listener.onLog("Band 8 gelen komut: tür=${command.type}, altTür=${command.subtype}, durum=${command.status ?: "yok"}, şifreli=$encrypted")
+        // Canlı akış olayları (8/47) gece boyu sık gelir; sürücü yalnızca sayısını loglar.
+        if (!(command.type == B8Type.HEALTH && command.subtype == 47)) {
+            listener.onLog("Band 8 gelen komut: tür=${command.type}, altTür=${command.subtype}, durum=${command.status ?: "yok"}, şifreli=$encrypted")
+        }
         // Android'de BLE bağlantısı uygulamalar arasında paylaşılır. Bizim başlatmadığımız 1/26 ya da 1/27
         // yanıtı başka bir istemcinin (Mi Fitness, Notify) auth'udur (#16). B8Auth'a verilmez; servis
         // uyarı gösterir ve en çok 5 dakikada bir tam yeniden bağlanır.

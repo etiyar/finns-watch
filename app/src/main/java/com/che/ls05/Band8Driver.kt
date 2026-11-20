@@ -22,6 +22,7 @@ import com.che.ls05.protocol.band8.B8ForecastDay
 import com.che.ls05.protocol.band8.B8Music
 import com.che.ls05.protocol.band8.B8Notification
 import com.che.ls05.protocol.band8.B8RawSetting
+import com.che.ls05.protocol.band8.B8Realtime
 import com.che.ls05.protocol.band8.B8Standing
 import com.che.ls05.protocol.band8.B8Text
 import com.che.ls05.protocol.band8.B8Vibration
@@ -42,6 +43,7 @@ enum class Band8Probe(val label: String) {
     MISSED_CALL("cevapsız arama 7/0"),
     EMOJI_TEST("emoji testi 7/0"),
     VIBRATION_TEST("titreşim deseni testi 2/59"),
+    LIVE_HR_30S("canlı nabız 30 sn 8/45"),
     ALARM_LIST("alarm listesi 17/0"),
     ALARM_CREATE("test alarmı oluştur 17/1"),
     ALARM_EDIT("test alarmını düzenle 17/2"),
@@ -127,6 +129,7 @@ class Band8Driver(
         if (p == Band8Probe.FETCH_NOW) {
             return if (ble.fetchHealthNow()) null else "Çekme zaten sürüyor ya da oturum hazır değil."
         }
+        if (p == Band8Probe.LIVE_HR_30S) return liveHrProbe()
         val now = ZonedDateTime.now()
         val command: ByteArray = when (p) {
             Band8Probe.MISSED_CALL -> B8Calls.missedCall(TEST_CALLER, notificationTime(System.currentTimeMillis()))
@@ -194,7 +197,7 @@ class Band8Driver(
                 B8Standing.write(raw, p == Band8Probe.IDLE_ON) ?: return "Okunan ayar beklenmeyen biçimde; gönderilmedi."
             }
             Band8Probe.MUSIC -> B8Music.info(TEST_TRACK, "Finn's Watch", playing = true, durationSec = 180, volumePercent = 50)
-            Band8Probe.FETCH_NOW -> return null
+            Band8Probe.FETCH_NOW, Band8Probe.LIVE_HR_30S -> return null
         }
         if (!ble.sendProbe(command, p.label)) return "Band 8 denemesi gönderilemedi. Logu kontrol et."
         // Alarm kimlikleri sıra numarasıdır; değişiklikten sonra liste yeniden okunmalı.
@@ -282,6 +285,7 @@ class Band8Driver(
         when {
             command.matches(B8Type.NOTIFICATION, B8Sub.NOTIF_ICON_QUERY) -> icons.onQuery(command)
             command.matches(B8Type.NOTIFICATION, B8Sub.NOTIF_ICON_REQUEST) -> icons.onSpec(command)
+            B8Realtime.isEvent(command) -> onRealtime(command)
             command.matches(B8Type.SCHEDULE, 0) -> B8Alarms.parseList(command)?.let { list ->
                 alarmList = list
                 alarmListFresh = true
@@ -347,6 +351,72 @@ class Band8Driver(
         }
     }
 
+    // ---------- Canlı nabız (8/45 başlat, 8/46 durdur, 8/47 olay) ----------
+
+    private var liveProbeActive = false
+    private var liveProbeEvents = 0
+    private var liveProbeValid = 0
+    private var lastUnwantedStopAt = 0L
+    private val liveProbeEnd = Runnable {
+        if (!liveProbeActive) return@Runnable
+        liveProbeActive = false
+        // Sleep as Android akışı açıksa durdurulmaz.
+        if (!SleepAsAndroidBridge.streaming) realtimeHr(false)
+        listener.onLog("Band 8 canlı nabız denemesi bitti: 30 sn, olay $liveProbeEvents, geçerli nabız $liveProbeValid")
+    }
+
+    private fun liveHrProbe(): String? {
+        if (SleepAsAndroidBridge.streaming) return "Sleep as Android takibi sürüyor; deneme yapılmadı."
+        if (liveProbeActive) return "Deneme zaten sürüyor."
+        if (!realtimeHr(true)) return "Band 8 denemesi gönderilemedi. Logu kontrol et."
+        liveProbeActive = true
+        liveProbeEvents = 0
+        liveProbeValid = 0
+        main.postDelayed(liveProbeEnd, LIVE_PROBE_MS)
+        return null
+    }
+
+    /** Sleep as Android ve deneme için canlı akışı başlatır ya da durdurur. */
+    fun realtimeHr(start: Boolean): Boolean =
+        ble.isReady && ble.sendFeature(if (start) B8Realtime.start() else B8Realtime.stop(),
+            if (start) "canlı nabız başlat 8/45" else "canlı nabız durdur 8/46")
+
+    /** 2/59 titreşim deseni (cihazda doğrulandı, build 191). */
+    fun vibrate(steps: List<Pair<Boolean, Int>>, label: String): Boolean =
+        ble.isReady && ble.sendFeature(B8Vibration.pattern(steps), label)
+
+    /** Sleep as Android alarmı: bantta "Alarm" adlı arama ekranı (reddet = kapat, sessize al = ertele). */
+    fun alarmScreen(show: Boolean): Boolean {
+        if (!ble.isReady) return false
+        clearCallTest()
+        val bytes = if (show) B8Messages.incomingCall(ALARM_TITLE, "", notificationTime(System.currentTimeMillis())) else B8Messages.callEnded()
+        return ble.sendFeature(bytes, if (show) "alarm ekranı 7/0" else "alarm ekranı kapat 7/1")
+    }
+
+    /** 8/47: nabız değeri loga yazılmaz, yalnızca sayılır. */
+    private fun onRealtime(command: B8Command) {
+        val hr = B8Realtime.validHeartRate(B8Realtime.parse(command)?.heartRate)
+        if (liveProbeActive) {
+            liveProbeEvents++
+            if (hr != null) liveProbeValid++
+        }
+        val ours = SleepAsAndroidBridge.onHeartRate(hr)
+        if (!ours && !liveProbeActive) {
+            // Kimsenin istemediği akış (ör. uygulama yeniden başladı) pil harcamasın.
+            val now = System.currentTimeMillis()
+            if (now - lastUnwantedStopAt >= 60_000L) {
+                lastUnwantedStopAt = now
+                listener.onLog("Band 8 istenmeyen canlı akış; durduruluyor")
+                realtimeHr(false)
+            }
+        }
+    }
+
+    private fun clearLiveProbe() {
+        main.removeCallbacks(liveProbeEnd)
+        liveProbeActive = false
+    }
+
     override fun onForeignClient() = listener.onForeignClient()
 
     private fun clearCallTest() {
@@ -356,10 +426,11 @@ class Band8Driver(
 
     override fun startScan() = ble.scan()
     override fun connect(device: BluetoothDevice, autoConnect: Boolean) = ble.connect(device, autoConnect)
-    override fun disconnect() { clearCallTest(); ble.disconnect() }
-    override fun forceClose(reason: String) { clearCallTest(); ble.forceClose() }
+    override fun disconnect() { clearCallTest(); clearLiveProbe(); ble.disconnect() }
+    override fun forceClose(reason: String) { clearCallTest(); clearLiveProbe(); ble.forceClose() }
     override fun release(reason: String) {
         clearCallTest()
+        clearLiveProbe()
         music.stop()
         ble.release()
     }
@@ -433,6 +504,7 @@ class Band8Driver(
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
         clearCallTest()
         faces.onDisconnected()
+        clearLiveProbe()
         alarmListFresh = false
         dndSettingPending = false
         listener.onDisconnected(userInitiated, status)
@@ -458,6 +530,8 @@ class Band8Driver(
     private companion object {
         const val CALL_TEST_MAX_MS = 15_000L
         const val ALARM_READ_DELAY_MS = 4_000L
+        const val LIVE_PROBE_MS = 30_000L
+        const val ALARM_TITLE = "Alarm"
 
         /** Alarm listesi süreç boyunca tutulur (sürücü yeniden bağlanınca yenilenir); taze değilse değişiklik yapılmaz. */
         private var alarmList: B8AlarmList? = null
