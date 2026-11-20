@@ -184,6 +184,9 @@ object Prefs {
     fun setSaaEnabled(c: Context, on: Boolean) = p(c).edit().putBoolean("saaOn", on).apply()
     fun saaHeartRate(c: Context): Boolean = p(c).getBoolean("saaHr", true)
     fun setSaaHeartRate(c: Context, on: Boolean) = p(c).edit().putBoolean("saaHr", on).apply()
+    /** Hareket: bantta gizli antrenman ve ivme akışı (deneysel, varsayılan kapalı). */
+    fun saaMovement(c: Context): Boolean = p(c).getBoolean("saaMove", false)
+    fun setSaaMovement(c: Context, on: Boolean) = p(c).edit().putBoolean("saaMove", on).apply()
     fun setWeatherCity(c: Context, name: String, lat: Double, lon: Double) = p(c).edit()
         .putString("weatherCity", name).putString("weatherLat", lat.toString()).putString("weatherLon", lon.toString())
         .remove("weatherCache").putLong("weatherAt", 0L).apply()

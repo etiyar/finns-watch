@@ -566,7 +566,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             return
         }
         // Canlı akış olayları (8/47) gece boyu sık gelir; sürücü yalnızca sayısını loglar.
-        if (!(command.type == B8Type.HEALTH && command.subtype == 47)) {
+        if (!(command.type == B8Type.HEALTH && command.subtype == 47) && !com.che.ls05.protocol.band8.B8Workout.hasSensor(command)) {
             listener.onLog("Band 8 gelen komut: tür=${command.type}, altTür=${command.subtype}, durum=${command.status ?: "yok"}, şifreli=$encrypted")
         }
         // Android'de BLE bağlantısı uygulamalar arasında paylaşılır. Bizim başlatmadığımız 1/26 ya da 1/27

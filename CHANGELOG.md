@@ -4,6 +4,15 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.16.0-alpha2 | Geliştirme (cihazda doğrulanmadı)
+
+### Sleep as Android
+
+- Sorun (build 212): Sleep as Android bağlandı ama sensör testi grafik göstermedi. Nabız gidiyordu, hareket verisi gitmiyordu. Sleep as Android uyku grafiği için hareket ister.
+- Yeni "Hareket gönder (deneysel)" anahtarı: bantta gizli bir uyku antrenmanı açılır, bandın ivme verisi 10 sn'lik pencerelerle Sleep as Android'e gider. Varsayılan kapalı.
+- Gelişmiş > Band 8 denemeleri: "Gizli antrenman 30 sn". Logda ivme komutu ve örnek sayısı, değer yazılmaz.
+- Log: Sleep as Android'e giden her yayının tam adı ve değer sayısı yazılır.
+
 ## v0.16.0-alpha1 | Geliştirme (cihazda doğrulanmadı)
 
 ### Sleep as Android

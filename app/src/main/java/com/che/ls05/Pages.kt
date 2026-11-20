@@ -1670,6 +1670,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         group("Bildirim: emojiler kısa metne dönüyor mu (<3 (+1) :D :O :( (dua))", "Emoji testi" to Band8Probe.EMOJI_TEST)
         group("Titreşim: kısa-kısa-uzun desen (kurallarda henüz kullanılmaz)", "Titreşim deseni testi" to Band8Probe.VIBRATION_TEST)
         group("Canlı nabız: 30 sn açılır, sonra durur. Logda yalnızca olay sayısı.", "Canlı nabız 30 sn" to Band8Probe.LIVE_HR_30S)
+        group("Gizli antrenman: 30 sn açılır, ivme verisi sayılır, sonra biter. Bantta antrenman ekranı görünebilir.", "Gizli antrenman 30 sn" to Band8Probe.WORKOUT_30S)
         group("Arama (gelen arama ve kapatma yukarıdaki denemede)", "Cevapsız arama" to Band8Probe.MISSED_CALL)
         group("Alarm: her değişiklikten önce listeyi oku. Test alarmı 2 dakika sonra çalar.",
             "Alarm listesini oku" to Band8Probe.ALARM_LIST, "Test alarmı kur" to Band8Probe.ALARM_CREATE,

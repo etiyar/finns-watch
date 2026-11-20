@@ -23,6 +23,7 @@ import com.che.ls05.protocol.band8.B8Music
 import com.che.ls05.protocol.band8.B8Notification
 import com.che.ls05.protocol.band8.B8RawSetting
 import com.che.ls05.protocol.band8.B8Realtime
+import com.che.ls05.protocol.band8.B8Workout
 import com.che.ls05.protocol.band8.B8Standing
 import com.che.ls05.protocol.band8.B8Text
 import com.che.ls05.protocol.band8.B8Vibration
@@ -43,6 +44,7 @@ enum class Band8Probe(val label: String) {
     EMOJI_TEST("emoji testi 7/0"),
     VIBRATION_TEST("titreşim deseni testi 2/59"),
     LIVE_HR_30S("canlı nabız 30 sn 8/45"),
+    WORKOUT_30S("gizli antrenman 30 sn 8/26"),
     ALARM_LIST("alarm listesi 17/0"),
     ALARM_CREATE("test alarmı oluştur 17/1"),
     ALARM_EDIT("test alarmını düzenle 17/2"),
@@ -120,6 +122,7 @@ class Band8Driver(
             return if (ble.fetchHealthNow()) null else "Çekme zaten sürüyor ya da oturum hazır değil."
         }
         if (p == Band8Probe.LIVE_HR_30S) return liveHrProbe()
+        if (p == Band8Probe.WORKOUT_30S) return workoutProbe()
         val now = ZonedDateTime.now()
         val command: ByteArray = when (p) {
             Band8Probe.MISSED_CALL -> B8Calls.missedCall(TEST_CALLER, notificationTime(System.currentTimeMillis()))
@@ -187,7 +190,7 @@ class Band8Driver(
                 B8Standing.write(raw, p == Band8Probe.IDLE_ON) ?: return "Okunan ayar beklenmeyen biçimde; gönderilmedi."
             }
             Band8Probe.MUSIC -> B8Music.info(TEST_TRACK, "Finn's Watch", playing = true, durationSec = 180, volumePercent = 50)
-            Band8Probe.FETCH_NOW, Band8Probe.LIVE_HR_30S -> return null
+            Band8Probe.FETCH_NOW, Band8Probe.LIVE_HR_30S, Band8Probe.WORKOUT_30S -> return null
         }
         if (!ble.sendProbe(command, p.label)) return "Band 8 denemesi gönderilemedi. Logu kontrol et."
         // Alarm kimlikleri sıra numarasıdır; değişiklikten sonra liste yeniden okunmalı.
@@ -273,6 +276,9 @@ class Band8Driver(
     override fun onBandCommand(command: B8Command) {
         when {
             B8Realtime.isEvent(command) -> onRealtime(command)
+            B8Workout.hasSensor(command) -> onSensor(command)
+            command.matches(B8Type.HEALTH, B8Workout.SUB_STATUS) ->
+                listener.onLog("Band 8 antrenman durumu yanıtı: durum=${command.status ?: "yok"}")
             command.matches(B8Type.SCHEDULE, 0) -> B8Alarms.parseList(command)?.let { list ->
                 alarmList = list
                 alarmListFresh = true
@@ -402,6 +408,65 @@ class Band8Driver(
     private fun clearLiveProbe() {
         main.removeCallbacks(liveProbeEnd)
         liveProbeActive = false
+        main.removeCallbacks(workoutProbeEnd)
+        workoutProbeActive = false
+    }
+
+    // ---------- Gizli antrenman ve ivme (8/26, Health alan 15; güçlü kanıt, cihazda denenmedi) ----------
+
+    private var workoutProbeActive = false
+    private var workoutProbeCommands = 0
+    private var workoutProbeSamples = 0
+    private val sensorSubtypes = sortedSetOf<Int>()
+    private var lastUnwantedWorkoutStopAt = 0L
+    private val workoutProbeEnd = Runnable {
+        if (!workoutProbeActive) return@Runnable
+        workoutProbeActive = false
+        if (!SleepAsAndroidBridge.moving) workout(false)
+        listener.onLog("Band 8 gizli antrenman denemesi bitti: 30 sn, ivme komutu $workoutProbeCommands, örnek $workoutProbeSamples, alt türler ${sensorSubtypes.joinToString(",").ifEmpty { "yok" }}")
+    }
+
+    private fun workoutProbe(): String? {
+        if (SleepAsAndroidBridge.moving) return "Sleep as Android hareket akışı sürüyor; deneme yapılmadı."
+        if (workoutProbeActive) return "Deneme zaten sürüyor."
+        if (!workout(true)) return "Band 8 denemesi gönderilemedi. Logu kontrol et."
+        workoutProbeActive = true
+        workoutProbeCommands = 0
+        workoutProbeSamples = 0
+        main.postDelayed(workoutProbeEnd, LIVE_PROBE_MS)
+        return null
+    }
+
+    /** Gizli uyku antrenmanı: başlat ya da duraklat + 500 ms sonra bitir (Notify'ın sırası). */
+    fun workout(start: Boolean): Boolean {
+        if (!ble.isReady) return false
+        val now = System.currentTimeMillis()
+        val q = java.util.TimeZone.getDefault().getOffset(now) / 60_000 / 15
+        if (start) return ble.sendFeature(B8Workout.status(B8Workout.STATE_START, now / 1000, q), "gizli antrenman başlat 8/26")
+        val ok = ble.sendFeature(B8Workout.status(B8Workout.STATE_PAUSE, now / 1000, q), "gizli antrenman duraklat 8/26")
+        main.postDelayed({
+            if (ble.isReady) ble.sendFeature(B8Workout.status(B8Workout.STATE_FINISH, System.currentTimeMillis() / 1000, q), "gizli antrenman bitir 8/26")
+        }, B8Workout.FINISH_GAP_MS)
+        return ok
+    }
+
+    /** Health alan 15: ivme. Değer loga yazılmaz; alt tür ilk görülüşte yazılır. */
+    private fun onSensor(command: B8Command) {
+        if (sensorSubtypes.add(command.subtype)) listener.onLog("Band 8 ivme komutu görüldü: tür=8, altTür=${command.subtype}")
+        val samples = B8Workout.accel(command)
+        if (workoutProbeActive) {
+            workoutProbeCommands++
+            workoutProbeSamples += samples.size
+        }
+        val ours = SleepAsAndroidBridge.onAccel(samples)
+        if (!ours && !workoutProbeActive) {
+            val now = System.currentTimeMillis()
+            if (now - lastUnwantedWorkoutStopAt >= 60_000L) {
+                lastUnwantedWorkoutStopAt = now
+                listener.onLog("Band 8 istenmeyen ivme akışı; gizli antrenman bitiriliyor")
+                workout(false)
+            }
+        }
     }
 
     override fun onForeignClient() = listener.onForeignClient()
