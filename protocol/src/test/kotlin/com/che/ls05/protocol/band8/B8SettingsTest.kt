@@ -129,6 +129,30 @@ class B8SettingsTest {
     }
 
     @Test
+    fun userAlarmRepeatFromDays() {
+        val once = cmd(B8Alarms.create(B8AlarmSpec(6, 30, 0, true))).body(19)!!.message(2)!!
+        assertEquals(0, once.int(3))
+        assertNull(once.int(4))
+        val daily = cmd(B8Alarms.create(B8AlarmSpec(6, 30, 0x7F, true))).body(19)!!.message(2)!!
+        assertEquals(1, daily.int(3))
+        assertNull(daily.int(4))
+        val weekdays = cmd(B8Alarms.edit(3, B8AlarmSpec(7, 0, 0x1F, false))).body(19)!!.message(3)!!
+        assertEquals(3, weekdays.int(1))
+        val d = weekdays.message(2)!!
+        assertEquals(5, d.int(3))
+        assertEquals(0x1F, d.int(4))
+        assertEquals(false, d.bool(5))
+        assertEquals(2, d.int(7), "normal alarm")
+    }
+
+    @Test
+    fun alarmDaysFromListEntry() {
+        assertEquals(0, B8Alarms.days(B8Alarm(1, 6, 0, 0, true, 2)))
+        assertEquals(0x7F, B8Alarms.days(B8Alarm(1, 6, 0, 1, true, 2)))
+        assertEquals(0x1F, B8Alarms.days(B8Alarm(1, 6, 0, 5, true, 2, 0x1F)))
+    }
+
+    @Test
     fun createRingingOneShotAlarm() {
         val c = cmd(B8Alarms.create(7, 45))
         assertTrue(c.matches(17, 1))

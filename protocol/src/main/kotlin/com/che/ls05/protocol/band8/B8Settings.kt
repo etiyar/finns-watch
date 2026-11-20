@@ -36,6 +36,12 @@ data class B8AlarmList(val alarms: List<B8Alarm>, val max: Int?) {
     val ids: List<Int> get() = alarms.map { it.id }
 }
 
+/**
+ * Kullanıcı alarmı. [days]: bit 0 pazartesi ... bit 6 pazar; 0 bir kez, 0x7F her gün, diğerleri haftalık.
+ * Akıllı alarm yok (normal).
+ */
+data class B8AlarmSpec(val hour: Int, val minute: Int, val days: Int, val enabled: Boolean)
+
 /** Alarm: 17/0 liste, 17/1 oluştur, 17/2 düzenle, 17/4 sil (belge 8.1). Kimlikleri band verir. */
 object B8Alarms {
     private const val ONCE = 0
@@ -80,6 +86,32 @@ object B8Alarms {
     /** Bir kez çalan, açık, normal (akıllı olmayan) alarm. */
     private fun details(hour: Int, minute: Int): PbWriter =
         PbWriter().message(2, hourMinute(hour, minute)).uint(3, ONCE).bool(5, true).uint(7, NORMAL)
+
+    private const val DAILY = 1
+    private const val WEEKLY = 5
+
+    private fun details(a: B8AlarmSpec): PbWriter {
+        val d = PbWriter().message(2, hourMinute(a.hour, a.minute))
+        when (a.days and 0x7F) {
+            0 -> d.uint(3, ONCE)
+            0x7F -> d.uint(3, DAILY)
+            else -> d.uint(3, WEEKLY).uint(4, a.days and 0x7F)
+        }
+        return d.bool(5, a.enabled).uint(7, NORMAL)
+    }
+
+    fun create(a: B8AlarmSpec): ByteArray =
+        cmd(B8Type.SCHEDULE, 1, B8Type.F_SCHEDULE, PbWriter().message(2, details(a)))
+
+    fun edit(id: Int, a: B8AlarmSpec): ByteArray =
+        cmd(B8Type.SCHEDULE, 2, B8Type.F_SCHEDULE, PbWriter().message(3, PbWriter().uint(1, id).message(2, details(a))))
+
+    /** Listedeki alarmın gün maskesi (bir kez 0, her gün 0x7F, haftalıkta bayraklar). */
+    fun days(a: B8Alarm): Int = when (a.repeat) {
+        DAILY -> 0x7F
+        WEEKLY -> (a.dayFlags ?: 0) and 0x7F
+        else -> 0
+    }
 
     fun create(hour: Int, minute: Int): ByteArray =
         cmd(B8Type.SCHEDULE, 1, B8Type.F_SCHEDULE, PbWriter().message(2, details(hour, minute)))
@@ -212,19 +244,72 @@ object B8Weather {
 }
 
 /**
- * Müzik bilgisi: 18/1, Music alan 20 > 1 (tahmin). Alanlar: 1 durum (1 çalıyor, 2 duraklatıldı), 2 ses (yüzde),
- * 4 şarkı, 5 sanatçı, 6 konum (sn), 7 süre (sn). Kayıtta müzik yoktu; banddan gelen 18/x olayları loga
- * yalnızca tür ve alt tür olarak yazılır.
+ * Müzik: 18/1, Music alan 20 > 1 MusicInfo (tahmin): 1 durum (0 yok, 1 çalıyor, 2 duraklatıldı), 2 ses (yüzde),
+ * 4 şarkı, 5 sanatçı, 6 konum (sn), 7 süre (sn). 20.11.2026: kendiliğinden giden 18/1 ACK aldı ama görünmedi;
+ * band müzik ekranını açınca ve tuşlara basınca 18/0 gönderdi. 18/0 durum isteği sayılır, yanıt olarak 18/1 gider.
+ * Tuş olayı varsa (tahmin) Music alan 2 > 1 tuş, 2 ses. Gelen 18/x yapısı loga yalnızca alan biçimiyle yazılır.
  */
 object B8Music {
-    fun info(track: String, artist: String, playing: Boolean, durationSec: Int, volumePercent: Int): ByteArray {
-        val i = PbWriter()
-            .uint(1, if (playing) 1 else 2)
-            .uint(2, volumePercent)
-            .string(4, track)
-            .string(5, artist)
-            .uint(6, 0)
-            .uint(7, durationSec)
+    const val STATE_NONE = 0
+    const val STATE_PLAYING = 1
+    const val STATE_PAUSED = 2
+
+    /** Tuş kodları (tahmin): 0 çal, 1 duraklat, 3 önceki, 4 sonraki, 5 ses ([volume] yüzde). */
+    data class MediaKey(val key: Int, val volume: Int?)
+
+    const val KEY_PLAY = 0
+    const val KEY_PAUSE = 1
+    const val KEY_PREVIOUS = 3
+    const val KEY_NEXT = 4
+    const val KEY_VOLUME = 5
+
+    fun info(track: String?, artist: String?, state: Int, durationSec: Int, positionSec: Int, volumePercent: Int): ByteArray {
+        val i = PbWriter().uint(1, state).uint(2, volumePercent.coerceIn(0, 100))
+        track?.let { i.string(4, B8Text.forBand(it)) }
+        artist?.let { i.string(5, B8Text.forBand(it)) }
+        if (state != STATE_NONE) i.uint(6, positionSec.coerceAtLeast(0)).uint(7, durationSec.coerceAtLeast(0))
         return cmd(B8Type.MUSIC, 1, B8Type.F_MUSIC, PbWriter().message(1, i))
+    }
+
+    fun info(track: String, artist: String, playing: Boolean, durationSec: Int, volumePercent: Int): ByteArray =
+        info(track, artist, if (playing) STATE_PLAYING else STATE_PAUSED, durationSec, 0, volumePercent)
+
+    fun mediaKey(c: B8Command): MediaKey? {
+        if (c.type != B8Type.MUSIC) return null
+        val k = c.body(B8Type.F_MUSIC)?.message(2) ?: return null
+        return MediaKey(k.int(1) ?: return null, k.int(2))
+    }
+
+    /** Banddan gelen 18/0, içinde tuş olayı yoksa: güncel müzik bilgisi isteniyor. */
+    fun isStateRequest(c: B8Command): Boolean = c.matches(B8Type.MUSIC, 0) && mediaKey(c) == null
+
+    /** Log için: Music mesajının alan biçimi, iç mesajlar bir düzey açılır. Metin ve değer yazılmaz. */
+    fun describe(c: B8Command): String {
+        val m = c.body(B8Type.F_MUSIC) ?: return "yok"
+        return m.fields.joinToString(" ") { f ->
+            when (f.wire) {
+                PbWriter.WIRE_VARINT -> "${f.number}v"
+                PbWriter.WIRE_LEN -> {
+                    val inner = f.data?.let { PbMessage.parseOrNull(it) }
+                    if (inner != null && inner.fields.isNotEmpty() && f.data.isNotEmpty() && looksLikeMessage(f.data))
+                        "${f.number}m{${B8RawSetting(0, f.data).shape()}}" else "${f.number}m"
+                }
+                else -> "${f.number}f"
+            }
+        }
+    }
+
+    /** UTF-8 metni yanlışlıkla mesaj diye açmamak için kaba denetim: metin baytları genelde yazdırılabilir. */
+    private fun looksLikeMessage(b: ByteArray): Boolean = b.firstOrNull()?.let { (it.toInt() and 0x07) <= 5 && (it.toInt() and 0xFF) >= 0x08 } ?: false
+}
+
+/** Titreşim deseni dene: 2/59, System alan 41 > tekrarlı 1 { 1 titreşim (1/0), 2 süre ms } (belge 6.9, güçlü kanıt). */
+object B8Vibration {
+    val TEST: List<Pair<Boolean, Int>> = listOf(true to 400, false to 200, true to 400, false to 200, true to 800)
+
+    fun pattern(steps: List<Pair<Boolean, Int>>): ByteArray {
+        val body = PbWriter()
+        for ((on, ms) in steps) body.message(1, PbWriter().uint(1, if (on) 1 else 0).uint(2, ms.coerceIn(0, 10_000)))
+        return cmd(B8Type.SYSTEM, 59, B8Type.F_SYSTEM, PbWriter().message(41, body))
     }
 }

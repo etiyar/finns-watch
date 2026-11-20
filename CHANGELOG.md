@@ -4,6 +4,21 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.15.0-beta3 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
+
+v0.15, v0.16 ve v0.17 planları tek sürümde (v0.15.0) toplandı.
+
+- **Bildirim kuralları** (Bildirimler > Bildirim kuralları), iki saat için ortak: uygulamaya, kişiye ya da gruba (başlık) ve kelimeye göre izin ver / engelle. Kişisel WhatsApp ve WhatsApp Business ayrı uygulama olarak seçilir. Büyük/küçük harf ve Türkçe harf farkı gözetilmez. En çok alanı dolu kural geçerlidir.
+- **Sessiz saatler:** birden çok aralık, gün seçimi, gece yarısını geçen aralık; istisna uygulamalar ve kelimeler yine geçer.
+- **Okunana kadar tekrar:** kurala göre bildirim telefonda durdukça X dakikada bir, en çok N kez yeniden gider; telefonda kapatılınca durur. Saatte en çok 20 tekrar. Servis yeniden başlasa da sayaçlar sürer (metin saklanmaz).
+- **Titreşim:** LS05'te kurala göre titreşimsiz ya da 1-5 titreşim. Band 8'de Gelişmiş'te "Titreşim deseni testi" (2/59); kurallarda henüz kullanılmaz.
+- **Navigasyon:** Google Maps yönergesi değişince saate gider; yalnızca mesafe değişirse en sık 10 sn'de bir, aynı yönerge tekrar gitmez (varsayılan kapalı). OsmAnd ve Komoot denenmedi.
+- **VoIP aramalar:** WhatsApp, Telegram, Signal gibi uygulamaların çalan arama bildirimi saatte arama ekranı açar. Saatten reddetme yalnızca bildirimdeki reddet eylemiyle; telefon araması kapatılmaz.
+- **Telefon pili:** isteğe bağlı düşük pil (eşik varsayılan %15) ve dolu pil uyarısı, her geçişte bir kez.
+- **Emoji:** iki saat de emoji çizemiyor (Band 8'de boş kutucuk). Yaygın emojiler kısa metne döner (❤️ → <3, 👍 → (+1), 😂 → :D, 😮 → :O, 😢 → :(, 🙏 → (dua)); diğer emojiler çıkar. "Reacted 👍 to" → "Reacted (+1) to".
+- **Band 8 alarmları:** Saat > Alarmlar'da bandın kendi alarm listesi. Ekle, saat/gün/açık-kapalı düzenle, sil; bandın en çok alarm sayısına kadar. Her değişiklikten sonra liste yeniden okunur. Kurma, düzenleme ve silme komutları cihazda doğrulandı; deneme düğmeleri Gelişmiş'te kalır.
+- **Band 8 müzik:** band müzik bilgisi isteyince (18/0) telefondaki çalan medyanın durumu, şarkı, sanatçı, süre ve ses düzeyi gider; değişince en sık 1,5 sn'de bir güncellenir. Band tuşları (çal, duraklat, önceki, sonraki, ses) telefonu kumanda eder. Yapı tahmin; gelen 18/x alan biçimi loga yazılır.
+
 ## v0.15.0-beta2 | 20 Kasım 2026 (geliştirme, cihazda doğrulanmadı)
 
 - Band 8 bildirimlerinde emoji korunur (ZWJ dizileri, değişken seçiciler, ten rengi dahil). Kontrol karakterleri çıkar, uzun metin emoji bölünmeden kısaltılır. LS05 metni eskisi gibi temizlenir.

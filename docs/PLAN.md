@@ -1,6 +1,6 @@
 # Finn's Watch | Güncel plan
 
-**20 Kasım 2026:** PR #28 (v0.15.0-alpha1) birleşti, build 182 cihazda denendi: sağlık dosyaları (11 dosya, CRC tamam), test bildirimi, bulma, cevapsız arama, rahatsız etme aç/kapat ve alarm kurma çalıştı; müzik ve hava bantta görünmedi (`TEST_RESULTS.md`). Sıradaki aday v0.15.0-beta1 (`feat/v015-apk2`): Band 8 uyku, adım ve nabzın Bugün ekranında birleşik gösterimi, CSV kaynak sütunu, otomatik cevapsız arama ve rahatsız etme, alarm denemesi düzeltmesi. [#16](https://github.com/etiyar/ls05-controller/issues/16) kök nedeni ikinci istemciydi.
+**20 Kasım 2026:** v0.15, v0.16 ve v0.17 planları tek sürümde, v0.15.0'da toplandı. dev üzerinde beta2 (build 188): Band 8 gerçek gelen arama ve bantta reddet çalıştı; emoji kutucuk göründü; müzik görünmedi; alarm kurma, düzenleme ve silme doğrulandı (`TEST_RESULTS.md`). Sıradaki aday v0.15.0-beta3 (`feat/v015-beta3`): bildirim kuralları ve sessiz saatler, okunana kadar tekrar, navigasyon, VoIP arama, telefon pili uyarısı, emoji → metin, Band 8 müzik isteğine yanıt. Band 8 alarm kartı eklendi. Kalan: Band 8 hava ve hareketsizlik, Band 8 kural titreşimi.
 
 | İş | Takip | Sahip/dal | Yayın kapısı |
 | --- | --- | --- | --- |

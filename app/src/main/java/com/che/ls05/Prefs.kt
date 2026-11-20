@@ -32,6 +32,28 @@ object Prefs {
     fun forwardingEnabled(c: Context): Boolean = p(c).getBoolean("forwarding", true)
     fun setForwardingEnabled(c: Context, value: Boolean) = p(c).edit().putBoolean("forwarding", value).apply()
 
+    /** Bildirim kuralları (telefona ait, saatler arasında ortak). Biçim: [com.che.ls05.protocol.NotifyRuleSet.encode]. */
+    fun notifyRules(c: Context): com.che.ls05.protocol.NotifyRuleSet =
+        com.che.ls05.protocol.NotifyRuleSet.decode(p(c).getString("notifyRules", null))
+    fun setNotifyRules(c: Context, value: com.che.ls05.protocol.NotifyRuleSet) =
+        p(c).edit().putString("notifyRules", value.encode()).apply()
+
+    /** "Okunana kadar tekrar" durumu: yalnızca bildirim anahtarları ve sayaçlar, metin yok. */
+    fun repeatState(c: Context): String? = p(c).getString("repeatState", null)
+    fun setRepeatState(c: Context, value: String) = p(c).edit().putString("repeatState", value).apply()
+
+    /** Navigasyon yönergelerini saate ilet (varsayılan kapalı). */
+    fun navigation(c: Context): Boolean = p(c).getBoolean("navigation", false)
+    fun setNavigation(c: Context, value: Boolean) = p(c).edit().putBoolean("navigation", value).apply()
+
+    /** Telefon pili uyarıları (varsayılan kapalı). */
+    fun batteryLow(c: Context): Boolean = p(c).getBoolean("batteryLow", false)
+    fun setBatteryLow(c: Context, value: Boolean) = p(c).edit().putBoolean("batteryLow", value).apply()
+    fun batteryLowThreshold(c: Context): Int = p(c).getInt("batteryLowAt", 15)
+    fun setBatteryLowThreshold(c: Context, value: Int) = p(c).edit().putInt("batteryLowAt", value.coerceIn(5, 50)).apply()
+    fun batteryFull(c: Context): Boolean = p(c).getBoolean("batteryFull", false)
+    fun setBatteryFull(c: Context, value: Boolean) = p(c).edit().putBoolean("batteryFull", value).apply()
+
     fun vibrate(c: Context): Boolean = p(c).getBoolean("vibrate", true)
     fun setVibrate(c: Context, value: Boolean) = p(c).edit().putBoolean("vibrate", value).apply()
 

@@ -24,6 +24,7 @@ import com.che.ls05.protocol.band8.B8Notification
 import com.che.ls05.protocol.band8.B8RawSetting
 import com.che.ls05.protocol.band8.B8Standing
 import com.che.ls05.protocol.band8.B8Text
+import com.che.ls05.protocol.band8.B8Vibration
 import com.che.ls05.protocol.band8.B8Type
 import com.che.ls05.protocol.band8.B8Weather
 import com.che.ls05.protocol.band8.B8WeatherMeta
@@ -39,6 +40,7 @@ import java.util.Locale
 enum class Band8Probe(val label: String) {
     MISSED_CALL("cevapsız arama 7/0"),
     EMOJI_TEST("emoji testi 7/0"),
+    VIBRATION_TEST("titreşim deseni testi 2/59"),
     ALARM_LIST("alarm listesi 17/0"),
     ALARM_CREATE("test alarmı oluştur 17/1"),
     ALARM_EDIT("test alarmını düzenle 17/2"),
@@ -73,6 +75,9 @@ class Band8Driver(
     private val main = Handler(Looper.getMainLooper())
     private var callTestActive = false
     private val appContext = context.applicationContext
+    private val music: Band8Music by lazy {
+        Band8Music(appContext, main, { listener.onLog(it) }) { ble.sendFeature(it, "müzik bilgisi 18/1") }
+    }
 
     /** Gönderilen düzenlemenin saati; yanıt gelince kaydedilir. */
     private var pendingEditTime: Pair<Int, Int>? = null
@@ -115,6 +120,7 @@ class Band8Driver(
         val now = ZonedDateTime.now()
         val command: ByteArray = when (p) {
             Band8Probe.MISSED_CALL -> B8Calls.missedCall(TEST_CALLER, notificationTime(System.currentTimeMillis()))
+            Band8Probe.VIBRATION_TEST -> B8Vibration.pattern(B8Vibration.TEST)
             Band8Probe.EMOJI_TEST -> {
                 val t = System.currentTimeMillis()
                 B8Messages.notification(B8Notification(packageName, "Finn's Watch", "Emoji testi", B8Text.EMOJI_TEST, notificationTime(t), (t / 1000).toInt(), "emoji:$t"))
@@ -190,6 +196,47 @@ class Band8Driver(
 
     private fun freshAlarms(): B8AlarmList? = alarmList?.takeIf { alarmListFresh }
 
+    // ---------- Alarm kartı (17/0, 17/1, 17/2, 17/4 cihazda doğrulandı) ----------
+
+    /** Kartın gösterdiği liste; değişiklikten sonra yenilenene kadar null. */
+    fun alarmsForCard(): B8AlarmList? = freshAlarms()
+
+    /** 17/0: listeyi oku. */
+    fun alarmRefresh(): String? {
+        if (!ble.isReady) return "Band 8 hazır değil."
+        return if (ble.sendFeature(B8Alarms.list(), "alarm listesi 17/0")) null else "Alarm listesi istenemedi."
+    }
+
+    /** [id] null ise yeni alarm. Gönderilince liste eskir; yanıt gelince kendiliğinden yeniden okunur. */
+    fun alarmSave(id: Int?, spec: com.che.ls05.protocol.band8.B8AlarmSpec): String? {
+        if (!ble.isReady) return "Band 8 hazır değil."
+        val list = freshAlarms() ?: return "Alarm listesi yenileniyor; biraz bekle."
+        if (id == null) list.max?.let { if (list.alarms.size >= it) return "Bantta boş alarm yeri yok." }
+        val bytes = if (id == null) B8Alarms.create(spec) else B8Alarms.edit(id, spec)
+        if (!ble.sendFeature(bytes, if (id == null) "alarm ekle 17/1" else "alarm düzenle 17/2")) return "Alarm gönderilemedi."
+        alarmListFresh = false
+        refreshAfterChange = true
+        return null
+    }
+
+    fun alarmDelete(id: Int): String? {
+        if (!ble.isReady) return "Band 8 hazır değil."
+        freshAlarms() ?: return "Alarm listesi yenileniyor; biraz bekle."
+        if (!ble.sendFeature(B8Alarms.delete(listOf(id)), "alarm sil 17/4")) return "Alarm silinemedi."
+        alarmListFresh = false
+        refreshAfterChange = true
+        return null
+    }
+
+    /** Kart değişikliğinden sonra yanıt gelince liste bir kez yeniden okunur. */
+    private var refreshAfterChange = false
+
+    private fun refreshIfChanged() {
+        if (!refreshAfterChange) return
+        refreshAfterChange = false
+        alarmRefresh()
+    }
+
     private fun testAlarm(list: B8AlarmList): B8Alarm? {
         val t = Prefs.band8TestAlarm(appContext) ?: return null
         return B8Alarms.findTest(list, t.first, t.second)
@@ -207,26 +254,32 @@ class Band8Driver(
                 val test = testAlarm(list)
                 // Tanı: alarm başına kimlik ve alan biçimi; saat ve değer yazılmaz.
                 for (line in B8Alarms.describe(command)) listener.onLog("Band 8 alarm listesi biçimi: $line")
+                WatchHub.settingsChanged()
                 if (Prefs.band8TestAlarm(appContext) == null) listener.onLog("Band 8 test alarmı saati kayıtlı değil")
                 listener.onLog("Band 8 alarm listesi: ${list.alarms.size} alarm, en çok ${list.max ?: "?"}, " +
                     "deneme imzalı ${B8Alarms.probeCandidates(list).size}, test alarmı ${if (test != null) "bulundu" else "yok"}")
             }
-            command.matches(B8Type.SCHEDULE, 1) ->
+            command.matches(B8Type.SCHEDULE, 1) -> {
                 listener.onLog("Band 8 alarm oluşturma yanıtı: durum=${command.status ?: "yok"}; kimlik için listeyi oku")
+                refreshIfChanged()
+            }
             command.matches(B8Type.SCHEDULE, 2) -> {
                 val st = command.status
                 val t = pendingEditTime
                 pendingEditTime = null
                 if (t != null && (st == null || st == 0)) Prefs.setBand8TestAlarm(appContext, t.first, t.second)
                 listener.onLog("Band 8 alarm düzenleme yanıtı: durum=${st ?: "yok"}; yeni saat ${if (t != null && (st == null || st == 0)) "kaydedildi" else "kaydedilmedi"}")
+                refreshIfChanged()
             }
             command.matches(B8Type.NOTIFICATION, 2) || command.matches(B8Type.NOTIFICATION, 5) -> {
                 val reject = command.subtype == 2
                 listener.onLog("Band 8 arama olayı: tür=7, altTür=${command.subtype} (${if (reject) "reddet" else "sessize al"})")
                 listener.onBandCallAction(reject)
             }
-            command.matches(B8Type.SCHEDULE, 4) ->
+            command.matches(B8Type.SCHEDULE, 4) -> {
                 listener.onLog("Band 8 alarm silme yanıtı: durum=${command.status ?: "yok"}; listeyi yeniden oku")
+                refreshIfChanged()
+            }
             command.matches(B8Type.SCHEDULE, 9) -> {
                 listener.onLog("Band 8 zamanlı rahatsız etme yanıtı: durum=${command.status ?: "yok"}")
                 if (dndSettingPending) {
@@ -240,8 +293,15 @@ class Band8Driver(
                 listener.onLog(if (s != null) "Band 8 hareketsizlik ayarı okundu: Health alanı ${s.field}, alanlar ${s.shape()}"
                     else "Band 8 hareketsizlik ayarı beklenen biçimde değil")
             }
-            command.type == B8Type.MUSIC ->
-                listener.onLog("Band 8 müzik olayı: altTür=${command.subtype}")
+            command.type == B8Type.MUSIC -> {
+                // Yapı tahmin: alan biçimi loga yazılır (metin yok), istek yanıtlanır, tuş uygulanır.
+                listener.onLog("Band 8 müzik olayı: altTür=${command.subtype}, alanlar=${B8Music.describe(command)}")
+                val key = B8Music.mediaKey(command)
+                when {
+                    key != null -> music.onKey(key)
+                    B8Music.isStateRequest(command) -> music.onRequest()
+                }
+            }
         }
     }
 
@@ -258,6 +318,7 @@ class Band8Driver(
     override fun forceClose(reason: String) { clearCallTest(); ble.forceClose() }
     override fun release(reason: String) {
         clearCallTest()
+        music.stop()
         ble.release()
     }
 
@@ -320,6 +381,9 @@ class Band8Driver(
 
     override fun onReady(ready: Boolean) {
         if (!ready) clearCallTest()
+        if (ready) music.start() else music.stop()
+        // Alarm kartı için liste bağlanınca bir kez okunur (yalnızca okuma).
+        if (ready) main.postDelayed({ if (ble.isReady && freshAlarms() == null) alarmRefresh() }, ALARM_READ_DELAY_MS)
         if (ready) listener.onAuth(AuthOutcome(AuthOutcome.Kind.OK))
         listener.onReadyChanged(ready)
     }
@@ -350,6 +414,7 @@ class Band8Driver(
 
     private companion object {
         const val CALL_TEST_MAX_MS = 15_000L
+        const val ALARM_READ_DELAY_MS = 4_000L
 
         /** Alarm listesi süreç boyunca tutulur (sürücü yeniden bağlanınca yenilenir); taze değilse değişiklik yapılmaz. */
         private var alarmList: B8AlarmList? = null

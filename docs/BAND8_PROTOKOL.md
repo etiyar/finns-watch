@@ -794,3 +794,9 @@ Kullanıcının dışa aktardığı arşiv repo dışında çözüldü ve bandı
 
 - Telefon çalınca 7/0 (paket "phone", arama mı = true, başlık arayan adı ya da numara). Cevap, ret ya da bitişte 7/1 (kimlik 0, paket "phone"). Elle arama ekranı denemesi bu iki komutun çalıştığını gösterdi.
 - Banddan 7/2 reddet, 7/5 sessize al. Uygulama yalnızca kendi açtığı gerçek arama ekranı için tepki verir.
+
+### 17.7 Emoji, müzik ve titreşim (20.11.2026, build 188)
+
+- Bandın yazı tipi emoji çizemiyor: "Emoji testi" altı boş kutucuk gösterdi. Banda giden metinde yaygın emojiler kısa metne çevrilir, diğerleri çıkar (`EmojiText`, LS05 ile ortak).
+- Müzik: kendiliğinden giden 18/1 `ACK` aldı ama görünmedi. Band müzik ekranı açılınca ve tuşlara basınca şifreli 18/0 gönderdi. Uygulama 18/0'ı durum isteği sayar ve 18/1 ile yanıtlar (Music alan 1: 1 durum, 2 ses, 4 şarkı, 5 sanatçı, 6 konum, 7 süre; tahmin). 18/0 içinde Music alan 2 (1 tuş, 2 ses) varsa tuş olayı sayılır: 0 çal, 1 duraklat, 3 önceki, 4 sonraki, 5 ses (tahmin). Gelen her 18/x'in alan biçimi loga yazılır; sonraki cihaz testi yapıyı doğrulayacak.
+- Titreşim deseni 2/59: System alan 41 > tekrarlı 1 { 1 titreşim 1/0, 2 süre ms } (güçlü kanıt, cihazda denenmedi).
