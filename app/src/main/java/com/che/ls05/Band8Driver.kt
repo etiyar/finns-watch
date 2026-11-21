@@ -25,6 +25,7 @@ import com.che.ls05.protocol.band8.B8RawSetting
 import com.che.ls05.protocol.band8.B8Realtime
 import com.che.ls05.protocol.band8.B8Workout
 import com.che.ls05.protocol.band8.B8Standing
+import com.che.ls05.protocol.band8.B8HeartRateConfig
 import com.che.ls05.protocol.band8.B8Text
 import com.che.ls05.protocol.band8.B8Vibration
 import com.che.ls05.protocol.band8.B8Sub
@@ -61,6 +62,10 @@ enum class Band8Probe(val label: String) {
     IDLE_READ("hareketsizlik ayarını oku 8/12"),
     IDLE_ON("hareketsizlik uyarısı aç 8/13"),
     IDLE_OFF("hareketsizlik uyarısı kapat 8/13"),
+    HR_CONFIG_READ("nabız ölçüm ayarını oku 8/10"),
+    HR_CONFIG_EVERY_10("nabız ölçümü her 10 dk 8/11"),
+    HR_CONFIG_CONTINUOUS("nabız ölçümü sürekli 8/11"),
+    HR_CONFIG_OFF("nabız ölçümü kapalı 8/11"),
     MUSIC("test şarkı bilgisi 18/1"),
     FETCH_NOW("sağlık dosyalarını çek 8/1"),
 }
@@ -98,6 +103,10 @@ class Band8Driver(
 
     /** Banddan okunan hareketsizlik ayarı (deneme). Değer loglanmaz. */
     private var standing: B8RawSetting? = null
+
+    /** Banddan okunan nabız ölçüm ayarı (deneme, cihazda doğrulanmadı). Yalnızca alan biçimi loglanır. */
+    private var hrConfig: B8RawSetting? = null
+    private var hrConfigReadAfterWrite = false
 
     /** Ayarlar kartından giden zamanlı rahatsız etme (17/9) yanıt bekliyor. */
     private var dndSettingPending = false
@@ -198,6 +207,18 @@ class Band8Driver(
             Band8Probe.IDLE_ON, Band8Probe.IDLE_OFF -> {
                 val raw = standing ?: return "Önce hareketsizlik ayarını oku."
                 B8Standing.write(raw, p == Band8Probe.IDLE_ON) ?: return "Okunan ayar beklenmeyen biçimde; gönderilmedi."
+            }
+            Band8Probe.HR_CONFIG_READ -> B8HeartRateConfig.read()
+            Band8Probe.HR_CONFIG_EVERY_10, Band8Probe.HR_CONFIG_CONTINUOUS, Band8Probe.HR_CONFIG_OFF -> {
+                val raw = hrConfig ?: return "Önce nabız ölçüm ayarını oku."
+                val mode = when (p) {
+                    Band8Probe.HR_CONFIG_EVERY_10 -> B8HeartRateConfig.Mode.EVERY_10
+                    Band8Probe.HR_CONFIG_CONTINUOUS -> B8HeartRateConfig.Mode.CONTINUOUS
+                    else -> B8HeartRateConfig.Mode.OFF
+                }
+                val bytes = B8HeartRateConfig.write(raw, mode) ?: return "Okunan ayar beklenmeyen biçimde; gönderilmedi."
+                hrConfigReadAfterWrite = true
+                bytes
             }
             Band8Probe.MUSIC -> B8Music.info(TEST_TRACK, "Finn's Watch", playing = true, durationSec = 180, volumePercent = 50)
             Band8Probe.FETCH_NOW, Band8Probe.LIVE_HR_30S, Band8Probe.WORKOUT_30S -> return null
@@ -343,6 +364,19 @@ class Band8Driver(
                 if (idleReadAfterWrite) {
                     idleReadAfterWrite = false
                     idleRead()
+                }
+            }
+            command.matches(B8Type.HEALTH, 10) -> {
+                hrConfig = B8HeartRateConfig.parse(command)
+                val h = hrConfig
+                listener.onLog(if (h != null) "Band 8 nabız ölçüm ayarı okundu: ${B8HeartRateConfig.describe(h)}"
+                    else "Band 8 nabız ölçüm ayarı beklenen biçimde değil: Health alanları ${command.msg.bytes(B8Type.F_HEALTH)?.let { B8RawSetting(0, it).shape() } ?: "yok"}")
+            }
+            command.matches(B8Type.HEALTH, 11) -> {
+                listener.onLog("Band 8 nabız ölçüm ayarı yazma yanıtı: durum=${command.status ?: "yok"}")
+                if (hrConfigReadAfterWrite) {
+                    hrConfigReadAfterWrite = false
+                    ble.sendProbe(B8HeartRateConfig.read(), Band8Probe.HR_CONFIG_READ.label)
                 }
             }
             command.type == B8Type.MUSIC -> {

@@ -2,6 +2,8 @@ package com.che.ls05.protocol
 
 /**
  * "Okunana kadar tekrar": bildirim telefonda durdukça her [everyMin] dakikada bir, en çok [max] kez yeniden gönderilir.
+ * Sınır ilk bildirimden sonraki toplam tekrardır: aynı anahtar yeni mesajla güncellenince sayaç baştan başlamaz.
+ * Hakkı biten anahtar, bildirim kaldırılana kadar (remove) kalan 0 olarak tutulur; böylece yeni mesaj sayacı yenilemez.
  * Bildirim kaldırılınca durur. Saatte en çok [maxPerHour] tekrar (bütün bildirimler için) gider.
  * Durum yalnızca bildirim anahtarı ve sayaçlardır; metin saklanmaz.
  */
@@ -11,33 +13,54 @@ class RepeatTracker(private val maxPerHour: Int = 20) {
     private val entries = LinkedHashMap<String, Entry>()
     private val sentAt = ArrayDeque<Long>()
 
-    val isEmpty: Boolean get() = entries.isEmpty()
+    /** Tekrar hakkı kalan bildirim yok. */
+    val isEmpty: Boolean get() = entries.values.none { it.remaining > 0 }
+
+    /** Takip edilen bütün anahtarlar (hakkı bitenler dahil); telefonda kalmayanları silmek için. */
     val keys: Set<String> get() = entries.keys
 
+    /** Anahtarın kalan tekrar sayısı; takip edilmiyorsa null. */
+    fun remaining(key: String): Int? = entries[key]?.remaining
+
+    /**
+     * İlk bildirimde sayaç [max] ile başlar. Anahtar zaten varsa (sohbete yeni mesaj geldi) kalan sayı ve sıradaki
+     * zaman korunur; yalnızca kural sınırı düşürüldüyse kalan sayı yeni sınıra indirilir.
+     */
     fun schedule(key: String, everyMin: Int, max: Int, now: Long) {
         if (everyMin <= 0 || max <= 0) { entries.remove(key); return }
+        val existing = entries[key]
+        if (existing != null) {
+            if (existing.remaining > max) existing.remaining = max
+            return
+        }
         val every = everyMin * 60_000L
         entries[key] = Entry(every, max, now + every)
+        trimExhausted()
     }
 
     fun remove(key: String) { entries.remove(key) }
 
-    fun nextWake(): Long? = entries.values.minOfOrNull { it.nextAt }
+    fun nextWake(): Long? = entries.values.filter { it.remaining > 0 }.minOfOrNull { it.nextAt }
 
     /** Zamanı gelen anahtarlar; gönderilmiş sayılır. Saatlik sınır doluysa bekler. */
     fun due(now: Long): List<String> {
         while (sentAt.isNotEmpty() && now - sentAt.first() > 3_600_000L) sentAt.removeFirst()
         val out = ArrayList<String>()
-        val ready = entries.entries.filter { it.value.nextAt <= now }.sortedBy { it.value.nextAt }
+        val ready = entries.entries.filter { it.value.remaining > 0 && it.value.nextAt <= now }.sortedBy { it.value.nextAt }
         for ((key, e) in ready) {
             if (sentAt.size >= maxPerHour) break
             out += key
             sentAt.addLast(now)
             e.remaining--
-            e.nextAt = now + e.everyMs
-            if (e.remaining <= 0) entries.remove(key)
+            e.nextAt = if (e.remaining > 0) now + e.everyMs else Long.MAX_VALUE
         }
         return out
+    }
+
+    /** Hakkı biten anahtarlar bildirim kaldırılınca silinir; kaçan olursa liste sınırsız büyümesin. */
+    private fun trimExhausted() {
+        val done = entries.entries.filter { it.value.remaining <= 0 }.map { it.key }
+        if (done.size > MAX_EXHAUSTED) done.take(done.size - MAX_EXHAUSTED).forEach { entries.remove(it) }
     }
 
     /** Servis yeniden başlarsa sürsün diye: anahtar, aralık, kalan, sonraki zaman. */
@@ -46,6 +69,9 @@ class RepeatTracker(private val maxPerHour: Int = 20) {
     }
 
     companion object {
+        /** Kalanı 0 olarak tutulan en çok anahtar sayısı. */
+        const val MAX_EXHAUSTED = 200
+
         fun decode(text: String?, maxPerHour: Int): RepeatTracker {
             val t = RepeatTracker(maxPerHour)
             for (line in (text ?: "").split('\n')) {
@@ -54,9 +80,9 @@ class RepeatTracker(private val maxPerHour: Int = 20) {
                 val every = p[1].toLongOrNull() ?: continue
                 val rem = p[2].toIntOrNull() ?: continue
                 val next = p[3].toLongOrNull() ?: continue
-                if (every <= 0 || rem <= 0) continue
+                if (every <= 0 || rem < 0) continue
                 val key = p[0].replace("\\t", "\t").replace("\\n", "\n").replace("\\\\", "\\")
-                t.entries[key] = Entry(every, rem, next)
+                t.entries[key] = Entry(every, rem, if (rem == 0) Long.MAX_VALUE else next)
             }
             return t
         }

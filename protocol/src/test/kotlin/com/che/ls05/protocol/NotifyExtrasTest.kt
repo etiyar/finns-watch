@@ -52,6 +52,49 @@ class NotifyExtrasTest {
         assertTrue(RepeatTracker.decode("bozuk", 20).isEmpty)
     }
 
+    @Test
+    fun newMessageOnSameKeyDoesNotResetRemaining() {
+        val t = RepeatTracker(maxPerHour = 100)
+        t.schedule("sohbet", everyMin = 5, max = 2, now = 0)
+        assertEquals(listOf("sohbet"), t.due(5 * min))
+        // Sohbete yeni mesaj geldi: aynı anahtar yeniden bildirildi.
+        t.schedule("sohbet", everyMin = 5, max = 2, now = 7 * min)
+        assertEquals(1, t.remaining("sohbet"), "kalan sayı korunur")
+        assertEquals(listOf("sohbet"), t.due(10 * min), "sıradaki zaman da korunur")
+        t.schedule("sohbet", everyMin = 5, max = 2, now = 11 * min)
+        assertEquals(emptyList<String>(), t.due(60 * min), "ilk bildirimden sonra toplam en çok 2 tekrar")
+        assertEquals(0, t.remaining("sohbet"))
+        assertTrue(t.isEmpty)
+        assertNull(t.nextWake())
+    }
+
+    @Test
+    fun exhaustedKeyRestartsOnlyAfterRemoval() {
+        val t = RepeatTracker(maxPerHour = 100)
+        t.schedule("k", 1, 1, 0)
+        assertEquals(listOf("k"), t.due(min))
+        t.schedule("k", 1, 1, 2 * min)
+        assertEquals(emptyList<String>(), t.due(10 * min), "hakkı biten anahtar yeni mesajla yenilenmez")
+        assertTrue("k" in t.keys, "kaldırılınca silinmek üzere tutulur")
+        t.remove("k")
+        t.schedule("k", 1, 1, 20 * min)
+        assertEquals(listOf("k"), t.due(21 * min), "bildirim kaldırılıp yeniden gelince yeni sayaç")
+    }
+
+    @Test
+    fun loweredLimitClampsRemainingAndZeroStateSurvivesRestart() {
+        val t = RepeatTracker(maxPerHour = 100)
+        t.schedule("a", 1, 5, 0)
+        t.schedule("a", 1, 2, min / 2)
+        assertEquals(2, t.remaining("a"), "kural sınırı düşürülünce kalan yeni sınıra iner")
+        t.schedule("b", 1, 1, 0)
+        t.due(min)
+        val back = RepeatTracker.decode(t.encode(), maxPerHour = 100)
+        assertEquals(0, back.remaining("b"))
+        back.schedule("b", 1, 1, 2 * min)
+        assertEquals(listOf("a"), back.due(3 * min), "yeniden başlatmadan sonra da b yenilenmez")
+    }
+
     // ---------- Navigasyon ----------
 
     @Test

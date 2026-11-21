@@ -219,6 +219,70 @@ object B8Standing {
     }
 }
 
+/**
+ * Otomatik nabız ölçümü: 8/10 oku, 8/11 yaz (belge 7.11; cihazda doğrulanmadı). Health alan 8 beklenir
+ * (güçlü kanıt): 1 kapalı mı, 2 aralık (0 akıllı, 1, 10, 30 dakika), 3 ve sonrası yüksek/düşük nabız uyarısı gibi
+ * alanlar (tahmin). Yalnızca Gelişmiş denemesi: önce okunur, yazarken yalnızca 1. ve 2. alan değişir, diğer
+ * alanlar olduğu gibi geri gider. Stres (8/14, 8/15) ve SpO2 (8/8, 8/9) ayrı mesajdır; burada yok.
+ */
+object B8HeartRateConfig {
+    const val FIELD = 8
+
+    /** Aralık değerleri (dakika). 0 akıllı. [CONTINUOUS] "sürekli" için 1 dakika (tahmin). */
+    const val SMART = 0
+    const val CONTINUOUS = 1
+    const val EVERY_10 = 10
+
+    enum class Mode { OFF, EVERY_10, CONTINUOUS }
+
+    fun read(): ByteArray = B8Messages.command(B8Type.HEALTH, 10).toByteArray()
+
+    /** Health alan 8; yoksa yanıttaki tek iç mesaj. Biçim belirsizse null. */
+    fun parse(c: B8Command): B8RawSetting? {
+        if (!c.matches(B8Type.HEALTH, 10)) return null
+        val h = c.body(B8Type.F_HEALTH) ?: return null
+        val msgs = h.fields.filter { it.wire == PbWriter.WIRE_LEN && it.data != null }
+        val one = msgs.lastOrNull { it.number == FIELD } ?: msgs.singleOrNull() ?: return null
+        return B8RawSetting(one.number, one.data!!)
+    }
+
+    /** Okunan ayarın kapalı mı ve aralık değeri (ayar, sağlık ölçümü değil). Alan yoksa null. */
+    data class State(val disabled: Boolean?, val interval: Int?)
+
+    fun state(raw: B8RawSetting): State? {
+        val m = PbMessage.parseOrNull(raw.bytes) ?: return null
+        return State(m.bool(1), m.int(2))
+    }
+
+    /** Log için: alan biçimi ve yalnızca 1. ve 2. alanın değeri. Uyarı eşikleri gibi diğer değerler yazılmaz. */
+    fun describe(raw: B8RawSetting): String {
+        val s = state(raw)
+        return "Health alanı ${raw.field}, alanlar ${raw.shape()}, kapalı mı=${s?.disabled ?: "yok"}, aralık=${s?.interval ?: "yok"}"
+    }
+
+    /** Kapalı seçilirse aralık olduğu gibi kalır. I64 gibi beklenmeyen alan varsa null: hiç gönderilmez. */
+    fun write(raw: B8RawSetting, mode: Mode): ByteArray? {
+        val m = PbMessage.parseOrNull(raw.bytes) ?: return null
+        val w = PbWriter().bool(1, mode == Mode.OFF)
+        val interval = when (mode) {
+            Mode.OFF -> m.int(2)
+            Mode.EVERY_10 -> EVERY_10
+            Mode.CONTINUOUS -> CONTINUOUS
+        }
+        interval?.let { w.uint(2, it) }
+        for (f in m.fields) {
+            if (f.number == 1 || f.number == 2) continue
+            when (f.wire) {
+                PbWriter.WIRE_VARINT -> w.uint(f.number, f.value)
+                PbWriter.WIRE_LEN -> w.bytes(f.number, f.data ?: return null)
+                PbWriter.WIRE_I32 -> w.float(f.number, java.lang.Float.intBitsToFloat(f.value.toInt()))
+                else -> return null
+            }
+        }
+        return cmd(B8Type.HEALTH, 11, B8Type.F_HEALTH, PbWriter().message(raw.field, w))
+    }
+}
+
 /** Hava durumu meta bilgisi. Konum adı banda gider, loga yazılmaz. [key] sabit bir koddur. */
 data class B8WeatherMeta(val publishedIso: String, val city: String, val key: String)
 

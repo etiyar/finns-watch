@@ -128,6 +128,7 @@ class NotifyForwarder : NotificationListenerService() {
         WatchHub.log("Bildirim dinleyiciden iletime geçti: $label, tür=MESSAGE${rule?.let { ", kural ${it.id}" } ?: ""}.")
         WatchHub.forward(this, note(sbn, pkg, label, cleanTitle, cleanText, now, rule?.vibration ?: -1))
         if (rule != null && rule.repeats && sbn.key != null) {
+            // Aynı anahtar yeni mesajla güncellenirse kalan tekrar sayısı korunur (sayaç baştan başlamaz).
             repeats.schedule(sbn.key, rule.repeatEveryMin, rule.repeatMax, now)
             saveRepeats()
             scheduleRepeats()
