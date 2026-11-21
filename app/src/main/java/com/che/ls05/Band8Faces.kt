@@ -20,13 +20,28 @@ class Band8Faces(
     private val send: (ByteArray, String) -> Boolean,
     private val upload: (Int, ByteArray, String, Band8Ble.UploadCallback) -> String?,
 ) {
+    /** Adım sonuçları (navigasyon kadranı akışı için). Ana iş parçacığında. */
+    sealed class Event {
+        class Listed(val faces: List<B8Watchface.Face>?) : Event()
+        class SetReply(val status: Int?) : Event()
+        class DeleteReply(val status: Int?) : Event()
+        /** [error] başarıda null; [installStatus] bandın 4/4 yanıtı (2 = zaten kurulu). */
+        class Installed(val id: String, val size: Int, val ms: Long, val installStatus: Int?, val error: String?) : Event()
+    }
+
+    var listener: ((Event) -> Unit)? = null
+    private var installStartedAt = 0L
+
     /** Kurulum isteği gönderildi, 4/4 yanıtı bekleniyor. */
     private var pendingInstall: Pair<String, ByteArray>? = null
     private var lastShownPercent = -1
     private val installTimeout = Runnable {
-        if (pendingInstall != null) {
+        val p = pendingInstall
+        if (p != null) {
             pendingInstall = null
+            busy = false
             setStatus("Band kurulum isteğine yanıt vermedi.")
+            listener?.invoke(Event.Installed(p.first, p.second.size, 0, null, "yanıt yok"))
         }
     }
 
@@ -36,34 +51,43 @@ class Band8Faces(
         return null
     }
 
-    fun setActive(id: String): String? {
-        val f = faces?.firstOrNull { it.id == id } ?: return "Önce listeyi oku."
-        if (f.active) return "Bu kadran zaten etkin."
+    /** [force]: liste denetimi yapılmaz (navigasyon kadranı yeni yüklendiğinde liste henüz eski). */
+    fun setActive(id: String, force: Boolean = false): String? {
+        if (!force) {
+            val f = faces?.firstOrNull { it.id == id } ?: return "Önce listeyi oku."
+            if (f.active) return "Bu kadran zaten etkin."
+        }
         if (busy) return "Kadran yüklemesi sürüyor."
         if (!send(B8Watchface.set(id), "kadranı etkin yap 4/1")) return "Band 8 hazır değil."
         log("Band 8 kadran etkin yapma isteği: kimlik=$id")
         return null
     }
 
-    fun delete(id: String): String? {
-        val f = faces?.firstOrNull { it.id == id } ?: return "Önce listeyi oku."
-        if (!B8Watchface.canDelete(f)) return "Bu kadran silinemez (yerleşik ya da etkin)."
+    fun delete(id: String, force: Boolean = false): String? {
+        if (!force) {
+            val f = faces?.firstOrNull { it.id == id } ?: return "Önce listeyi oku."
+            if (!B8Watchface.canDelete(f)) return "Bu kadran silinemez (yerleşik ya da etkin)."
+        }
         if (busy) return "Kadran yüklemesi sürüyor."
         if (!send(B8Watchface.delete(id), "kadran sil 4/2")) return "Band 8 hazır değil."
         log("Band 8 kadran silme isteği: kimlik=$id")
         return null
     }
 
-    /** Kullanıcının seçip onayladığı .bin dosyası. */
-    fun install(bytes: ByteArray): String? {
-        val list = faces ?: return "Önce listeyi oku."
+    /**
+     * Kullanıcının seçip onayladığı .bin dosyası. [replace]: aynı kimlik bantta olsa da gönderilir
+     * (navigasyon kadranı her manevrada üzerine yazılır; bant kabul etmezse 4/4 durum 2 döner).
+     */
+    fun install(bytes: ByteArray, replace: Boolean = false): String? {
+        val list = faces ?: if (replace) emptyList() else return "Önce listeyi oku."
         if (busy) return "Kadran yüklemesi sürüyor."
         val ok = B8FaceFile.parse(bytes) as? B8FaceFile.Result.Ok ?: return "Geçerli bir Band 8 kadran dosyası değil."
-        if (list.any { it.id == ok.id }) return "Bu kadran zaten bantta."
+        if (!replace && list.any { it.id == ok.id }) return "Bu kadran zaten bantta."
         // Kendi kadranımız yapı denetiminden geçmeden gönderilmez (belge BAND8_KADRAN_BICIMI 7).
         if (ok.id.startsWith(B8FaceBin.OWN_ID_PREFIX) && B8FaceBin.check(bytes).isNotEmpty()) return "Kendi kadranımız denetimden geçmedi."
         if (!send(B8Watchface.installStart(ok.id, ok.size), "kadran kurulumu 4/4")) return "Band 8 hazır değil."
         pendingInstall = ok.id to bytes
+        installStartedAt = android.os.SystemClock.elapsedRealtime()
         busy = true
         log("Band 8 kadran kurulum isteği: kimlik=${ok.id}, boy=${ok.size}")
         setStatus("Kurulum isteniyor…")
@@ -83,13 +107,16 @@ class Band8Faces(
                     else "Band 8 kadran listesi: ${l.size} kadran, silinebilir ${l.count { it.canDelete }}, etkin ${l.firstOrNull { it.active }?.id ?: "yok"}")
                 if (!busy) setStatus(if (l == null) "Liste okunamadı." else "Bantta ${l.size} kadran.")
                 else WatchHub.settingsChanged()
+                listener?.invoke(Event.Listed(l))
             }
             B8Watchface.SUB_SET -> {
                 log("Band 8 kadran etkin yapma yanıtı: durum=${c.status ?: "yok"}, alanlar=${fields(c)}")
+                listener?.invoke(Event.SetReply(c.status))
                 read()
             }
             B8Watchface.SUB_DELETE -> {
                 log("Band 8 kadran silme yanıtı: durum=${c.status ?: "yok"}, alanlar=${fields(c)}")
+                listener?.invoke(Event.DeleteReply(c.status))
                 read()
             }
             B8Watchface.SUB_INSTALL -> onInstallReply(c)
@@ -107,6 +134,7 @@ class Band8Faces(
         if (st != 0) {
             busy = false
             setStatus(if (st == 2) "Band bu kadranın kurulu olduğunu söyledi." else "Band kurulumu reddetti (durum ${st ?: "yok"}).")
+            listener?.invoke(Event.Installed(p.first, p.second.size, 0, st, "kurulum durumu ${st ?: "yok"}"))
             return
         }
         lastShownPercent = -1
@@ -120,6 +148,9 @@ class Band8Faces(
             }
             override fun onFinished(reason: String?) {
                 busy = false
+                val ms = android.os.SystemClock.elapsedRealtime() - installStartedAt
+                log("Band 8 kadran kurulumu ${if (reason == null) "bitti" else "durdu"}: kimlik=${p.first}, boy=${p.second.size}, süre=${ms} ms")
+                listener?.invoke(Event.Installed(p.first, p.second.size, ms, 0, reason))
                 setStatus(if (reason == null) "Yüklendi. Listede görünüyorsa \"Etkin yap\" ile seç." else "Yükleme durdu: $reason")
                 if (reason == null) main.postDelayed({ read() }, LIST_AFTER_UPLOAD_MS)
             }
@@ -127,6 +158,7 @@ class Band8Faces(
         if (err != null) {
             busy = false
             setStatus("Yükleme başlamadı: $err")
+            listener?.invoke(Event.Installed(p.first, p.second.size, 0, 0, err))
         } else setStatus("Yükleniyor: %0")
     }
 

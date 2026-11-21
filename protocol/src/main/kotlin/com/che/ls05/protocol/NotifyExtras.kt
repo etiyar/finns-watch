@@ -104,8 +104,14 @@ class NavigationFilter(private val minIntervalMs: Long = 30_000) {
 
     private fun strip(s: String) = s.replace(DISTANCE, "").replace(Regex("^[\\s·•,-]+|[\\s·•,-]+$"), "").replace(Regex("\\s{2,}"), " ").trim()
 
-    /** İletilecekse başlık ve gövde; değilse null. */
-    fun decide(pkg: String, title: String, text: String, now: Long): Out? {
+    /** Ayrıştırılmış yönerge: manevra yazısı, mesafe ve geri kalan (çoğunlukla sokak). */
+    data class Parts(val maneuver: String, val distance: String, val rest: String) {
+        val key: String get() = NotifyRules.norm(maneuver)
+        val kind: NavManeuver get() = NavManeuver.classify(maneuver)
+    }
+
+    /** Başlık ve metinden manevra, mesafe ve sokağı ayırır. Durum tutmaz. */
+    fun parts(title: String, text: String): Parts {
         val titleDist = DISTANCE.find(title)?.value
         val textDist = DISTANCE.find(text)?.value
         val distance = titleDist ?: textDist ?: ""
@@ -117,6 +123,12 @@ class NavigationFilter(private val minIntervalMs: Long = 30_000) {
             textDist != null && titleDist == null -> t.ifEmpty { x } to (if (t.isEmpty()) "" else x)
             else -> t.ifEmpty { x } to (if (t.isEmpty()) "" else x)
         }
+        return Parts(maneuver, distance, rest)
+    }
+
+    /** İletilecekse başlık ve gövde; değilse null. */
+    fun decide(pkg: String, title: String, text: String, now: Long): Out? {
+        val (maneuver, distance, rest) = parts(title, text)
         val key = NotifyRules.norm(maneuver)
         val l = last[pkg]
         val go = when {

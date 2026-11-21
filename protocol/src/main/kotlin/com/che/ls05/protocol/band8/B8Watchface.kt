@@ -63,10 +63,21 @@ object B8Watchface {
         return user.ifEmpty { list.filter { it.id.length >= 3 }.map { it.id.take(3) }.toSet() }
     }
 
-    /** Kimliğin öneki yüklü kadranların öneklerinden farklıysa true. Liste boşsa uyarı yok. */
+    /**
+     * Bu Band 8'de çalıştığı görülen önekler: 167 (internet kadranı, Finn Dijital) ve 266 (yerleşikler,
+     * juxtaposition). 21.11.2026 cihaz sonucu: 266 farklı model değil.
+     */
+    val KNOWN_PREFIXES = setOf("167", "266")
+
+    /**
+     * Kimliğin öneki ne bilinen öneklerden ne de banttaki yüklü kadranların öneklerinden biriyse true.
+     * Liste boşsa ve önek biliniyorsa uyarı yok. Yalnızca bilgi notu olarak gösterilir.
+     */
     fun prefixDiffers(id: String, list: List<Face>): Boolean {
-        val p = installedPrefixes(list)
-        return p.isNotEmpty() && id.take(3) !in p
+        val p = id.take(3)
+        if (p in KNOWN_PREFIXES) return false
+        val installed = installedPrefixes(list)
+        return p !in installed
     }
 }
 

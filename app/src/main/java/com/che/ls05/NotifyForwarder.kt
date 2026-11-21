@@ -155,11 +155,42 @@ class NotifyForwarder : NotificationListenerService() {
         val (title, text) = texts(n)
         if (title.isEmpty() && text.isEmpty()) return
         val now = System.currentTimeMillis()
+        val face = Prefs.band8NavFace(this)
+        if (face) {
+            // Band 8 navigasyon kadranı: ok, mesafe, sokak. Metin loga yazılmaz.
+            navKey = sbn.key
+            val p = navigation.parts(title, text)
+            WatchHub.navFrame(Band8NavFace.Frame(p.key, p.distance, p.rest, Band8NavFace.arrowFrom(largeIcon(n))))
+        }
         // Manevra değişince hemen, yalnızca mesafe değişince en sık 30 sn'de bir.
         val out = navigation.decide(pkg, title, text, android.os.SystemClock.elapsedRealtime()) ?: return
         WatchHub.log("Navigasyon yönergesi iletime geçti: ${appLabel(pkg)}.")
+        // Kadran açık ve tam metin kapalıysa yalnızca kısa manevra adı gider: bant uyanır ve titrer.
+        val body = if (face && !Prefs.band8NavText(this)) "" else out.body
         // Navigasyonun kendi anahtarı var; uygulama filtresine takılmaz. Kısa titreşim (LS05'te tek).
-        WatchHub.forward(this, note(sbn, pkg, appLabel(pkg), out.title, out.body, now, NAV_VIBRATION).copy(appFilter = false))
+        WatchHub.forward(this, note(sbn, pkg, appLabel(pkg), out.title, body, now, NAV_VIBRATION).copy(appFilter = false))
+    }
+
+    /** Navigasyon kadranının izlediği bildirim; kalkınca kadran geri alınır. */
+    private var navKey: String? = null
+
+    /** Bildirimin büyük simgesi (Maps'te manevra oku). */
+    private fun largeIcon(n: Notification): android.graphics.Bitmap? = try {
+        val d = n.getLargeIcon()?.loadDrawable(this)
+        when {
+            d == null -> null
+            d is android.graphics.drawable.BitmapDrawable && d.bitmap != null -> d.bitmap
+            else -> {
+                val w = d.intrinsicWidth.takeIf { it > 0 } ?: 144
+                val h = d.intrinsicHeight.takeIf { it > 0 } ?: 144
+                val b = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                d.setBounds(0, 0, w, h)
+                d.draw(android.graphics.Canvas(b))
+                b
+            }
+        }
+    } catch (_: Exception) {
+        null
     }
 
     // ---------- Okunana kadar tekrar ----------
@@ -203,6 +234,11 @@ class NotifyForwarder : NotificationListenerService() {
             saveRepeats()
         }
         sbn.packageName?.let { if (it in NavigationFilter.PACKAGES) navigation.reset(it) }
+        if (navKey != null && navKey == key) {
+            navKey = null
+            WatchHub.log("Navigasyon bildirimi kalktı; Band 8 navigasyon kadranı geri alınıyor.")
+            WatchHub.navEnd()
+        }
         if (WatchHub.declineKey == key) WatchHub.declineAction = null
         if (WatchHub.calls.onRemoved(key) == CallTracker.Decision.STOP) stopCallOnWatch(sbn.packageName ?: "")
     }

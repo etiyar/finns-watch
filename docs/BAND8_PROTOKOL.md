@@ -898,7 +898,21 @@ Uygulama (Gelişmiş > "Band 8 kadran (deneysel)", her adım elle):
 
 Ayrıntılı dosya biçimi ve kendi kadran üreticimiz: `BAND8_KADRAN_BICIMI.md` (gerçek dosyalarla karşılaştırıldı).
 
-### 18.4 Navigasyon oku (sıradaki adım)
+### 18.4 Navigasyon kadranı (v0.17.0-alpha1, cihazda denenmedi)
+
+Notify yöntemi: yönerge bir kadran olarak çizilir ve banda yüklenir (17.8). Ayrıntı `BAND8_KADRAN_BICIMI.md` 11.
+
+1. Maps'in süren navigasyon bildiriminden manevra, mesafe ve sokak ayrılır (`NavigationFilter.parts`), ok bildirimin büyük simgesinden alınır.
+2. Yalnızca manevra değişince yüklenir. Mesafe tek başına değişince yüklenmez (`B8NavGate`; en sık 30 sn'de bir mesafe güncellemesi kodda hazır, yükleme süresi ölçülünce karar).
+3. İlk karede banttaki etkin kadran kaydedilir. Kadran sabit kimlikle (167299090) yüklenir (4/4, tür 16), sonra etkin yapılır (4/1). Yükleme sürerken gelen manevralardan yalnızca sonuncusu bekler.
+4. Bant aynı kimliğin üzerine yazmayı reddederse (4/4 durum 2): önceki kadran etkin yapılır, navigasyon kadranı silinir (4/2), yeniden yüklenir. Bir kez denenir (tahmin: Notify sabit kimliğin üzerine yazıyor).
+5. Bildirim kalkınca önceki kadran etkin yapılır, navigasyon kadranı silinir.
+6. Bant kendiliğinden uyanmadığı için her manevrada bildirim de gider: tam metin (varsayılan) ya da yalnızca kısa manevra adı.
+7. Her adım için 60 sn zaman aşımı. Log: kimlik, boy, süre, adım ve durum; sokak ve yönerge metni yazılmaz.
+
+Ayar: Gelişmiş > Band 8 navigasyon kadranı > "Navigasyonu kadranda göster", varsayılan kapalı. Önce "Örnek okla dene" ile süre ölçülür.
+
+### 18.5 Navigasyon oku (eski plan)
 
 Kanal çalışınca yapılabilir: her manevra için ayrı bir sanal paket adı ile 7/0 gönderilir, band o paket için 7/16 ile simge isteyince manevra oku çizilip gönderilir (17.8). Gerekenler: manevra başına ok çizimi (yaklaşık 30 tür), sanal paket adlarının bandın simge önbelleğini doldurmaması için küçük sabit bir küme, simge cihaz testinin geçmesi. Bu sürümde yapılmadı.
 
