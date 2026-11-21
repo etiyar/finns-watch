@@ -2,6 +2,7 @@ package com.che.ls05
 
 import android.os.Handler
 import com.che.ls05.protocol.band8.B8Command
+import com.che.ls05.protocol.band8.B8FaceBin
 import com.che.ls05.protocol.band8.B8FaceFile
 import com.che.ls05.protocol.band8.B8Type
 import com.che.ls05.protocol.band8.B8Upload
@@ -59,6 +60,8 @@ class Band8Faces(
         if (busy) return "Kadran yüklemesi sürüyor."
         val ok = B8FaceFile.parse(bytes) as? B8FaceFile.Result.Ok ?: return "Geçerli bir Band 8 kadran dosyası değil."
         if (list.any { it.id == ok.id }) return "Bu kadran zaten bantta."
+        // Kendi kadranımız yapı denetiminden geçmeden gönderilmez (belge BAND8_KADRAN_BICIMI 7).
+        if (ok.id.startsWith(B8FaceBin.OWN_ID_PREFIX) && B8FaceBin.check(bytes).isNotEmpty()) return "Kendi kadranımız denetimden geçmedi."
         if (!send(B8Watchface.installStart(ok.id, ok.size), "kadran kurulumu 4/4")) return "Band 8 hazır değil."
         pendingInstall = ok.id to bytes
         busy = true

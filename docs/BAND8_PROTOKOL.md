@@ -871,6 +871,8 @@ Uygulama (Gelişmiş > "Band 8 kadran (deneysel)", her adım elle):
 4. "Sil" yalnızca silinebilir ve etkin olmayan kadranda görünür.
 5. Log: tür, alt tür, kimlik, boy, durum, alan numaraları. Kadran adı loga yazılmaz.
 
+Ayrıntılı dosya biçimi ve kendi kadran üreticimiz: `BAND8_KADRAN_BICIMI.md` (gerçek dosyalarla karşılaştırıldı).
+
 ### 18.4 Navigasyon oku (sıradaki adım)
 
 Kanal çalışınca yapılabilir: her manevra için ayrı bir sanal paket adı ile 7/0 gönderilir, band o paket için 7/16 ile simge isteyince manevra oku çizilip gönderilir (17.8). Gerekenler: manevra başına ok çizimi (yaklaşık 30 tür), sanal paket adlarının bandın simge önbelleğini doldurmaması için küçük sabit bir küme, simge cihaz testinin geçmesi. Bu sürümde yapılmadı.

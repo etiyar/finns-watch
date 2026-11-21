@@ -53,6 +53,21 @@ object B8Watchface {
      */
     fun sameFamily(id: String, list: List<Face>): Boolean =
         id.length >= 3 && list.any { it.id.length >= 3 && it.id.regionMatches(0, id, 0, 3) }
+
+    /**
+     * Uyarı için karşılaştırılacak önekler: önce sonradan yüklenen (silinebilir) kadranların önekleri,
+     * yoksa bütün kadranlarınki. Bu bantta yüklenip çalışan kadran 167 önekliydi, yerleşikler 266.
+     */
+    fun installedPrefixes(list: List<Face>): Set<String> {
+        val user = list.filter { it.canDelete && it.id.length >= 3 }.map { it.id.take(3) }.toSet()
+        return user.ifEmpty { list.filter { it.id.length >= 3 }.map { it.id.take(3) }.toSet() }
+    }
+
+    /** Kimliğin öneki yüklü kadranların öneklerinden farklıysa true. Liste boşsa uyarı yok. */
+    fun prefixDiffers(id: String, list: List<Face>): Boolean {
+        val p = installedPrefixes(list)
+        return p.isNotEmpty() && id.take(3) !in p
+    }
 }
 
 /**

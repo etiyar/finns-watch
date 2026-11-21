@@ -13,7 +13,7 @@
 | Band 8 sağlık kaynakları | [#10](https://github.com/etiyar/ls05-controller/issues/10) | Issue üzerinden atanacak | LS05 ve Band 8 verileri ayrı; adımlar toplanmaz |
 | v0.13.1 yayın adayı | [#8](https://github.com/etiyar/ls05-controller/issues/8) | Kabul sonrası | Kayıt/anahtar kalıcılığı, LS05 regresyonu, v0.12.0 üstüne güncellemede veri korunması |
 
-**v0.16.0-alpha1 (`feat/band8-upload`):** Band 8 veri yükleme kanalı, bildirim simgesi ve deneysel kadran yönetimi. Kapı: Gelişmiş anahtarıyla simge cihaz testi, sonra kadran listesi ve tek kadran yüklemesi. Sonraki adım: navigasyon oku (BAND8_PROTOKOL 18.4) ve Kadranlarım'da Band 8 kadranları.
+**v0.16.0-alpha1 (`feat/band8-upload`):** Band 8 veri yükleme kanalı, bildirim simgesi ve deneysel kadran yönetimi. Kapı: Gelişmiş anahtarıyla simge cihaz testi, sonra kadran listesi ve tek kadran yüklemesi. Cihazda kadran yükleme geçti (build 212/215). **v0.16.0-alpha2 (`feat/band8-face-builder`):** kendi kadran üreticimiz ve yükleme öncesi denetim; kapı: "Finn Dijital" deneme kadranının bantta doğru görünmesi. Sonraki adım: navigasyon oku (BAND8_PROTOKOL 18.4), Kadranlarım'da Band 8 kadranları ve kadran tasarım ekranı.
 
 Sıradaki somut adım ve güncel kabul listesi ilgili issue içindedir. CI ile fiziksel sonuç ayrı kaydedilir. Cihaz gözlemleri [TEST_RESULTS.md](TEST_RESULTS.md), sürüm geçmişi [CHANGELOG.md](../CHANGELOG.md), ajan düzeni [AGENTS.md](../AGENTS.md) içindedir.
 
