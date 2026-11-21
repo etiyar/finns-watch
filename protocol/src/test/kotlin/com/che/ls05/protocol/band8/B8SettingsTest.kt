@@ -278,6 +278,65 @@ class B8SettingsTest {
         assertNull(B8Standing.parse(cmd(B8Messages.command(8, 12).toByteArray())))
     }
 
+    // ---------- Otomatik nabız ölçümü ----------
+
+    private fun hrReply(disabled: Boolean = true, interval: Int? = 10): B8Command {
+        val inner = PbWriter().bool(1, disabled)
+        interval?.let { inner.uint(2, it) }
+        inner.bool(3, true).uint(4, 120).message(8, PbWriter().bool(1, false).uint(2, 50))
+        return cmd(B8Messages.command(8, 10).message(10, PbWriter().message(8, inner)).toByteArray())
+    }
+
+    @Test
+    fun heartRateConfigReadIsBare() {
+        assertContentEquals(hex("0808100a"), B8HeartRateConfig.read())
+    }
+
+    @Test
+    fun heartRateConfigParsesField8AndDescribesWithoutThresholds() {
+        val raw = B8HeartRateConfig.parse(hrReply())!!
+        assertEquals(8, raw.field)
+        assertEquals(B8HeartRateConfig.State(true, 10), B8HeartRateConfig.state(raw))
+        val d = B8HeartRateConfig.describe(raw)
+        assertEquals("Health alanı 8, alanlar 1v 2v 3v 4v 8m, kapalı mı=true, aralık=10", d)
+        assertFalse("120" in d, "uyarı eşiği loga yazılmaz")
+    }
+
+    @Test
+    fun heartRateConfigWriteChangesOnlyDisabledAndInterval() {
+        val raw = B8HeartRateConfig.parse(hrReply())!!
+        val on = cmd(B8HeartRateConfig.write(raw, B8HeartRateConfig.Mode.CONTINUOUS)!!)
+        assertTrue(on.matches(8, 11))
+        val m = on.body(10)!!.message(8)!!
+        assertEquals(false, m.bool(1))
+        assertEquals(1, m.int(2))
+        assertEquals(true, m.bool(3), "yüksek nabız uyarısı korunur")
+        assertEquals(120, m.int(4))
+        assertEquals(50, m.message(8)!!.int(2))
+        assertEquals(1, m.all(1).size)
+        assertEquals(1, m.all(2).size)
+        assertEquals(10, cmd(B8HeartRateConfig.write(raw, B8HeartRateConfig.Mode.EVERY_10)!!).body(10)!!.message(8)!!.int(2))
+    }
+
+    @Test
+    fun heartRateConfigOffKeepsInterval() {
+        val raw = B8HeartRateConfig.parse(hrReply(disabled = false, interval = 30))!!
+        val m = cmd(B8HeartRateConfig.write(raw, B8HeartRateConfig.Mode.OFF)!!).body(10)!!.message(8)!!
+        assertEquals(true, m.bool(1))
+        assertEquals(30, m.int(2))
+        val noInterval = B8HeartRateConfig.parse(hrReply(interval = null))!!
+        assertNull(cmd(B8HeartRateConfig.write(noInterval, B8HeartRateConfig.Mode.OFF)!!).body(10)!!.message(8)!!.int(2))
+    }
+
+    @Test
+    fun heartRateConfigParseFallsBackToSingleMessageAndRejectsOthers() {
+        val other = cmd(B8Messages.command(8, 10).message(10, PbWriter().message(9, PbWriter().bool(1, false))).toByteArray())
+        assertEquals(9, B8HeartRateConfig.parse(other)!!.field)
+        val two = cmd(B8Messages.command(8, 10).message(10, PbWriter().message(9, PbWriter().bool(1, true)).message(11, PbWriter().bool(1, true))).toByteArray())
+        assertNull(B8HeartRateConfig.parse(two))
+        assertNull(B8HeartRateConfig.parse(cmd(B8Messages.command(8, 12).toByteArray())))
+    }
+
     // ---------- Hava durumu ----------
 
     private val meta = B8WeatherMeta("2025-01-01T09:00:00+03:00", "Kent", "finnswatch")

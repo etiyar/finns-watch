@@ -136,3 +136,53 @@ Her adım arasında onay. Adım 1 yalnızca belge üretir: kod, çalışan uygul
 - **Repo adı:** GitHub reposu uygulama adına geçecek (öneri: finns-watch). Sürüm başlıklarındaki "LS05 Controller" da değişecek. Paket adı com.che.ls05 değişmez (değişirse güncelleme yerine yeniden kurulum, veri kaybı).
 - **Yedekle ve geri yükle (Gelişmiş):** Tek dosyalık tam yedek: saat kaydı, saate göre ayarlar, alarm notları, kadran kütüphanesi, sağlık klasörleri, geçiş günlüğü. Uygulama silinip yeniden kurulsa da geri yüklenebilmeli. Bugün yalnızca sağlık CSV dışa aktarımı var, geri yükleme yok; allowBackup kapalı. Band 8 auth key yedeğe düz yazılmaz: ya hiç girmez (yeniden girilir) ya da kullanıcının parolasıyla şifrelenir. Geri yüklemeden önce mevcut durumun otomatik yedeği alınır.
 - **Saat bilgilerini göster (Saatlerim):** Her saatin kartında kimlik bilgisi görünsün. LS05 kullanıcı kimliği ve Band 8 anahtarı varsayılan maskeli (••••1234). "Göster" ve "Kopyala" ekran kilidi doğrulamasından (KeyguardManager) sonra çalışır. Kopyalanan değer 60 sn sonra panodan silinir. Loga hiçbir zaman yazılmaz. Band 8 için "Anahtarı değiştir" de aynı yerde.
+
+## v0.17 temizlik
+
+Yalnızca envanter. Bu sürümde hiçbir düğme ya da log silinmedi. Sınıflar: **(a)** doğrulandı ve normal bir ekranda zaten var, kaldırılabilir. **(b)** doğrulandı ama normal ekranda yeri yok, taşınmalı. **(c)** hâlâ gerekli, kalır. Doğrulama kaynağı `docs/TEST_RESULTS.md`.
+
+### Gelişmiş ve log ekranı (Ayarlar > Gelişmiş ve log)
+
+| Öğe | Komut | Doğrulama (TEST_RESULTS) | Normal ekrandaki yeri | Sınıf |
+|---|---|---|---|---|
+| Saati eşitle | saat eşitleme | Band 8 her auth'tan sonra saati kendisi gönderir. LS05 için elle eşitleme kayıtlı değil | Ayarlar > "Bağlanınca saati eşitle" (otomatik) | (c) LS05 için elle kurtarma yolu |
+| Band 8 saati bul testi: Başlatmayı dene, Durdurmayı dene | 2/18 | GEÇTİ (20.11, build 182 ve 19.11, build 173) | Yok. Saat > "Saati bul" kartı Band 8'de gizli (`findWatch = false`) | (b) Band 8 için `findWatch` açılıp Saat > Saati bul kartına taşınır |
+| Band 8 arama ekranı denemesi: dene, kapat | 7/0 arama | Gerçek gelen arama GEÇTİ (20.11, build 197); bantta reddet GEÇTİ (build 188) | Bildirimler > Gelen aramalar (otomatik) | (a) |
+| Emoji testi | 7/0 | Emoji kısa metne dönüyor, GEÇTİ (build 191) | Otomatik (her bildirim) | (a) |
+| Titreşim deseni testi | 2/59 | GEÇTİ (build 191) | Yok. Kurallardaki titreşim yalnızca LS05 | (b) Bildirim kuralına Band 8 titreşim deseni seçimi olarak taşınır |
+| Canlı nabız 30 sn | 8/45, 8/46 | Sleep as Android gecesinde canlı nabız GEÇTİ (21.11, build 215) | Ayarlar > Sleep as Android | (a) |
+| Gizli antrenman 30 sn | 8/26 | Sleep as Android hareket verisi GEÇTİ (21.11, build 215) | Ayarlar > Sleep as Android | (a) |
+| Cevapsız arama | 7/0 "phone" | Deneme ve gerçek cevapsız arama GEÇTİ (build 182, 184) | Bildirimler > Cevapsız aramalar | (a) |
+| Alarm: listeyi oku, test alarmı kur, düzenle, sil | 17/0, 17/1, 17/2, 17/4 | Kurma, düzenleme, silme GEÇTİ (build 188) | Saat > Band 8 alarmları kartı | (a) |
+| Test alarmlarını temizle | 17/4 | Silme GEÇTİ. Eski kopya alarmların kalmadığı kullanıcıya sorulmalı | Saat > alarm kartında tek tek silme | (a) kopyalar bittiği doğrulanınca |
+| Rahatsız etme: şimdi aç, şimdi kapat | 2/23 | GEÇTİ (build 182, 184) | Saat > Rahatsız etme satırı | (a) |
+| Rahatsız etme: zamanla 22:00-07:00, zamanlamayı kapat | 17/9 | GEÇTİ (build 184) | Saat > zamanlı rahatsız etme ayarı | (a) |
+| Hava: konum ekle, anlık hava, günlük tahmin | 10/7, 10/0, 10/1 | DOĞRULANMADI (bantta hava ekranı bulunamadı) | Yok (Band 8'de `weather = false`) | (c) |
+| Hareketsizlik: ayarı oku, aç, kapat | 8/12, 8/13 | Okuma GEÇTİ (build 197). Yazma doğrulanmadı | Saat > hareketsizlik kartı (okuma ve yazma) | (a) yazma kartla doğrulanınca |
+| Otomatik nabız ölçümü: ayarı oku, her 10 dk, sürekli, kapalı (bu sürümde eklendi) | 8/10, 8/11 | Doğrulanmadı | Yok | (c) doğrulanınca Saat sayfasına taşınır |
+| Test şarkı gönder | 18/1 | Müzik bilgisi, tuşlar ve ses GEÇTİ (build 191, 200) | Otomatik (bant isteyince) | (a) |
+| Sağlık dosyaları: şimdi çek | 8/1, 8/2, 8/3 | GEÇTİ (build 182) | Bugün > aşağı çek | (a) |
+| Band 8 ham verisini dışa aktar | yok (dosya) | GEÇTİ (build 182) | Yok | (c) biçim incelemesi için gerekli |
+| Uygulama simgesini gönder (anahtar) | 7/16, 7/15, yükleme | GEÇTİ (21.11, build 215) | Yok | (b) Bildirimler ayarlarına taşınır, varsayılan açık düşünülebilir |
+| Band 8 kadran: listeyi oku, dosya yükle, Finn Dijital deneme kadranı, etkin yap, sil | 4/0, 4/4, 4/1, 4/2, yükleme | Yükleme ve liste GEÇTİ (build 212, candidate-build-223). Etkin yap ve sil ayrıca kaydedilmedi | Yok. Saat > Kadranlar yalnızca LS05 (`faces = false`) | (b) feat/v017-faces işiyle Saat > Kadranlar'a taşınır |
+| Logu kopyala, logu temizle | yok | Gerekli | Yok | (c) |
+
+### Tanılama logları
+
+| Log satırı | Dosya | Doğrulama | Sınıf |
+|---|---|---|---|
+| "Band 8 komut kuyruğu: tür, altTür, bekleyen, çerçeve" (her komutta) | Band8Ble.kt | ACK ile fiziksel sonucu ayırmak için temel kanıt | (c) |
+| "Band 8 deneme / deneme reddi" | Band8Ble.kt | Denemelerle birlikte | (c) denemeler kalktıkça azalır |
+| "Band 8 alarm listesi biçimi" (her alarmın alan biçimi) | Band8Driver.kt | Alarm GEÇTİ | (a) |
+| "Band 8 hareketsizlik ayarı okundu: alanlar" | Band8Driver.kt | Okuma GEÇTİ, yazma bekliyor | (c) yazma doğrulanınca (a) |
+| "Band 8 nabız ölçüm ayarı okundu: alanlar, kapalı mı, aralık" (yeni) | Band8Driver.kt | Doğrulanmadı | (c) |
+| "Band 8 müzik olayı: altTür, alanlar" (her müzik olayında) | Band8Driver.kt | Müzik GEÇTİ | (a) yalnızca tanınmayan olay kalır |
+| "Band 8 müzik sesi ham: alan1, alan2, akış" | Band8Music.kt | Ses GEÇTİ (build 200) | (a) |
+| "Band 8 müzik bilgisi (neden): oturum, çalıyor, ses, gönderildi" | Band8Music.kt | GEÇTİ | (a) hata durumunda kalır |
+| "Band 8 canlı nabız denemesi bitti", "gizli antrenman denemesi bitti" | Band8Driver.kt | Denemeyle birlikte | (a) |
+| "Band 8 arama olayı: tür=7, altTür" | Band8Driver.kt | Reddet GEÇTİ | (a) kısa olay satırı kalabilir |
+| "Band 8 simge biçimi: durum, biçim, kenar" | Band8Icons.kt | Simge GEÇTİ | (a) biçim desteklenmezse uyarı kalır |
+| "Band 8 yükleme yanıtı: durum, devam, bölümBoyu, md5" | Band8Ble.kt | Yükleme GEÇTİ, hatalarda gerekli | (c) |
+| "Band 8 kadran ... alanlar=" (etkin yap, sil, kurulum, olay) | Band8Faces.kt | Etkin yap ve sil kaydedilmedi | (c) |
+| "Band 8 başka istemci izi", "beklenmeyen kontrol çerçevesi" | Band8Ble.kt | #16 koruması | (c) |
+| "BLE yanıtsız yazım callback'i gelmedi" | Band8Ble.kt | Bağlantı hatası tanısı | (c) |

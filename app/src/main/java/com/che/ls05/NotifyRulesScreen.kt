@@ -93,7 +93,7 @@ class NotifyRulesScreen(private val act: MainActivity) {
     private fun subtitle(r: NotifyRule): String = listOfNotNull(
         r.contact.takeIf { it.isNotEmpty() }?.let { "kişi \"$it\"" },
         r.keyword.takeIf { it.isNotEmpty() }?.let { "kelime \"$it\"" },
-        if (r.repeats) "${r.repeatEveryMin} dk'da bir, en çok ${r.repeatMax} kez tekrar" else null,
+        if (r.repeats) "${r.repeatEveryMin} dk'da bir, ilk bildirimden sonra en çok ${r.repeatMax} tekrar" else null,
         when (r.vibration) { -1 -> null; 0 -> "titreşimsiz"; else -> "${r.vibration} titreşim (LS05)" },
     ).joinToString(" · ").ifEmpty { "Bütün bildirimler" }
 
@@ -133,9 +133,9 @@ class NotifyRulesScreen(private val act: MainActivity) {
         var actionIndex = if (r.action == RuleAction.BLOCK) 1 else 0
         val action = ui.segmented(listOf("İzin ver", "Engelle"), actionIndex) { actionIndex = it }
         ui.add(dlg, action.view, topDp = Style.GAP_DP)
-        ui.add(dlg, ui.caption("Okunana kadar tekrar (telefonda durdukça). Boş: tekrar yok."), topDp = Style.GAP_DP)
+        ui.add(dlg, ui.caption("Okunana kadar tekrar (telefonda durdukça). Sınır, ilk bildirimden sonraki toplam tekrardır. Aynı sohbete yeni mesaj gelince sayaç baştan başlamaz. Boş: tekrar yok."), topDp = Style.GAP_DP)
         val every = numberField("Kaç dakikada bir", r.repeatEveryMin)
-        val max = numberField("En çok kaç kez", r.repeatMax)
+        val max = numberField("İlk bildirimden sonra en çok kaç tekrar", r.repeatMax)
         ui.add(dlg, every, topDp = 4)
         ui.add(dlg, max, topDp = 4)
         val vibButton: Button = ui.secondary(vibLabel(vibration)) {}

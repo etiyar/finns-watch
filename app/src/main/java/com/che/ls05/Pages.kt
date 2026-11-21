@@ -1690,6 +1690,9 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             "Günlük tahmin" to Band8Probe.WEATHER_FORECAST)
         group("Hareketsizlik uyarısı: önce ayarı oku",
             "Ayarı oku" to Band8Probe.IDLE_READ, "Aç" to Band8Probe.IDLE_ON, "Kapat" to Band8Probe.IDLE_OFF)
+        group("Otomatik nabız ölçümü (doğrulanmadı): önce ayarı oku. Yazınca ayar yeniden okunur. Logda yalnızca alan biçimi, kapalı mı ve aralık.",
+            "Ayarı oku" to Band8Probe.HR_CONFIG_READ, "Her 10 dk" to Band8Probe.HR_CONFIG_EVERY_10,
+            "Sürekli" to Band8Probe.HR_CONFIG_CONTINUOUS, "Kapalı" to Band8Probe.HR_CONFIG_OFF)
         group("Müzik", "Test şarkı gönder" to Band8Probe.MUSIC)
         group("Sağlık dosyaları (yalnızca okuma, bandan silinmez)", "Şimdi çek" to Band8Probe.FETCH_NOW)
         val export = ui.secondary("Band 8 ham verisini dışa aktar") { Band8RawExport.start(act) }

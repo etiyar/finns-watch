@@ -363,7 +363,7 @@ Health mesajı Command alan 10 içine yazılır. "H" Health alanıdır.
 - Band açıkken düzenli olarak 8/47 gönderir. H39: 1 adım, 2 kalori, 4 nabız, 6 ayakta geçen saat. 3 ve 5 bilinmiyor.
 - Adım **günlük birikmiş** değerdir. Gadgetbridge iki olay arasındaki farkı alıyor (güçlü kanıt). Nabız 10 ya da altındaysa geçersiz sayılır.
 - Kayıtta canlı ölçüm yok. Olay sıklığı bilinmiyor (açık soru 6).
-- Nabız ölçüm ayarı: 8/10 al, 8/11 yaz. H8: 1 kapalı mı, 2 aralık (0 akıllı, 1, 10, 30 dakika), 3-4 yüksek nabız uyarısı.
+- Nabız ölçüm ayarı: 8/10 al, 8/11 yaz. H8: 1 kapalı mı, 2 aralık (0 akıllı, 1, 10, 30 dakika), 3-4 yüksek nabız uyarısı. Ayrıntı ve deneme: 7.11.
 
 ### 7.2 Etkinlik dosyası çekme (doğrulandı)
 
@@ -462,6 +462,31 @@ H1: 1 boy (cm), 2 kilo (float), 3 doğum tarihi (YYYYAAGG sayı), 4 cinsiyet, 5 
 | 8/42, 8/43 | hedefler |
 
 Alan numaraları 6. adımda bir kayıtla doğrulanacak. Mi Fitness ürün yapılandırmasında Band 8 için "ayakta durma hatırlatıcısı" özelliği açık (güçlü kanıt).
+
+### 7.11 Otomatik nabız ölçümü: 8/10, 8/11 (cihazda doğrulanmadı)
+
+Gözlem (21.11.2026, candidate-build-223): kadran nabzı 0 gösterdi. Bantta elle ölçümden sonra değer geldi. Bandın otomatik nabız ölçümü kapalı. Önceden Mi Fitness bu ayarı yapıyordu, Mi Fitness kaldırıldı. Bizim uygulama bu ayarı hiç göndermedi.
+
+Yapı (güçlü kanıt, Gadgetbridge'in herkese açık davranışı; kod alınmadı):
+
+| Konu | Bulgu | Etiket |
+|---|---|---|
+| Oku | 8/10, içerik yok | güçlü kanıt |
+| Yaz | 8/11, Health alan 8 içinde ayar mesajı | güçlü kanıt |
+| Alan 1 | bool, ölçüm kapalı mı | güçlü kanıt |
+| Alan 2 | aralık: 0 akıllı, 1, 10, 30 dakika | güçlü kanıt |
+| Alan 3, 4 | yüksek nabız uyarısı: açık mı, eşik | tahmin |
+| Diğer alanlar | gelişmiş izleme, düşük nabız uyarısı gibi iç mesajlar olabilir | tahmin |
+| "Sürekli" | Ayrı bir değer bilinmiyor. Aralık 1 dakika gönderilir | tahmin |
+| Stres, SpO2 | Aynı mesajda değil: stres 8/14, 8/15; SpO2 8/8, 8/9 (7.10) | güçlü kanıt |
+
+Uygulama (yalnızca Gelişmiş > Band 8 denemeleri > Otomatik nabız ölçümü, elle):
+
+1. "Ayarı oku" 8/10 gönderir. Yanıtta Health alan 8 aranır. Yoksa yanıttaki tek iç mesaj alınır. Logda Health alan numarası, alan biçimi (ör. `1v 2v 3v 4v`) ve yalnızca 1. ve 2. alanın değeri yazılır. Uyarı eşikleri ve ölçülen nabız yazılmaz.
+2. "Her 10 dk", "Sürekli" ve "Kapalı" ayar okunmadan gönderilmez. Okunan mesaj aynı alan numarasıyla geri gider. Yalnızca alan 1 (kapalı mı) ve alan 2 (aralık) değişir. "Kapalı" aralığı olduğu gibi bırakır. Diğer alanlar baytı baytına korunur. Beklenmeyen tel türü varsa hiç gönderilmez.
+3. 8/11 yanıtı gelince durum loglanır ve ayar kendiliğinden yeniden okunur.
+
+Doğrulama: yazmadan sonra okunan aralık seçilenle aynı olmalı. Bantta Ayarlar > Nabız ekranı aynı seçeneği göstermeli. Birkaç dakika sonra kadranda nabız 0 dışında bir değer görünmeli. Doğrulanınca normal bir ekrana (Saat sayfası) taşınır.
 
 ## 8. Ayarlar
 
