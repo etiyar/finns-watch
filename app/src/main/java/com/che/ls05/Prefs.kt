@@ -108,6 +108,10 @@ object Prefs {
     fun band8NavText(c: Context): Boolean = p(c).getBoolean("band8NavText", true)
     fun setBand8NavText(c: Context, value: Boolean) = p(c).edit().putBoolean("band8NavText", value).apply()
 
+    /** Çökme koruması navigasyon kadranını kapattı (build 238 dersi). Elle açılınca sıfırlanır. */
+    fun band8NavTripped(c: Context): Boolean = p(c).getBoolean("band8NavTripped", false)
+    fun setBand8NavTripped(c: Context, value: Boolean) = p(c).edit().putBoolean("band8NavTripped", value).apply()
+
     /** Navigasyon başlamadan önce etkin olan kadran (bitince geri etkin yapılır). */
     fun band8NavPrevFace(c: Context): String? = p(c).getString("band8NavPrevFace", null)
     fun setBand8NavPrevFace(c: Context, id: String?) = p(c).edit().putString("band8NavPrevFace", id).apply()

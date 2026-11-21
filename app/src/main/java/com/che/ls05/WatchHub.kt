@@ -77,6 +77,8 @@ object WatchHub {
         val vibration: Int = -1,
         /** false: uygulama filtresi uygulanmaz (navigasyon kendi anahtarıyla açılır). */
         val appFilter: Boolean = true,
+        /** Navigasyon yönergesi: Band 8'de kural titreşimi (2/59) gitmez. */
+        val nav: Boolean = false,
     )
 
     /** Çalan aramalar (bildirim anahtarına göre). Bildirim dinleyici ve servis ana iş parçacığında kullanır. */

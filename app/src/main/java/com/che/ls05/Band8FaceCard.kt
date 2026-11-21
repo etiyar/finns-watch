@@ -35,6 +35,9 @@ class Band8FaceCard(private val act: MainActivity) {
     private var all = false
     private var autoRead = false
 
+    private var navAuto: SwitchRow? = null
+    private val navTripped: TextView = ui.caption("")
+
     init {
         val head = ui.horizontal()
         ui.add(head, ui.text("Galeri", 13f, R.color.text2, bold = true), width = 0, weight = 1f)
@@ -59,8 +62,14 @@ class Band8FaceCard(private val act: MainActivity) {
             "Navigasyonu kadranda göster",
             "Bildirimler > Navigasyon yönergeleri açık olmalı. Mesafe tek başına değişince kadran yenilenmez.",
             Prefs.band8NavFace(act),
-        ) { on -> Prefs.setBand8NavFace(act, on) }
+        ) { on ->
+            Prefs.setBand8NavFace(act, on)
+            // Elle açmak çökme korumasını sıfırlar.
+            if (on) { Prefs.setBand8NavTripped(act, false); Band8NavFace.guard.reset() }
+        }
         ui.add(nav.content, auto.view, topDp = 4)
+        navAuto = auto
+        ui.add(nav.content, navTripped, topDp = 2)
         val n = ui.horizontal()
         ui.add(n, ui.secondary("Örnek okla dene") { withService { it.bandNavTest() } }, width = 0, weight = 1f)
         ui.add(n, ui.secondary("Kaldır, eskiye dön") { withService { it.bandNavEnd() } }, width = 0, weight = 1f, leftDp = 8)
@@ -74,6 +83,10 @@ class Band8FaceCard(private val act: MainActivity) {
     }
 
     fun refresh() {
+        navAuto?.toggle?.set(Prefs.band8NavFace(act))
+        val tripped = Prefs.band8NavTripped(act)
+        navTripped.text = if (tripped) "Navigasyon kadranı bandı yeniden başlattı, kapatıldı. Yeniden açmadan önce \"Örnek okla dene\" ile dene." else ""
+        navTripped.visibility = if (tripped) View.VISIBLE else View.GONE
         // Liste bağlantı başına bir kez kendiliğinden okunur (yalnızca okuma, 4/0).
         if (Band8Faces.faces == null && WatchHub.ready && !autoRead) {
             autoRead = true

@@ -174,6 +174,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         val ms = SystemClock.elapsedRealtime() - uploadStartedAt
         listener.onLog("Band 8 yükleme ${if (reason == null) "bitti" else "durdu: $reason"}: $uploadLabel, ${ms} ms")
         val cb = uploadCallback
+        holdHeavy(HEAVY_QUIET_AFTER_UPLOAD_MS)
         uploadJob = null
         uploadCallback = null
         cb?.onFinished(reason)
@@ -526,7 +527,19 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
 
     private fun channelIdle(): Boolean =
         ready && channel.session != null && channel.pending == 0 && !writing && writes.isEmpty() &&
-            uploadJob == null && !channel.uploading
+            uploadJob == null && !channel.uploading &&
+            SystemClock.elapsedRealtime() >= heavyQuietUntil && !heavyBlocked()
+
+    /**
+     * Ağır işler (sağlık dosyası çekme) kadran işleri sürerken ve son kadran işinden sonra bekler
+     * (build 238: kadran değişimi + silme + sağlık çekme sırasında bant yeniden başladı).
+     */
+    private var heavyQuietUntil = 0L
+    var heavyBlocked: () -> Boolean = { false }
+
+    fun holdHeavy(ms: Long) {
+        heavyQuietUntil = maxOf(heavyQuietUntil, SystemClock.elapsedRealtime() + ms)
+    }
 
     private fun foreign(reason: String, header: String) {
         foreignTraces++
@@ -726,6 +739,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     private companion object {
         const val MAX_PENDING_COMMANDS = 24
         const val COMMAND_TIMEOUT_MS = 8_000L
+        const val HEAVY_QUIET_AFTER_UPLOAD_MS = 10_000L
         /** 22/0 yanıtı ya da bir bölümün onayı için en uzun bekleme. Kayıtta bölüm başına 0,1 s altında. */
         const val UPLOAD_STEP_TIMEOUT_MS = 15_000L
     }

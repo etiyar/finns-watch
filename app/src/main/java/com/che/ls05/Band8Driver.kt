@@ -73,8 +73,18 @@ class Band8Driver(
     }
 
     private val icons = Band8Icons(appContext, { listener.onLog(it) }, { c, l -> ble.sendFeature(c, l) }, ble::startUpload)
-    private val faces = Band8Faces(main, { listener.onLog(it) }, { c, l -> ble.sendFeature(c, l) }, ble::startUpload)
-    private val nav = Band8NavFace(appContext, main, faces) { listener.onLog(it) }
+    /** Her kadran komutu ve yüklemesi ağır işleri 10 sn bekletir ve çökme korumasına işlenir (build 238). */
+    private val faces = Band8Faces(main, { listener.onLog(it) }, { c, l -> faceOp(); ble.sendFeature(c, l) }) { t, d, l, cb ->
+        faceOp(); ble.startUpload(t, d, l, cb)
+    }
+    private val nav = Band8NavFace(appContext, main, faces, { ble.holdHeavy(it) }) { listener.onLog(it) }
+
+    private fun faceOp() {
+        ble.holdHeavy(Band8NavFace.QUIET_AFTER_MS)
+        Band8NavFace.guard.faceOp(android.os.SystemClock.elapsedRealtime())
+    }
+
+    init { ble.heavyBlocked = { nav.busy || Band8Faces.busy } }
 
     /** Navigasyon kadranı (deneysel). Kare bildirim dinleyiciden gelir; Gelişmiş'te deneme ve kaldırma. */
     fun navFrame(f: Band8NavFace.Frame) { if (ble.isReady) nav.onFrame(f) }
@@ -423,7 +433,8 @@ class Band8Driver(
             note.pkg, note.appLabel, note.title, note.body, notificationTime(note.at), note.androidId, key,
         ))
         // Kuraldaki titreşim (1-5): bandın kendi titreşiminden sonra desen (2/59). Son titreşim uzundur.
-        if (sent && vibrate && note.vibration > 0) {
+        // Navigasyon bildirimine kural titreşimi (2/59) uygulanmaz (build 238).
+        if (sent && vibrate && note.vibration > 0 && !note.nav) {
             ble.sendFeature(B8Vibration.pattern(B8Vibration.count(note.vibration)), "kural titreşimi 2/59")
         }
         return sent
@@ -461,6 +472,7 @@ class Band8Driver(
 
     override fun onReady(ready: Boolean) {
         if (ready) music.start() else music.stop()
+        if (ready) nav.onConnected()
         // Alarm kartı için liste bağlanınca bir kez okunur (yalnızca okuma).
         if (ready) main.postDelayed({ if (ble.isReady && freshAlarms() == null) alarmRefresh() }, ALARM_READ_DELAY_MS)
         if (ready) listener.onAuth(AuthOutcome(AuthOutcome.Kind.OK))
@@ -469,7 +481,7 @@ class Band8Driver(
 
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
         faces.onDisconnected()
-        nav.onDisconnected()
+        nav.onDisconnected(userInitiated)
         alarmListFresh = false
         dndSettingPending = false
         listener.onDisconnected(userInitiated, status)

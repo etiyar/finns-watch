@@ -9,8 +9,33 @@ import com.che.ls05.protocol.band8.B8FaceBin.Image
  * (Türkçe karakterlerle) görüntüye çevrilip buraya verilir. Android'e bağlı değil.
  */
 object B8NavFace {
-    /** Sabit kimlik; her manevrada üzerine yazılır. Bizim önekimiz [B8FaceBin.OWN_ID_PREFIX]. */
+    /**
+     * İki sabit kimlik dönüşümlü kullanılır (build 238 dersi): yeni kare etkin olmayan kimliğe yüklenir ve
+     * etkin yapılır; navigasyon sürerken hiçbir kadran silinmez. Bizim önekimiz [B8FaceBin.OWN_ID_PREFIX].
+     */
     const val ID = "167299090"
+    const val ID_B = "167299091"
+    val IDS = listOf(ID, ID_B)
+
+    fun isNav(id: String) = id in IDS
+
+    fun other(id: String) = if (id == ID) ID_B else ID
+
+    /**
+     * Sıradaki karenin kimliği: etkin olmayan navigasyon kimliği, tercihen bantta henüz olmayan.
+     * [blocked] bu oturumda bandın 4/4 durum 2 ile reddettiği kimlikler. Uygun yoksa null (kare atlanır).
+     */
+    fun target(list: List<B8Watchface.Face>, blocked: Set<String> = emptySet()): String? {
+        val active = list.firstOrNull { it.active }?.id
+        val cands = IDS.filter { it != active && it !in blocked }
+        return cands.firstOrNull { id -> list.none { it.id == id } } ?: cands.firstOrNull()
+    }
+
+    /** Navigasyon bitince geri dönülecek kadran: kayıtlı önceki, yoksa ilk yerleşik, yoksa ilk navigasyon dışı kadran. */
+    fun restoreTo(saved: String?, list: List<B8Watchface.Face>): String? =
+        saved?.takeIf { s -> !isNav(s) && list.any { it.id == s } }
+            ?: list.firstOrNull { !it.canDelete && !isNav(it.id) }?.id
+            ?: list.firstOrNull { !isNav(it.id) }?.id
     const val NAME = "Navigasyon"
 
     const val ARROW_MAX = 150
@@ -26,7 +51,8 @@ object B8NavFace {
      * Kadranı üretir. [distance] ve [street] boş olabilir. Normal ekranda üstte küçük saat (0811, 1011),
      * ok, mesafe, sokak; AOD'de ok ve mesafe.
      */
-    fun build(arrow: Image, distance: Image?, street: Image?): ByteArray {
+    fun build(arrow: Image, distance: Image?, street: Image?, id: String = ID): ByteArray {
+        require(isNav(id)) { "navigasyon kimliği değil" }
         val a = fit(arrow, ARROW_MAX, ARROW_MAX)
         val digits = B8FaceDesign.digits(CLOCK_W, CLOCK_H, 3, B8FaceDesign.GRAY)
         val clockX = (B8FaceBin.WIDTH - (4 * CLOCK_W + 2 * 2 + 12)) / 2
@@ -46,7 +72,7 @@ object B8NavFace {
             B8FaceDesign.render(normal, mapOf(B8FaceBin.Src.HOUR to 10, B8FaceBin.Src.MINUTE to 8)),
             B8FaceDesign.PREVIEW_W, B8FaceDesign.PREVIEW_H,
         )
-        return B8FaceBin.build(ID, NAME, preview, normal, aod)
+        return B8FaceBin.build(id, NAME, preview, normal, aod)
     }
 
     private fun centered(img: Image, y: Int) = Element.Picture((B8FaceBin.WIDTH - img.width) / 2, y, img)
@@ -112,3 +138,33 @@ class B8NavGate(private val distanceUpdates: Boolean = false, private val minInt
 
     fun reset() { maneuver = null; distance = null; at = 0 }
 }
+
+/**
+ * Çökme koruması (build 238: kadran işleminden birkaç saniye sonra bant yeniden başladı, GATT durum 8).
+ * Bir kadran işleminden sonraki [windowMs] içinde bağlantı koparsa bir uyarı sayılır; [memoryMs] içinde
+ * [strikesToTrip] uyarı olursa koruma tetiklenir ve otomatik navigasyon kadranı kapatılır.
+ */
+class B8NavGuard(
+    private val windowMs: Long = 15_000,
+    private val strikesToTrip: Int = 2,
+    private val memoryMs: Long = 10 * 60_000,
+) {
+    private var lastOp: Long? = null
+    private val strikes = ArrayList<Long>()
+
+    fun faceOp(now: Long) { lastOp = now }
+
+    /** Kullanıcının istemediği bir kopma. Koruma tetiklendiyse true. */
+    fun disconnected(now: Long): Boolean {
+        val op = lastOp ?: return false
+        if (now - op > windowMs) return false
+        strikes.add(now)
+        strikes.removeAll { now - it > memoryMs }
+        return strikes.size >= strikesToTrip
+    }
+
+    val strikeCount: Int get() = strikes.size
+
+    fun reset() { strikes.clear(); lastOp = null }
+}
+
