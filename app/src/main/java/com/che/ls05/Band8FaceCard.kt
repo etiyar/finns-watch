@@ -18,57 +18,54 @@ import com.che.ls05.protocol.band8.B8NavFace
 import com.che.ls05.protocol.band8.B8Watchface
 
 /**
- * Ayarlar > Gelişmiş: Band 8 bildirim simgesi, kadran galerisi ve navigasyon kadranı (deneysel).
+ * Saat > Kadranlar, Band 8: galeri, bantta yerleşik kadranlar ve navigasyon kadranı.
  *
- * Galeri: depodaki (Band8FaceStore) her kadran iki sütunlu ızgarada önizlemesiyle; dokununca Yükle,
- * Etkin yap, Sil. Bantta olup depoda olmayanlar (yerleşikler) adla, resimsiz listelenir (4/0).
+ * Galeri: depodaki (Band8FaceStore) kadranlar 3 sütunlu ızgarada önizlemesiyle; dokununca Yükle, Etkin yap, Sil.
+ * Bantta olup depoda olmayanlar (yerleşikler) katlanır listede, adla (4/0). Liste bağlanınca bir kez okunur.
  * Her işlem tek dokunuşla tek komut gönderir. Protokol Band8Faces ve protocol/band8 içinde.
  */
 class Band8FaceCard(private val act: MainActivity) {
     private val ui = act.ui
     val view: LinearLayout = ui.vertical()
+    private val count: TextView = ui.text("", 12f, R.color.text2)
     private val grid: LinearLayout = ui.vertical()
-    private val bandOnly: LinearLayout = ui.vertical()
+    private val more: android.widget.Button = ui.outlineAccent("") { all = !all; refresh() }
+    private val builtins = ui.collapsible("Bantta yerleşik", null, null, open = false)
     private val status: TextView = ui.caption("")
+    private var all = false
+    private var autoRead = false
 
     init {
-        ui.add(view, ui.cardTitle("Band 8 bildirim simgesi (deneysel)"))
-        val icons = ui.switchRow(
-            "Uygulama simgesini gönder",
-            "Band bir uygulamanın simgesini isteyince o uygulamanın simgesi gönderilir. Kapalıyken band kendi simgesini gösterir.",
-            Prefs.band8Icons(act),
-        ) { on -> Prefs.setBand8Icons(act, on) }
-        ui.add(view, icons.view, topDp = 4)
-
-        ui.add(view, ui.cardTitle("Band 8 kadran galerisi (deneysel)"), topDp = 16)
-        ui.add(view, ui.caption("Yalnızca Band 8 için yapılmış .bin kadran dosyası yükle. Yüklenen dosyalar uygulamada saklanır. Kurulumdan sonra kadran kendiliğinden seçilmez."), topDp = 4)
-        val r = ui.horizontal()
-        ui.add(r, ui.secondary("Listeyi oku") { withService { it.bandFaceRead() } }, width = 0, weight = 1f)
-        ui.add(r, ui.secondary("Dosya ekle") { pick() }, width = 0, weight = 1f, leftDp = 8)
-        ui.add(view, r, topDp = 8)
-        ui.add(view, ui.secondary("Deneme kadranı: Finn Dijital") { ownTestFace() }, topDp = 4)
+        val head = ui.horizontal()
+        ui.add(head, ui.text("Galeri", 13f, R.color.text2, bold = true), width = 0, weight = 1f)
+        ui.add(head, count, width = Ui.WRAP)
+        ui.add(view, head)
         ui.add(view, status, topDp = 8)
-        ui.add(view, grid, topDp = 4)
-        ui.add(view, bandOnly, topDp = 8)
+        ui.add(view, grid, topDp = 8)
+        ui.add(view, more, topDp = 12)
+        ui.add(view, builtins.view, topDp = 12)
 
-        ui.add(view, ui.cardTitle("Band 8 navigasyon kadranı (deneysel)"), topDp = 16)
-        ui.add(view, ui.caption("Maps yönergesi bantta kadran olur: büyük ok, mesafe, sokak. Her manevrada yüklenip etkin yapılır; navigasyon bitince önceki kadran geri gelir. Önce denemeyle yükleme süresine bak."), topDp = 4)
-        val n = ui.horizontal()
-        ui.add(n, ui.secondary("Örnek okla dene") { withService { it.bandNavTest() } }, width = 0, weight = 1f)
-        ui.add(n, ui.secondary("Kaldır, eskiye dön") { withService { it.bandNavEnd() } }, width = 0, weight = 1f, leftDp = 8)
-        ui.add(view, n, topDp = 8)
+        // Diğer: hazır kadran ve listeyi yeniden okuma.
+        val other = ui.card(padDp = 16, padVDp = 4)
+        ui.add(other, ui.row("Finn Dijital kadranını ekle", "Telefonda üretilir, dosya gerekmez") { ownTestFace() })
+        ui.add(other, ui.divider(), height = ui.dp(1))
+        ui.add(other, ui.row("Bant listesini yeniden oku", null) { withService { it.bandFaceRead() } })
+        ui.add(view, other, topDp = 12)
+
+        // Navigasyon kadranı (deneysel). Tam metin seçeneği Bildirimler bölümünde.
+        val nav = ui.collapsible("Navigasyon kadranı (deneysel)", "Maps yönergesi bantta kadran olur", null, open = false)
+        ui.add(nav.content, ui.caption("Büyük ok, mesafe, sokak. Her manevrada yüklenip etkin yapılır; navigasyon bitince önceki kadran geri gelir. Önce denemeyle yükleme süresine bak."))
         val auto = ui.switchRow(
             "Navigasyonu kadranda göster",
             "Bildirimler > Navigasyon yönergeleri açık olmalı. Mesafe tek başına değişince kadran yenilenmez.",
             Prefs.band8NavFace(act),
         ) { on -> Prefs.setBand8NavFace(act, on) }
-        ui.add(view, auto.view, topDp = 4)
-        val text = ui.switchRow(
-            "Tam metin bildirimi de gönder",
-            "Kapalıyken her manevrada yalnızca kısa manevra adı gider; bant uyanır ve titrer.",
-            Prefs.band8NavText(act),
-        ) { on -> Prefs.setBand8NavText(act, on) }
-        ui.add(view, text.view, topDp = 4)
+        ui.add(nav.content, auto.view, topDp = 4)
+        val n = ui.horizontal()
+        ui.add(n, ui.secondary("Örnek okla dene") { withService { it.bandNavTest() } }, width = 0, weight = 1f)
+        ui.add(n, ui.secondary("Kaldır, eskiye dön") { withService { it.bandNavEnd() } }, width = 0, weight = 1f, leftDp = 8)
+        ui.add(nav.content, n, topDp = 8)
+        ui.add(view, nav.view, topDp = 12)
     }
 
     private fun withService(f: (WatchService) -> String?) {
@@ -77,67 +74,56 @@ class Band8FaceCard(private val act: MainActivity) {
     }
 
     fun refresh() {
+        // Liste bağlantı başına bir kez kendiliğinden okunur (yalnızca okuma, 4/0).
+        if (Band8Faces.faces == null && WatchHub.ready && !autoRead) {
+            autoRead = true
+            WatchHub.service?.bandFaceRead()
+        }
+        if (!WatchHub.ready) autoRead = false
         status.text = Band8Faces.status
+        status.visibility = if (Band8Faces.status.isEmpty()) View.GONE else View.VISIBLE
         val band = Band8Faces.faces
         val stored = Band8FaceStore.list(act)
+        // Bantta etkin olan önce.
+        val ordered = stored.sortedByDescending { e -> band?.firstOrNull { it.id == e.id }?.active == true }
+        count.text = "${stored.size} kadran"
         grid.removeAllViews()
-        bandOnly.removeAllViews()
-        // Depodaki kadranlar: iki sütunlu önizleme ızgarası.
-        for (row in stored.chunked(2)) {
-            val r = ui.horizontal()
-            row.forEachIndexed { i, e ->
-                val face = band?.firstOrNull { it.id == e.id }
-                ui.add(r, tile(e, face), width = 0, weight = 1f, leftDp = if (i == 0) 0 else 8)
+        if (stored.isEmpty()) ui.add(grid, ui.caption("Galeride kadran yok. \"Dosyadan ekle\" ile Band 8 için yapılmış .bin dosyası seç."))
+        val shown = if (all) ordered else ordered.take(SHOWN)
+        FaceGrid.build(ui, grid, shown.map { e ->
+            val onBand = band?.firstOrNull { it.id == e.id }
+            val img = BandFaceView(act)
+            img.set(Band8FaceStore.preview(e))
+            val state = when {
+                onBand == null && band == null -> "Okunmadı"
+                onBand == null -> "Telefonda"
+                onBand.active -> "Etkin"
+                else -> "Bantta"
             }
-            if (row.size == 1) ui.add(r, View(act), width = 0, weight = 1f, leftDp = 8)
-            ui.add(grid, r, topDp = 8)
-        }
-        if (stored.isEmpty()) ui.add(grid, ui.caption("Galeride kadran yok. \"Dosya ekle\" ile ekle."), topDp = 4)
-        // Bantta olup depoda olmayanlar (yerleşikler ve başka uygulamayla kurulanlar).
-        val ids = stored.map { it.id }.toSet()
-        val others = band?.filter { it.id !in ids && it.id != B8NavFace.ID } ?: return
-        if (others.isEmpty()) return
-        ui.add(bandOnly, ui.caption("Bantta (galeride yok)"))
-        others.forEachIndexed { i, f ->
-            if (i > 0) ui.add(bandOnly, ui.divider(), height = ui.dp(1))
-            val sub = buildString {
-                append("Kimlik ").append(f.id)
-                if (f.active) append(" · etkin")
-                append(if (f.canDelete) " · yüklenen" else " · yerleşik")
-            }
-            val buttons = ui.horizontal()
-            if (!f.active) ui.add(buttons, ui.secondary("Etkin yap") { setActive(f) }, width = Ui.WRAP)
-            if (B8Watchface.canDelete(f)) ui.add(buttons, ui.danger("Sil") { deleteFromBand(f) }, width = Ui.WRAP, leftDp = 8)
-            ui.add(bandOnly, ui.row(label(f), sub, trailing = buttons))
-        }
-    }
+            FaceGrid.Tile(e.name, state, onBand?.active == true, img, ui.dp(56), ui.dp(134)) { actions(e, onBand) }
+        })
+        more.visibility = if (stored.size > SHOWN) View.VISIBLE else View.GONE
+        more.text = if (all) "Daha az göster" else "Tümünü göster (${stored.size})"
 
-    /** Dikey önizleme döşemesi: resim, ad ve bant durumu. */
-    private fun tile(e: Band8FaceStore.Entry, onBand: B8Watchface.Face?): View {
-        val col = ui.vertical()
-        col.gravity = Gravity.CENTER_HORIZONTAL
-        col.background = ui.pressable(16)
-        col.setPadding(ui.dp(6), ui.dp(6), ui.dp(6), ui.dp(6))
-        col.isClickable = true
-        col.setOnClickListener { actions(e, onBand) }
-        val img = ImageView(act)
-        img.scaleType = ImageView.ScaleType.FIT_CENTER
-        Band8FaceStore.preview(e)?.let { img.setImageBitmap(it) }
-        col.addView(img, LinearLayout.LayoutParams(ui.dp(80), ui.dp(204)))
-        val t = ui.text(e.name, 13f, R.color.text)
-        t.gravity = Gravity.CENTER
-        t.maxLines = 2
-        t.ellipsize = TextUtils.TruncateAt.END
-        ui.add(col, t, topDp = 4)
-        val state = when {
-            onBand == null && Band8Faces.faces == null -> "bant listesi okunmadı"
-            onBand == null -> "bantta değil"
-            onBand.active -> "bantta · etkin"
-            else -> "bantta"
+        // Bantta olup depoda olmayanlar (yerleşikler ve başka uygulamayla kurulanlar).
+        builtins.content.removeAllViews()
+        val ids = stored.map { it.id }.toSet()
+        val others = band?.filter { it.id !in ids && it.id != B8NavFace.ID }
+        if (others == null) {
+            builtins.title.text = "Bantta yerleşik"
+            ui.add(builtins.content, ui.caption(if (WatchHub.ready) "Bant listesi okunuyor…" else "Band bağlanınca okunur."))
+            return
         }
-        ui.add(col, ui.caption(state).also { it.gravity = Gravity.CENTER })
-        col.contentDescription = "${e.name}, $state"
-        return col
+        builtins.title.text = "Bantta yerleşik (${others.size})"
+        if (others.isEmpty()) ui.add(builtins.content, ui.caption("Galeride olmayan kadran yok."))
+        others.forEachIndexed { i, f ->
+            if (i > 0) ui.add(builtins.content, ui.divider(), height = ui.dp(1))
+            val sub = if (f.active) "Etkin" else if (f.canDelete) "Yüklenen" else null
+            val buttons = ui.horizontal()
+            if (!f.active) ui.add(buttons, ui.textButton("Etkin yap") { setActive(f) }.also { it.setTextColor(ui.color(R.color.accent_text)) }, width = Ui.WRAP)
+            if (B8Watchface.canDelete(f)) ui.add(buttons, ui.textButton("Sil") { deleteFromBand(f) }.also { it.setTextColor(ui.color(R.color.danger)) }, width = Ui.WRAP, leftDp = 4)
+            ui.add(builtins.content, ui.row(label(f), sub, trailing = buttons))
+        }
     }
 
     /** Döşemeye dokununca: Yükle / Etkin yap / Sil. */
@@ -177,9 +163,10 @@ class Band8FaceCard(private val act: MainActivity) {
         d.show()
     }
 
-    private fun pick() {
+    fun pick() {
         if (Band8Faces.faces == null) {
-            act.toast("Önce listeyi oku.")
+            act.toast(if (WatchHub.ready) "Bant listesi okunuyor; biraz sonra tekrar dene." else "Önce bandı bağla.")
+            withService { it.bandFaceRead() }
             return
         }
         val i = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
@@ -205,7 +192,7 @@ class Band8FaceCard(private val act: MainActivity) {
     /** Bizim deneme kadranımız: telefonda üretilir, dosya gerekmez. Aynı denetim ve onaydan geçer. */
     private fun ownTestFace() {
         if (Band8Faces.faces == null) {
-            act.toast("Önce listeyi oku.")
+            act.toast("Bant listesi henüz okunmadı.")
             return
         }
         val bytes = B8FaceDesign.simpleDigital(B8FaceDesign.Spec(TEST_FACE_ID, "Finn Dijital"))
@@ -222,7 +209,7 @@ class Band8FaceCard(private val act: MainActivity) {
             act.toast("Band 8 kadran dosyası değil: ${(parsed as B8FaceFile.Result.Invalid).reason}.")
             return
         }
-        val faces = Band8Faces.faces ?: run { act.toast("Önce listeyi oku."); return }
+        val faces = Band8Faces.faces ?: run { act.toast("Bant listesi henüz okunmadı."); return }
         val problems = B8FaceBin.check(bytes)
         val own = parsed.id.startsWith(B8FaceBin.OWN_ID_PREFIX)
         // Kendi ürettiğimiz kadran denetimden geçmezse hiç gönderilmez.
@@ -286,6 +273,7 @@ class Band8FaceCard(private val act: MainActivity) {
 
     companion object {
         const val REQ = 43
+        private const val SHOWN = 6
         /** Deneme kadranının kimliği; bizim önekimiz B8FaceBin.OWN_ID_PREFIX. */
         const val TEST_FACE_ID = "167299001"
     }

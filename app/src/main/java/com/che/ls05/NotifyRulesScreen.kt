@@ -94,7 +94,7 @@ class NotifyRulesScreen(private val act: MainActivity) {
         r.contact.takeIf { it.isNotEmpty() }?.let { "kişi \"$it\"" },
         r.keyword.takeIf { it.isNotEmpty() }?.let { "kelime \"$it\"" },
         if (r.repeats) "${r.repeatEveryMin} dk'da bir, ilk bildirimden sonra en çok ${r.repeatMax} tekrar" else null,
-        when (r.vibration) { -1 -> null; 0 -> "titreşimsiz"; else -> "${r.vibration} titreşim (LS05)" },
+        when (r.vibration) { -1 -> null; 0 -> "titreşimsiz"; else -> "${r.vibration} titreşim" },
     ).joinToString(" · ").ifEmpty { "Bütün bildirimler" }
 
     private fun hm(min: Int) = Fmt.hm(min / 60, min % 60)
@@ -140,12 +140,12 @@ class NotifyRulesScreen(private val act: MainActivity) {
         ui.add(dlg, max, topDp = 4)
         val vibButton: Button = ui.secondary(vibLabel(vibration)) {}
         vibButton.setOnClickListener {
-            val d = AlertDialog.Builder(act).setTitle("Titreşim (LS05)")
+            val d = AlertDialog.Builder(act).setTitle("Titreşim")
                 .setItems(Style.VIBRATION_LABELS.toTypedArray()) { _, which -> vibration = which - 1; vibButton.text = vibLabel(vibration) }
                 .create()
             act.track(d); d.show()
         }
-        ui.add(dlg, ui.row("Titreşim", "Band 8'de şimdilik yalnızca Gelişmiş denemesinde", vibButton), topDp = Style.GAP_DP)
+        ui.add(dlg, ui.row("Titreşim", "LS05: titreşim sayısı. Band 8: bandın titreşiminden sonra desen, son titreşim uzun.", vibButton), topDp = Style.GAP_DP)
         val enabled: CheckBox = ui.check("Kural açık", r.enabled)
         ui.add(dlg, enabled, topDp = Style.GAP_DP)
 
