@@ -3,7 +3,6 @@ package com.che.ls05.protocol
 import com.che.ls05.protocol.band8.B8Command
 import com.che.ls05.protocol.band8.B8Messages
 import com.che.ls05.protocol.band8.B8Notification
-import com.che.ls05.protocol.band8.B8Text
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -13,7 +12,7 @@ class EmojiTextTest {
 
     @Test
     fun probeLineBecomesReadable() {
-        assertEquals("<3 (+1) :D :O :( (dua)", EmojiText.apply(B8Text.EMOJI_TEST))
+        assertEquals("<3 (+1) :D :O :( (dua)", EmojiText.apply("$heart 👍 😂 😮 😢 🙏"))
     }
 
     @Test

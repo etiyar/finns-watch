@@ -43,6 +43,9 @@ object SettingsStore {
         return s
     }
 
+    /** Geri yüklemeden sonra bütün saatlerin ayarları diskten yeniden okunur. */
+    fun forgetAll() = cached.clear()
+
     /** Silinen saatin önbelleği. */
     fun forget(ns: String) {
         if (ns.isNotEmpty()) cached.remove(ns)

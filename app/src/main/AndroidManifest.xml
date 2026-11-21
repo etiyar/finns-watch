@@ -67,6 +67,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Yedek dosyası seçimi için görünmez yardımcı ekran -->
+        <activity
+            android:name=".BackupFileActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <service
             android:name=".WatchService"
             android:exported="false"

@@ -57,7 +57,7 @@ data class Capabilities(
             notifications = true, incomingCall = true, callReject = true, missedCall = true,
             alarmSlots = 0, alarmNote = false, alarmVibration = false, dnd = true, profile = false,
             weather = false, timeSync = false, steps = true, heart = true, sleep = true, liveSteps = false,
-            findWatch = false, findPhone = false, musicRemote = false, faces = false,
+            findWatch = true, findPhone = false, musicRemote = false, faces = false,
         )
 
         fun of(type: WatchType?): Capabilities = when (type) {

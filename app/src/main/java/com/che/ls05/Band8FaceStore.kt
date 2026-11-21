@@ -46,7 +46,17 @@ object Band8FaceStore {
         for (ext in listOf("bin", "png", "txt")) File(dir(c), "$id.$ext").delete()
     }
 
-    fun preview(e: Entry): Bitmap? = if (e.previewFile.exists()) BitmapFactory.decodeFile(e.previewFile.path) else null
+    private val cache = HashMap<String, Pair<Long, Bitmap?>>()
+
+    /** Önizleme bir kez çözülür; dosya değişince yeniden. */
+    fun preview(e: Entry): Bitmap? {
+        if (!e.previewFile.exists()) return null
+        val stamp = e.previewFile.lastModified()
+        cache[e.id]?.let { if (it.first == stamp) return it.second }
+        val b = BitmapFactory.decodeFile(e.previewFile.path)
+        cache[e.id] = stamp to b
+        return b
+    }
 
     /** Dosyanın içindeki önizlemeyi Bitmap'e çevirir. */
     fun previewBitmap(bytes: ByteArray): Bitmap? {

@@ -42,10 +42,9 @@ class Band8Icons(
         val spec = B8Icons.parseSpec(c) ?: run { log("Band 8 simge biçimi çözülemedi"); return }
         val p = pending
         pending = null
-        log("Band 8 simge biçimi: durum=${spec.status}, biçim=${spec.format}, kenar=${spec.size}")
         if (p == null) return
         if (!B8Icons.supported(spec)) {
-            log("Band 8 simge biçimi desteklenmiyor; gönderilmedi")
+            log("Band 8 simge biçimi desteklenmiyor; gönderilmedi: durum=${spec.status}, biçim=${spec.format}, kenar=${spec.size}")
             return
         }
         val pixels = render(p.second, spec.size) ?: run { log("Band 8 simgesi çizilemedi"); return }

@@ -96,21 +96,13 @@ class B8SettingsTest {
         val l = B8Alarms.parseList(listReply(sparseEntry(3, 17, 0, false), sparseEntry(4, 0, 5, true)))!!
         assertEquals(B8Alarm(3, 17, 0, 0, false, 0), l.alarms[0])
         assertEquals(B8Alarm(4, 0, 5, 0, true, 0), l.alarms[1])
-        assertEquals(3, B8Alarms.findTest(l, 17, 0)?.id, "yazılmayan tekrar (0) ve akıllı alanıyla da bulunur")
+        assertEquals(listOf(3), B8Alarms.probeCandidates(l).filter { !it.enabled }.map { it.id }, "yazılmayan tekrar (0) ve akıllı alanıyla da aday")
     }
 
     @Test
     fun smartAlarmIsNeverProbe() {
         val l = B8Alarms.parseList(listReply(alarmEntry(1, 6, 0, 0, true, 1)))!!
         assertTrue(B8Alarms.probeCandidates(l).isEmpty())
-    }
-
-    @Test
-    fun describeListsFieldShapesWithoutValues() {
-        val c = listReply(alarmEntry(2, 17, 44, 0, false, 2), sparseEntry(5, 0, 0, false))
-        val d = B8Alarms.describe(c)
-        assertEquals(listOf("kimlik=2 ayrıntı=[2m 3v 5v 7v] saat=[1v 2v]", "kimlik=5 ayrıntı=[2m] saat=[]"), d)
-        assertTrue(d.none { it.contains("17") || it.contains("44") })
     }
 
     @Test
@@ -123,9 +115,6 @@ class B8SettingsTest {
             alarmEntry(6, 6, 34, 0, true, 2),              // deneme imzası
         ))!!
         assertEquals(listOf(4, 6), B8Alarms.probeCandidates(l).map { it.id })
-        assertEquals(6, B8Alarms.findTest(l, 6, 34)?.id)
-        assertNull(B8Alarms.findTest(l, 8, 0), "her gün alarmı deneme değil")
-        assertNull(B8Alarms.findTest(l, 6, 35))
     }
 
     @Test
@@ -153,40 +142,10 @@ class B8SettingsTest {
     }
 
     @Test
-    fun createRingingOneShotAlarm() {
-        val c = cmd(B8Alarms.create(7, 45))
-        assertTrue(c.matches(17, 1))
-        val d = c.body(19)!!.message(2)!!
-        assertEquals(7, d.message(2)!!.int(1))
-        assertEquals(45, d.message(2)!!.int(2))
-        assertEquals(0, d.int(3), "bir kez")
-        assertEquals(true, d.bool(5), "açık")
-        assertEquals(2, d.int(7), "normal alarm")
-        assertNull(d.int(4), "gün bayrağı yok")
-    }
-
-    @Test
-    fun editKeepsIdAndDetails() {
-        val c = cmd(B8Alarms.edit(4, 8, 5))
-        assertTrue(c.matches(17, 2))
-        val a = c.body(19)!!.message(3)!!
-        assertEquals(4, a.int(1))
-        assertEquals(8, a.message(2)!!.message(2)!!.int(1))
-        assertEquals(5, a.message(2)!!.message(2)!!.int(2))
-        assertEquals(true, a.message(2)!!.bool(5))
-    }
-
-    @Test
     fun deleteListsIds() {
         val c = cmd(B8Alarms.delete(listOf(4)))
         assertTrue(c.matches(17, 4))
         assertEquals(listOf(4L), c.body(19)!!.message(5)!!.all(1).map { it.value })
-    }
-
-    @Test
-    fun testTimeWrapsAtMidnight() {
-        assertEquals(10 to 32, B8Alarms.plusMinutes(10, 30, 2))
-        assertEquals(0 to 1, B8Alarms.plusMinutes(23, 59, 2))
     }
 
     // ---------- Rahatsız etme ----------

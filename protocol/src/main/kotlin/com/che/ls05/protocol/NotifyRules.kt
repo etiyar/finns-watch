@@ -13,7 +13,7 @@ enum class RuleAction { ALLOW, BLOCK }
  * Bir kural. Boş alan "hepsi" demektir. [pkg] uygulama paketi (kişisel ve İş WhatsApp ayrı paketlerdir).
  * [contact] başlıkta, [keyword] başlık ya da metinde aranır (büyük/küçük harf ve Türkçe harf duyarsız).
  * [repeatEveryMin] > 0 ise bildirim telefonda durdukça en çok [repeatMax] kez yeniden gönderilir.
- * [vibration]: -1 varsayılan, 0 titreşimsiz, 1-5 titreşim sayısı (LS05; Band 8'de yalnızca deneme).
+ * [vibration]: -1 varsayılan, 0 titreşimsiz, 1-5 titreşim sayısı (LS05 sayı; Band 8'de B8Vibration.count deseni).
  */
 data class NotifyRule(
     val id: Int,

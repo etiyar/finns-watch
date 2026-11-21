@@ -18,7 +18,7 @@ import java.util.Locale
  * Görünümler yalnızca kendilerine verilen değerleri çizer; veri yoksa ekran bunları göstermez.
  */
 
-/** İlerleme halkası: yükseltilmiş yüzey renginde yol, nane yay, ortada kısa metin. */
+/** İlerleme halkası: yol rengi halka, yeşil yay, ortada isteğe bağlı kısa metin. Kalınlık boyuta göre. */
 class RingView(context: Context) : View(context) {
 
     private val density = resources.displayMetrics.density
@@ -34,7 +34,7 @@ class RingView(context: Context) : View(context) {
         val w = 10f * density
         track.style = Paint.Style.STROKE
         track.strokeWidth = w
-        track.color = context.getColor(R.color.raised)
+        track.color = context.getColor(R.color.track)
         arc.style = Paint.Style.STROKE
         arc.strokeWidth = w
         arc.strokeCap = Paint.Cap.ROUND
@@ -53,8 +53,11 @@ class RingView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val stroke = track.strokeWidth
         val size = minOf(width, height).toFloat()
+        // Tasarımdaki oran: 64 birimlik kutuda 7 birim kalınlık.
+        val stroke = maxOf(3f * density, size * 7f / 64f)
+        track.strokeWidth = stroke
+        arc.strokeWidth = stroke
         if (size <= stroke * 2f) return
         val cx = width / 2f
         val cy = height / 2f
@@ -72,8 +75,8 @@ class RingView(context: Context) : View(context) {
 }
 
 /**
- * Sütun grafiği. Varsayılan 24 saat (etiket 6 saatte bir); [setDaily] ile günlük görünüm.
- * Vurgulanan sütun nane, değeri olan diğerleri soluk gri. 0 değeri kısa bir çizgidir.
+ * Sütun grafiği. [set]: 24 saat; geçmiş saatler yeşil, gelecek saatler yol renginde kısa çizgi, etiket yok.
+ * [setDaily]: günlük görünüm; vurgulanan sütun yeşil, değeri olan diğerleri soluk gri. 0 değeri kısa bir çizgidir.
  */
 class BarsView(context: Context) : View(context) {
 
@@ -81,6 +84,7 @@ class BarsView(context: Context) : View(context) {
     private val bar = Paint(Paint.ANTI_ALIAS_FLAG)
     private val empty = Paint(Paint.ANTI_ALIAS_FLAG)
     private val now = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val past = Paint(Paint.ANTI_ALIAS_FLAG)
     private val label = Paint(Paint.ANTI_ALIAS_FLAG)
     private val box = RectF()
     private var values = IntArray(24)
@@ -90,8 +94,10 @@ class BarsView(context: Context) : View(context) {
     init {
         bar.color = context.getColor(R.color.muted)
         bar.alpha = 150
-        empty.color = context.getColor(R.color.raised)
+        empty.color = context.getColor(R.color.track)
         now.color = context.getColor(R.color.accent)
+        past.color = context.getColor(R.color.accent)
+        past.alpha = 230
         label.color = context.getColor(R.color.muted)
         label.textAlign = Paint.Align.LEFT
         label.textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11f, resources.displayMetrics)
@@ -117,20 +123,23 @@ class BarsView(context: Context) : View(context) {
         val n = values.size
         if (n == 0 || width == 0) return
         val fm = label.fontMetrics
-        val labelH = fm.descent - fm.ascent
-        val chartH = height - labelH - 6f * density
+        val hourly = labels == null
+        val labelH = if (hourly) 0f else fm.descent - fm.ascent + 6f * density
+        val chartH = height - labelH
         if (chartH <= 0f) return
         val slot = width.toFloat() / n
-        val barW = slot * 0.62f
+        val barW = if (hourly) slot - 3f * density else slot * 0.62f
         val pad = (slot - barW) / 2f
         val max = maxOf(values.maxOrNull() ?: 0, 1)
         val minH = 2f * density
         val radius = minOf(barW / 2f, 3f * density)
         for (i in 0 until n) {
-            val h = maxOf(minH, chartH * values[i].toFloat() / max.toFloat())
+            val future = hourly && current >= 0 && i > current
+            val h = if (future) minH else maxOf(minH, chartH * values[i].toFloat() / max.toFloat())
             val left = slot * i + pad
             box.set(left, chartH - h, left + barW, chartH)
             val p = when {
+                hourly -> if (future || values[i] <= 0) empty else past
                 i == current -> now
                 values[i] > 0 -> bar
                 else -> empty
@@ -147,24 +156,22 @@ class BarsView(context: Context) : View(context) {
                 canvas.drawText(text, x, height - fm.descent, label)
             }
             label.textAlign = Paint.Align.LEFT
-            return
-        }
-        var hour = 0
-        while (hour < n) {
-            canvas.drawText(String.format(Locale.US, "%02d", hour), slot * hour + pad, height - fm.descent, label)
-            hour += 6
         }
     }
 }
 
-/** Uyku şeridi: bölümler süreleriyle orantılı; derin, hafif, REM (Band 8) ve uyanık ayrı renkte. Uçlar tam yuvarlak. */
+/**
+ * Uyku şeridi: bölümler süreleriyle orantılı; derin, hafif, REM (Band 8) ve uyanık ayrı renkte, aralarında 2 dp boşluk.
+ * Uçlar tam yuvarlak. Ana ekrandaki küçük çubuk evre toplamlarını gösterir ([setTotals]).
+ */
 class SleepStripView(context: Context) : View(context) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val deep = context.getColor(R.color.sleep_deep)
     private val light = context.getColor(R.color.sleep_light)
     private val rem = context.getColor(R.color.sleep_rem)
-    private val awake = context.getColor(R.color.raised)
+    private val awake = context.getColor(R.color.sleep_awake)
+    private val gap = 2f * context.resources.displayMetrics.density
     private var segments: List<SleepSegment> = emptyList()
 
     init {
@@ -182,13 +189,24 @@ class SleepStripView(context: Context) : View(context) {
         invalidate()
     }
 
+    /** Evre toplamları: derin, hafif, REM (uyanık çizilmez). */
+    fun setTotals(deepMin: Int, lightMin: Int, remMin: Int) {
+        segments = listOf(
+            SleepSegment(0, 0, SleepSegment.DEEP, deepMin),
+            SleepSegment(0, 0, SleepSegment.LIGHT, lightMin),
+            SleepSegment(0, 0, SleepSegment.REM, remMin),
+        ).filter { it.minutes > 0 }
+        invalidate()
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val total = segments.sumOf { it.minutes }
         if (total <= 0 || width == 0) return
         var x = 0f
+        val usable = width - gap * (segments.size - 1).coerceAtLeast(0)
         for (s in segments) {
-            val w = width * s.minutes.toFloat() / total.toFloat()
+            val w = usable * s.minutes.toFloat() / total.toFloat()
             paint.color = when (s.type) {
                 SleepSegment.DEEP -> deep
                 SleepSegment.LIGHT -> light
@@ -196,7 +214,7 @@ class SleepStripView(context: Context) : View(context) {
                 else -> awake
             }
             canvas.drawRect(x, 0f, x + w, height.toFloat(), paint)
-            x += w
+            x += w + gap
         }
     }
 }
@@ -315,7 +333,7 @@ class FaceThumbView(context: Context) : View(context) {
         ring.strokeWidth = stroke
         val rr = size / 2f - stroke / 2f
         if (progress >= 0) {
-            ring.color = context.getColor(R.color.raised)
+            ring.color = context.getColor(R.color.track)
             canvas.drawCircle(cx, cy, rr, ring)
             ring.color = context.getColor(R.color.accent)
             ring.strokeCap = Paint.Cap.ROUND
@@ -323,6 +341,237 @@ class FaceThumbView(context: Context) : View(context) {
         } else {
             ring.color = context.getColor(if (selected) R.color.accent else R.color.border)
             canvas.drawCircle(cx, cy, rr, ring)
+        }
+    }
+}
+
+/**
+ * Gün içi nabız çizgisi: 24 saatlik eksen, ölçek günün en düşük ve en yüksek değerine göre (5'in katına yuvarlanır).
+ * Üç yatay çizgi ve sağda değerleri. Noktalar zamana göre sıralı (günün dakikası, nabız).
+ */
+class HeartChartView(context: Context) : View(context) {
+
+    private val density = resources.displayMetrics.density
+    private val line = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val grid = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val label = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val path = Path()
+    private var minutes = IntArray(0)
+    private var bpm = IntArray(0)
+
+    init {
+        line.style = Paint.Style.STROKE
+        line.strokeWidth = 2f * density
+        line.strokeCap = Paint.Cap.ROUND
+        line.strokeJoin = Paint.Join.ROUND
+        line.color = context.getColor(R.color.heart)
+        grid.color = context.getColor(R.color.border)
+        grid.strokeWidth = maxOf(1f, density)
+        label.color = context.getColor(R.color.text2)
+        label.textAlign = Paint.Align.RIGHT
+        label.textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 10f, resources.displayMetrics)
+        label.fontFeatureSettings = "tnum"
+    }
+
+    fun set(points: List<Pair<Int, Int>>) {
+        minutes = IntArray(points.size) { points[it].first }
+        bpm = IntArray(points.size) { points[it].second }
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val n = minutes.size
+        if (n == 0 || width == 0 || height == 0) return
+        var lo = (bpm.minOrNull() ?: 0) / 5 * 5
+        var hi = ((bpm.maxOrNull() ?: 0) + 4) / 5 * 5
+        if (hi - lo < 20) {
+            val mid = (hi + lo) / 2
+            lo = mid - 10
+            hi = mid + 10
+        }
+        val fm = label.fontMetrics
+        val top = -fm.ascent
+        val bottom = height - 1f
+        val h = bottom - top
+        val w = width.toFloat()
+        for ((i, v) in listOf(hi, (hi + lo) / 2, lo).withIndex()) {
+            val y = top + h * i / 2f
+            canvas.drawLine(0f, y, w, y, grid)
+            canvas.drawText(v.toString(), w, y - 2f * density, label)
+        }
+        fun x(m: Int) = (w * m / 1440f).coerceIn(line.strokeWidth, w - line.strokeWidth)
+        fun y(v: Int) = top + h * (hi - v).toFloat() / (hi - lo).toFloat()
+        if (n == 1) {
+            line.style = Paint.Style.FILL
+            canvas.drawCircle(x(minutes[0]), y(bpm[0]), line.strokeWidth * 1.5f, line)
+            line.style = Paint.Style.STROKE
+            return
+        }
+        path.reset()
+        for (i in 0 until n) {
+            if (i == 0) path.moveTo(x(minutes[i]), y(bpm[i])) else path.lineTo(x(minutes[i]), y(bpm[i]))
+        }
+        canvas.drawPath(path, line)
+    }
+}
+
+/**
+ * Uyku evresi zaman çizelgesi: her evre ayrı satır (Uyanık, REM, Hafif, Derin), solda ad, sağda gecenin
+ * başından sonuna yol ve o evrenin bölümleri. REM satırı yalnızca REM varsa çizilir (LS05 gecesinde yok).
+ */
+class SleepTimelineView(context: Context) : View(context) {
+
+    private class Row(val name: String, val type: Int, val color: Int)
+
+    private val density = resources.displayMetrics.density
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val label = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val track = context.getColor(R.color.track)
+    private val rows = listOf(
+        Row("Uyanık", SleepSegment.AWAKE, context.getColor(R.color.sleep_awake)),
+        Row("REM", SleepSegment.REM, context.getColor(R.color.sleep_rem)),
+        Row("Hafif", SleepSegment.LIGHT, context.getColor(R.color.sleep_light)),
+        Row("Derin", SleepSegment.DEEP, context.getColor(R.color.sleep_deep)),
+    )
+    private var parts: List<Triple<Int, Int, Int>> = emptyList() // tür, başlangıç dk, süre dk
+    private var total = 0
+    private var shown: List<Row> = rows
+
+    init {
+        label.color = context.getColor(R.color.text2)
+        label.textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11f, resources.displayMetrics)
+    }
+
+    /** startMin: gecenin başlangıcı (günün dakikası). Bölümlerin başlangıcı gece yarısını geçebilir. */
+    fun set(segments: List<SleepSegment>, startMin: Int, totalMin: Int) {
+        total = totalMin
+        parts = segments.map { s ->
+            var off = s.hour * 60 + s.minute - startMin
+            if (off < -60) off += 1440
+            Triple(normal(s.type), off.coerceAtLeast(0), s.minutes)
+        }
+        shown = rows.filter { it.type != SleepSegment.REM || parts.any { p -> p.first == SleepSegment.REM } }
+        requestLayout()
+        invalidate()
+    }
+
+    private fun normal(t: Int): Int = when (t) {
+        SleepSegment.DEEP, SleepSegment.LIGHT, SleepSegment.REM -> t
+        else -> SleepSegment.AWAKE
+    }
+
+    private fun rowH() = 14f * density
+    private fun rowGap() = 3f * density
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val h = (shown.size * rowH() + (shown.size - 1).coerceAtLeast(0) * rowGap()).toInt()
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), h)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        if (width == 0) return
+        val labelW = 52f * density + 8f * density
+        val w = width - labelW
+        val r = 3f * density
+        val fm = label.fontMetrics
+        val span = maxOf(total, parts.maxOfOrNull { it.second + it.third } ?: 1, 1)
+        shown.forEachIndexed { i, row ->
+            val top = i * (rowH() + rowGap())
+            canvas.drawText(row.name, 0f, top + rowH() / 2f - (fm.ascent + fm.descent) / 2f, label)
+            paint.color = track
+            canvas.drawRoundRect(labelW, top, width.toFloat(), top + rowH(), r, r, paint)
+            paint.color = row.color
+            for (p in parts) {
+                if (p.first != row.type) continue
+                val l = labelW + w * p.second / span
+                val rr = labelW + w * (p.second + p.third) / span
+                canvas.drawRoundRect(l, top, maxOf(rr, l + 2f * density), top + rowH(), r, r, paint)
+            }
+        }
+    }
+}
+
+/**
+ * Dikdörtgen kadran önizlemesi (Band 8 biçimi): siyah ekran, ince kasa, yuvarlak köşe. Resim varsa ekrana sığdırılır;
+ * yoksa saat ve tarih yazılır. selected: yeşil çerçeve yerine kasa yeşil olur (kadran galerisi).
+ */
+class BandFaceView(context: Context) : View(context) {
+
+    private val density = resources.displayMetrics.density
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = context.getColor(R.color.face_bg) }
+    private val case = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = context.getColor(R.color.face_case) }
+    private val digit = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = context.getColor(R.color.face_digit)
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        fontFeatureSettings = "tnum"
+    }
+    private val date = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = context.getColor(R.color.accent)
+        textAlign = Paint.Align.CENTER
+        fontFeatureSettings = "tnum"
+    }
+    private val img = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val clip = Path()
+    private val box = RectF()
+    private var bitmap: android.graphics.Bitmap? = null
+    private var progress = -1
+    private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = context.getColor(R.color.accent) }
+
+    fun set(bmp: android.graphics.Bitmap?) {
+        bitmap = bmp
+        invalidate()
+    }
+
+    /** Yükleme ilerlemesi (0-100) kasanın üstünde yeşil çizgi; -1 kapalı. */
+    fun setProgress(p: Int) {
+        progress = p
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (w <= 0f || h <= 0f) return
+        val stroke = 3f * density
+        val r = w / 2f
+        box.set(stroke / 2f, stroke / 2f, w - stroke / 2f, h - stroke / 2f)
+        canvas.drawRoundRect(box, r, r, fill)
+        val b = bitmap
+        if (b != null) {
+            canvas.save()
+            clip.reset()
+            box.set(stroke, stroke, w - stroke, h - stroke)
+            clip.addRoundRect(box, r - stroke, r - stroke, Path.Direction.CW)
+            canvas.clipPath(clip)
+            val scale = minOf(box.width() / b.width, box.height() / b.height)
+            val dw = b.width * scale
+            val dh = b.height * scale
+            val l = (w - dw) / 2f
+            val t = (h - dh) / 2f
+            canvas.drawBitmap(b, null, RectF(l, t, l + dw, t + dh), img)
+            canvas.restore()
+        } else {
+            val now = java.time.LocalDateTime.now()
+            digit.textSize = w * 0.48f
+            val lh = digit.textSize
+            val cy = h / 2f
+            canvas.drawText(String.format(Locale.US, "%02d", now.hour), w / 2f, cy - lh * 0.12f, digit)
+            canvas.drawText(String.format(Locale.US, "%02d", now.minute), w / 2f, cy + lh * 0.88f, digit)
+            date.textSize = w * 0.15f
+            canvas.drawText(String.format(Locale.US, "%02d/%02d", now.monthValue, now.dayOfMonth), w / 2f, cy + lh * 0.88f + date.textSize * 1.8f, date)
+        }
+        case.strokeWidth = stroke
+        box.set(stroke / 2f, stroke / 2f, w - stroke / 2f, h - stroke / 2f)
+        canvas.drawRoundRect(box, r, r, case)
+        if (progress >= 0) {
+            ring.strokeWidth = stroke
+            ring.strokeCap = Paint.Cap.ROUND
+            val len = (w - stroke) * progress / 100f
+            canvas.drawLine(stroke / 2f, h - stroke / 2f, stroke / 2f + len, h - stroke / 2f, ring)
         }
     }
 }

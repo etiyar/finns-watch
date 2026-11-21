@@ -1,22 +1,26 @@
 <resources>
-    <!-- Koyu tema. Tek kaynak: docs/V06_TASARIM_SARTNAMESI.md bölüm 2. -->
-    <color name="bg">#0D0F12</color>
-    <color name="card">#171B20</color>
-    <color name="raised">#20262D</color>
-    <color name="border">#2B323A</color>
-    <color name="text">#F3F4F2</color>
-    <color name="text2">#A6AFB8</color>
-    <color name="muted">#7F8A95</color>
-    <color name="accent">#7FE3C3</color>
-    <color name="accent_bg">#15382E</color>
-    <color name="on_accent">#06281F</color>
-    <color name="warning">#E2BC70</color>
-    <color name="warning_bg">#3A3016</color>
-    <color name="danger">#E78D93</color>
-    <color name="sleep_deep">#5769CC</color>
-    <color name="sleep_light">#A9B7F5</color>
-    <color name="sleep_rem">#D586C2</color>
-    <color name="heart">#F09AA5</color>
-    <color name="switch_off_track">#3A414A</color>
-    <color name="switch_off_thumb">#C8CED3</color>
+    <!-- Koyu tema (v0.17). Tek kaynak: tasarım dosyalarındaki FW_THEMES.dark. Zemin gerçek siyah (AMOLED). -->
+    <color name="bg">#000000</color>
+    <color name="card">#0D1110</color>
+    <color name="raised">#151B19</color>
+    <color name="border">#1F2A26</color>
+    <color name="track">#1F2A26</color>
+    <color name="text">#F2F5F4</color>
+    <color name="text2">#9AA5A1</color>
+    <color name="muted">#6F7B77</color>
+    <color name="accent">#4ADE80</color>
+    <color name="accent_text">#4ADE80</color>
+    <color name="accent_fill">#4ADE80</color>
+    <color name="accent_bg">#244ADE80</color>
+    <color name="on_accent">#04140A</color>
+    <color name="warning">#F59E0B</color>
+    <color name="warning_bg">#2A1F0A</color>
+    <color name="danger">#FB7185</color>
+    <color name="heart">#FB7185</color>
+    <color name="sleep_deep">#6366F1</color>
+    <color name="sleep_light">#A5B4FC</color>
+    <color name="sleep_rem">#C084FC</color>
+    <color name="sleep_awake">#F59E0B</color>
+    <color name="switch_off_track">#2A3632</color>
+    <color name="switch_off_thumb">#9AA5A1</color>
 </resources>

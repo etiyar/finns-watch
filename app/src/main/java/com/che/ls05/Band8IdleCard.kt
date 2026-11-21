@@ -6,7 +6,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 /**
- * Saat > Hareketsizlik uyarısı (deneysel), Band 8: açık/kapalı ve saat aralığı. Bandın ayarı önce okunur (8/12),
+ * Saat > Saat ayarları > Hareketsizlik uyarısı (deneysel), Band 8: açık/kapalı ve saat aralığı. Bandın ayarı önce okunur (8/12),
  * yazarken aynı mesaj yalnızca açık mı ve başlangıç/bitiş değiştirilerek geri gider (8/13). Gün seçimi protokolde
  * bilinmiyor; band kendi gün ayarını korur. Kullanıcı cihazda doğrulayana kadar "deneysel".
  */
@@ -18,21 +18,24 @@ class Band8IdleCard(private val act: MainActivity) {
 
     private val ui = act.ui
     val view: LinearLayout = ui.vertical()
-    private val card: LinearLayout = ui.card(padDp = 16, padVDp = 10)
-    private val state: TextView = ui.text("", 16f, R.color.text, bold = true)
-    private val note: TextView = ui.caption("Deneysel: bandda doğrulanana kadar sonucu bandın ayarlar ekranından kontrol et.")
-    private val editButton: Button = ui.tonal("Düzenle") { edit() }
+    private val state: TextView = ui.caption("")
+    private val editButton: Button = ui.textButton("Düzenle") { edit() }
     private var requested = false
 
     init {
-        ui.add(card, ui.cardTitle("Hareketsizlik uyarısı (deneysel)"))
-        ui.add(card, state, topDp = Style.GAP_DP)
-        ui.add(card, note, topDp = 4)
+        ui.add(view, ui.divider(), height = ui.dp(1))
         val row = ui.horizontal()
-        ui.add(row, editButton, width = Ui.WRAP)
-        ui.add(row, ui.secondary("Bandtan oku") { read() }, width = Ui.WRAP, leftDp = Style.GAP_DP)
-        ui.add(card, row, topDp = Style.GAP_DP)
-        ui.add(view, card, topDp = 10)
+        row.minimumHeight = ui.dp(56)
+        val texts = ui.vertical()
+        ui.add(texts, ui.text("Hareketsizlik uyarısı (deneysel)", 15f))
+        ui.add(texts, state, topDp = 2)
+        ui.add(row, texts, width = 0, weight = 1f)
+        editButton.setTextColor(ui.color(R.color.accent_text))
+        ui.add(row, editButton, width = Ui.WRAP, leftDp = 8)
+        row.background = ui.pressable(12)
+        row.isClickable = true
+        row.setOnClickListener { if (WatchHub.service?.bandIdleWindow() == null) read() else edit() }
+        ui.add(view, row)
     }
 
     private fun read() {
@@ -68,7 +71,7 @@ class Band8IdleCard(private val act: MainActivity) {
         end.setOnClickListener { act.pickTime(eh, em) { h, m -> eh = h; em = m; end.text = Fmt.hm(h, m) } }
         ui.add(box, ui.row("Başlangıç", trailing = start), topDp = Style.GAP_DP)
         ui.add(box, ui.row("Bitiş", trailing = end))
-        ui.add(box, ui.caption("Gün seçimi ve öğle arası bandın kendi ayarında kalır."), topDp = Style.GAP_DP)
+        ui.add(box, ui.caption("Gün seçimi ve öğle arası bandın kendi ayarında kalır. Deneysel: sonucu bandın ayarlar ekranından kontrol et."), topDp = Style.GAP_DP)
         val d = AlertDialog.Builder(act)
             .setTitle("Hareketsizlik uyarısı")
             .setView(box)

@@ -31,8 +31,8 @@ import com.che.ls05.protocol.UteFrame
 import com.che.ls05.protocol.WatchType
 
 /**
- * v0.6 panel: sayfa başlığı ve bağlantı kapsülü, dört sekme (Bugün, Saat, Bildirimler, Ayarlar), yüzen alt menü.
- * Üst uygulama çubuğu yoktur. Bağlantı servis tarafından tutulur; bu ekran kapansa ya da tema değişip
+ * v0.17 panel: dört sekme (Ana, Sağlık, Saat, Ayarlar) ve alt menü. Her sayfa kendi başlığını çizer;
+ * üst uygulama çubuğu yoktur. Bağlantı servis tarafından tutulur; bu ekran kapansa ya da tema değişip
  * yeniden kurulsa da devam eder.
  */
 class MainActivity : Activity(), WatchHub.Observer {
@@ -49,13 +49,11 @@ class MainActivity : Activity(), WatchHub.Observer {
     lateinit var ui: Ui
     val handler = Handler(Looper.getMainLooper())
 
-    lateinit var today: TodayPage
+    lateinit var home: HomePage
+    lateinit var health: HealthPage
     lateinit var watch: WatchPage
-    lateinit var notify: NotifyPage
     lateinit var settings: SettingsPage
 
-    private lateinit var titleView: TextView
-    private lateinit var statusPill: TextView
     private lateinit var barWrap: LinearLayout
     private lateinit var pages: List<Page>
     private val tabs = ArrayList<TabItem>()
@@ -120,7 +118,6 @@ class MainActivity : Activity(), WatchHub.Observer {
         setContentView(buildUi())
         WatchHub.addObserver(this)
         selectTab(tab)
-        refreshTop()
         if (savedInstanceState == null && !hasBlePermissions()) requestBlePermissions()
         if (savedInstanceState == null) Reminders.reschedule(applicationContext)
     }
@@ -273,40 +270,24 @@ class MainActivity : Activity(), WatchHub.Observer {
         val root = ui.vertical()
         root.setBackgroundColor(ui.color(R.color.bg))
 
-        // Sayfa başlığı + bağlantı kapsülü (her ekranda aynı).
-        val top = ui.horizontal()
-        top.minimumHeight = ui.dp(56)
-        top.setPadding(ui.dp(20), ui.dp(8), ui.dp(16), ui.dp(4))
-        titleView = ui.text("", 26f, R.color.text, bold = true)
-        titleView.includeFontPadding = false
-        ui.add(top, titleView, width = Ui.WRAP)
-        // Kapsül kalan genişliğe sığar; uzun durum metni başlığı itmez, kendi içinde kısalır.
-        val pillBox = ui.horizontal()
-        pillBox.setGravity(Gravity.END or Gravity.CENTER_VERTICAL)
-        statusPill = ui.pill("", Tone.NEUTRAL)
-        ui.add(pillBox, statusPill, width = Ui.WRAP)
-        ui.add(top, pillBox, width = 0, weight = 1f, leftDp = 12)
-        ui.add(root, top)
-
-        today = TodayPage(this)
+        home = HomePage(this)
+        health = HealthPage(this)
         watch = WatchPage(this)
-        notify = NotifyPage(this)
         settings = SettingsPage(this)
-        pages = listOf(today, watch, notify, settings)
+        pages = listOf(home, health, watch, settings)
         val content = FrameLayout(this)
         pages.forEach { content.addView(it.view, FrameLayout.LayoutParams(Ui.MATCH, Ui.MATCH)) }
         ui.add(root, content, height = 0, weight = 1f)
 
-        // Alt menü: tek yüzey. İçerik menünün üstünde biter; menü sistem gezinme alanına girmez.
-        barWrap = ui.vertical()
-        val bar = ui.tabBar()
-        val icons = intArrayOf(R.drawable.ic_today, R.drawable.ic_watch, R.drawable.ic_bell, R.drawable.ic_settings)
+        // Alt menü: zemin renginde, üstte ince çizgi. İçerik menünün üstünde biter.
+        barWrap = ui.tabBar()
+        val bar = barWrap
+        val icons = intArrayOf(R.drawable.ic_nav_home, R.drawable.ic_nav_health, R.drawable.ic_nav_watch, R.drawable.ic_nav_settings)
         pages.forEachIndexed { i, p ->
             val item = ui.tabItem(icons[i], p.title) { selectTab(i) }
             tabs += item
             ui.add(bar, item.view, width = 0, weight = 1f)
         }
-        ui.add(barWrap, bar)
         setBarInsets(0)
         ui.add(root, barWrap)
 
@@ -318,7 +299,7 @@ class MainActivity : Activity(), WatchHub.Observer {
     }
 
     private fun setBarInsets(bottom: Int) {
-        barWrap.setPadding(ui.dp(16), ui.dp(8), ui.dp(16), ui.dp(8) + bottom)
+        barWrap.setPadding(0, 0, 0, bottom)
     }
 
     /** Sistem çubukları ve klavye için boşluk. Klavye açıkken alt menü gizlenir (arama kutusuna yer kalsın). */
@@ -348,25 +329,16 @@ class MainActivity : Activity(), WatchHub.Observer {
         tab = i
         pages.forEachIndexed { k, p -> p.view.visibility = if (k == i) View.VISIBLE else View.GONE }
         tabs.forEachIndexed { k, t -> ui.setTab(t, k == i) }
-        titleView.text = pages[i].title
         pages[i].refresh()
     }
 
-    /** Kapsül: bağlıyken nane ("Bağlı · %54"), bağlanırken nötr, bağlı değilken uyarı tonu. */
-    private fun refreshTop() {
-        if (WatchHub.ready) {
-            val b = WatchHub.battery
-            val label = if (WatchRegistry.active(this)?.type == WatchType.BAND8) "Oturum açık" else "Bağlı"
-            ui.setPill(statusPill, if (b != null) "$label · %$b" else label, Tone.OK)
-        } else {
-            val s = WatchHub.status
-            val busy = s.endsWith("…") || s.startsWith("Saatte onay")
-            ui.setPill(statusPill, s, if (busy) Tone.NEUTRAL else Tone.WARN)
-        }
+    /** Saat sekmesini belirli bölümle açar (Ana > Galeriyi aç). */
+    fun openWatchSection(section: Int) {
+        selectTab(2)
+        watch.select(section)
     }
 
     private fun refreshAll() {
-        refreshTop()
         pages.forEach { it.refresh() }
     }
 
@@ -377,21 +349,22 @@ class MainActivity : Activity(), WatchHub.Observer {
     }
 
     override fun onStatus(status: String) {
-        refreshTop()
+        home.refresh()
         watch.refresh()
+        settings.refreshWatchInfo()
     }
 
     override fun onReadyChanged(ready: Boolean) {
-        refreshTop()
+        home.refresh()
         watch.refresh()
-        notify.onReady(ready)
+        watch.notify.onReady(ready)
         settings.onReady(ready)
+        settings.refreshWatchInfo()
     }
 
     override fun onSettingsChanged() {
-        refreshTop()
+        home.refresh()
         watch.refresh()
-        today.refresh()
         settings.refreshWatchInfo()
     }
 
@@ -399,6 +372,7 @@ class MainActivity : Activity(), WatchHub.Observer {
         if (WatchHub.faceBusy) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (WatchHub.faceBusy) watch.refreshFaceProgress() else watch.refreshFaces()
+        home.refresh()
     }
 
     // ---------- Kadran dosyası seçme ----------
@@ -422,7 +396,7 @@ class MainActivity : Activity(), WatchHub.Observer {
             return
         }
         if (requestCode == Band8FaceCard.REQ) {
-            settings.bandFaces.onResult(resultCode, data)
+            watch.bandFaces.onResult(resultCode, data)
             return
         }
         if (requestCode == Band8RawExport.REQ) {
@@ -505,7 +479,8 @@ class MainActivity : Activity(), WatchHub.Observer {
     }
 
     override fun onHealthChanged() {
-        today.refresh()
+        home.refresh()
+        health.refresh()
     }
 
     fun showBandKeyEditor() {
@@ -522,6 +497,6 @@ class MainActivity : Activity(), WatchHub.Observer {
     }
 
     override fun onFrame(frame: UteFrame) {
-        notify.onFrame(frame)
+        watch.notify.onFrame(frame)
     }
 }

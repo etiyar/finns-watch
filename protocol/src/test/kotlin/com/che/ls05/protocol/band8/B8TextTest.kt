@@ -58,9 +58,4 @@ class B8TextTest {
     fun truncateKeepsShortText() {
         assertEquals("ab$heart", B8Text.truncate("ab$heart", 100))
     }
-
-    @Test
-    fun emojiProbeText() {
-        assertEquals("$heart 👍 😂 😮 😢 🙏", B8Text.EMOJI_TEST)
-    }
 }

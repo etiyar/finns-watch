@@ -7,9 +7,6 @@ package com.che.ls05.protocol.band8
  * LS05'in yazı tipi için olan [com.che.ls05.protocol.TextSanitizer] değişmez; LS05 metni bunun üstüne onu uygular.
  */
 object B8Text {
-    /** Gelişmiş > "Emoji testi" bildiriminin gövdesi. */
-    const val EMOJI_TEST = "❤️ 👍 😂 😮 😢 🙏"
-
     private const val ZWJ = 0x200D
     private const val ELLIPSIS = "…"
 

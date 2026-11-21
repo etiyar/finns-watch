@@ -252,7 +252,7 @@ class AlarmSheet(private val act: MainActivity, private val slot: Int, private v
             val on = (mask and UteAlarm.UI_ORDER[i]) != 0
             chip.isSelected = on
             chip.setTextColor(ui.color(if (on) R.color.on_accent else R.color.text))
-            chip.background = ui.ripple(ui.round(ui.color(if (on) R.color.accent else R.color.raised), 20), null)
+            chip.background = ui.ripple(ui.round(ui.color(if (on) R.color.accent_fill else R.color.raised), 20), null)
             if (Build.VERSION.SDK_INT >= 30) {
                 chip.stateDescription = if (on) "Seçili" else "Seçili değil"
             } else {

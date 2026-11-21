@@ -467,8 +467,8 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         }, 15_000)
     }
 
-    /** Durdurma komutu cihazda doğrulanana kadar yalnızca elle denenir. */
-    fun testFindBand(start: Boolean): Boolean {
+    /** Bandı bul: başlat ya da durdur (2/18, ikisi de cihazda doğrulandı). */
+    fun findBand(start: Boolean): Boolean {
         val now = SystemClock.elapsedRealtime()
         val reason = when {
             !ready -> "hazır değil"
@@ -483,35 +483,20 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             else -> null
         }
         if (reason != null) {
-            listener.onLog("Band 8 bulma testi reddi: $reason; bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}, yazıyor=$writing, oturum=${channel.session != null}")
+            listener.onLog("Band 8 bulma reddi: $reason; bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}, yazıyor=$writing, oturum=${channel.session != null}")
             return false
         }
         val frames = channel.send(B8Messages.findBand(start))
         if (frames.isEmpty()) {
-            listener.onLog("Band 8 bulma testi reddi: komut çerçevesi üretilmedi")
+            listener.onLog("Band 8 bulma reddi: komut çerçevesi üretilmedi")
             return false
         }
         nextFindTestAt = now + 1_000L
         enqueue(frames)
         armCommandTimeout()
         if (!ready) return false
-        listener.onLog("Band 8 bulma testi: " + if (start) "başlatma isteği gönderildi" else "durdurma isteği gönderildi")
+        listener.onLog("Band 8 bulma: " + if (start) "başlatma isteği gönderildi" else "durdurma isteği gönderildi")
         return true
-    }
-
-    /** Kayıtta arama olmadığı için yalnızca Gelişmiş ekranındaki kontrollü deneme. */
-    fun testCallScreen(start: Boolean, timestamp: String): Boolean {
-        if (!ready || released || gatt == null || channel.session == null ||
-            channel.pending >= MAX_PENDING_COMMANDS ||
-            (start && (channel.pending != 0 || writing || writes.isNotEmpty()))
-        ) {
-            listener.onLog("Band 8 arama ekranı testi reddi: hazır=$ready, bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}")
-            return false
-        }
-        val message = if (start) B8Messages.incomingCall(TEST_CALLER, "", timestamp) else B8Messages.callEnded()
-        sendAuthenticated(message)
-        listener.onLog("Band 8 arama ekranı denemesi sıraya alındı: ${if (start) "aç" else "kapat"}")
-        return ready
     }
 
     /** Gelişmiş > Band 8 denemeleri: tek komut, yalnızca elle. Logda yalnızca tür ve alt tür. */
@@ -743,6 +728,5 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         const val COMMAND_TIMEOUT_MS = 8_000L
         /** 22/0 yanıtı ya da bir bölümün onayı için en uzun bekleme. Kayıtta bölüm başına 0,1 s altında. */
         const val UPLOAD_STEP_TIMEOUT_MS = 15_000L
-        const val TEST_CALLER = "Test arama"
     }
 }

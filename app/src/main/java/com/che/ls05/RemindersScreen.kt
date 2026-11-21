@@ -12,7 +12,7 @@ import com.che.ls05.protocol.ReminderRepeat
 import java.time.LocalDate
 
 /**
- * Saat > Hatırlatıcılar ve takvim. Özel hatırlatıcılar ve isteğe bağlı telefon takvimi. Zamanı gelince telefon,
+ * Saat > Hatırlatıcılar. Özel hatırlatıcılar ve isteğe bağlı telefon takvimi. Zamanı gelince telefon,
  * etkin saate bildirim gönderir (Reminders, CalendarReminders). Başlıklar loga yazılmaz.
  */
 class RemindersScreen(private val act: MainActivity) {
@@ -33,20 +33,12 @@ class RemindersScreen(private val act: MainActivity) {
     }
 
     private val ui = act.ui
-    private val box: LinearLayout = ui.dialogBox()
+    private val box: LinearLayout = ui.vertical()
 
-    fun show() {
-        render()
-        val d = AlertDialog.Builder(act)
-            .setTitle("Hatırlatıcılar ve takvim")
-            .setView(ui.scroll(box))
-            .setPositiveButton("Kapat", null)
-            .create()
-        act.track(d)
-        d.show()
-    }
+    /** Saat > Hatırlatıcılar bölümünün görünümü. Bölüm seçilince [render] ile yeniden kurulur. */
+    val view: LinearLayout get() = box
 
-    private fun render() {
+    fun render() {
         box.removeAllViews()
         ui.add(box, ui.caption("Zamanı gelince telefon etkin saate bildirim gönderir. Saat bağlı değilse bağlanınca 5 dakikaya kadar gönderilir."), topDp = Style.GAP_DP)
         if (!Reminders.canExact(act)) ui.add(box, ui.caption("Tam zamanlı alarm izni yok; hatırlatmalar birkaç dakika gecikebilir."), topDp = 4)

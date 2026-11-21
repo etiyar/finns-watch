@@ -63,29 +63,11 @@ object B8Alarms {
         return B8AlarmList(list, alarms.int(2))
     }
 
-    /** Log için: her alarmın kimliği ve alan biçimi (numara + tel türü). Saat ve değer yazılmaz. */
-    fun describe(c: B8Command): List<String> {
-        val alarms = c.body(B8Type.F_SCHEDULE)?.message(1) ?: return emptyList()
-        return alarms.messages(1).map { a ->
-            val d = a.bytes(2)
-            val t = d?.let { PbMessage.parseOrNull(it) }?.bytes(2)
-            "kimlik=${a.int(1) ?: "yok"} ayrıntı=[${d?.let { B8RawSetting(0, it).shape() } ?: "yok"}] saat=[${t?.let { B8RawSetting(0, it).shape() } ?: "yok"}]"
-        }
-    }
-
     /** Deneme düğmesinin kurduğu alarmın imzası: bir kez, akıllı değil, gün bayrağı yok. */
     fun matchesProbe(a: B8Alarm): Boolean = a.repeat == ONCE && a.smart != SMART && (a.dayFlags ?: 0) == 0
 
     /** Deneme imzasına uyan bütün alarmlar ("Test alarmlarını temizle" adayları). */
     fun probeCandidates(l: B8AlarmList): List<B8Alarm> = l.alarms.filter { matchesProbe(it) }
-
-    /** Belirli saatte kurulan deneme alarmı; birden çok varsa en büyük kimlik (en son eklenen). */
-    fun findTest(l: B8AlarmList, hour: Int, minute: Int): B8Alarm? =
-        l.alarms.filter { matchesProbe(it) && it.hour == hour && it.minute == minute }.maxByOrNull { it.id }
-
-    /** Bir kez çalan, açık, normal (akıllı olmayan) alarm. */
-    private fun details(hour: Int, minute: Int): PbWriter =
-        PbWriter().message(2, hourMinute(hour, minute)).uint(3, ONCE).bool(5, true).uint(7, NORMAL)
 
     private const val DAILY = 1
     private const val WEEKLY = 5
@@ -113,22 +95,12 @@ object B8Alarms {
         else -> 0
     }
 
-    fun create(hour: Int, minute: Int): ByteArray =
-        cmd(B8Type.SCHEDULE, 1, B8Type.F_SCHEDULE, PbWriter().message(2, details(hour, minute)))
-
-    fun edit(id: Int, hour: Int, minute: Int): ByteArray =
-        cmd(B8Type.SCHEDULE, 2, B8Type.F_SCHEDULE, PbWriter().message(3, PbWriter().uint(1, id).message(2, details(hour, minute))))
-
     fun delete(ids: List<Int>): ByteArray {
         val d = PbWriter()
         for (id in ids) d.uint(1, id)
         return cmd(B8Type.SCHEDULE, 4, B8Type.F_SCHEDULE, PbWriter().message(5, d))
     }
 
-    fun plusMinutes(hour: Int, minute: Int, add: Int): Pair<Int, Int> {
-        val total = ((hour * 60 + minute + add) % 1440 + 1440) % 1440
-        return total / 60 to total % 60
-    }
 }
 
 /** Rahatsız etme: 2/23 anlık (belge 8.3, Notify'ın kullandığı yapı) ve 17/9 zamanlı uyku modu. */
@@ -403,9 +375,18 @@ object B8Music {
     private fun looksLikeMessage(b: ByteArray): Boolean = b.firstOrNull()?.let { (it.toInt() and 0x07) <= 5 && (it.toInt() and 0xFF) >= 0x08 } ?: false
 }
 
-/** Titreşim deseni dene: 2/59, System alan 41 > tekrarlı 1 { 1 titreşim (1/0), 2 süre ms } (belge 6.9, güçlü kanıt). */
+/** Titreşim deseni: 2/59, System alan 41 > tekrarlı 1 { 1 titreşim (1/0), 2 süre ms } (belge 6.9, güçlü kanıt). */
 object B8Vibration {
-    val TEST: List<Pair<Boolean, Int>> = listOf(true to 400, false to 200, true to 400, false to 200, true to 800)
+    /** Bildirim kuralının titreşim sayısı (1-5): kısa titreşimler, sonuncusu uzun. 3: kısa-kısa-uzun. */
+    fun count(n: Int): List<Pair<Boolean, Int>> {
+        val k = n.coerceIn(1, 5)
+        val out = ArrayList<Pair<Boolean, Int>>()
+        for (i in 1..k) {
+            out += true to (if (i == k) 800 else 400)
+            if (i < k) out += false to 200
+        }
+        return out
+    }
 
     fun pattern(steps: List<Pair<Boolean, Int>>): ByteArray {
         val body = PbWriter()
