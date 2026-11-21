@@ -100,6 +100,18 @@ object Prefs {
     fun setProfileVerified(c: Context, value: Boolean) = p(c).edit().putBoolean(k(c, "profileVerified"), value).apply()
 
     /** Son başarılı adım geçmişi okuması (ms); 0 = hiç. */
+    /** Navigasyonu Band 8'de kadran olarak göster (deneysel, varsayılan kapalı). */
+    fun band8NavFace(c: Context): Boolean = p(c).getBoolean("band8NavFace", false)
+    fun setBand8NavFace(c: Context, value: Boolean) = p(c).edit().putBoolean("band8NavFace", value).apply()
+
+    /** Navigasyon kadranı açıkken tam metin bildirimi de gitsin mi (varsayılan açık); kapalıysa yalnızca kısa manevra adı. */
+    fun band8NavText(c: Context): Boolean = p(c).getBoolean("band8NavText", true)
+    fun setBand8NavText(c: Context, value: Boolean) = p(c).edit().putBoolean("band8NavText", value).apply()
+
+    /** Navigasyon başlamadan önce etkin olan kadran (bitince geri etkin yapılır). */
+    fun band8NavPrevFace(c: Context): String? = p(c).getString("band8NavPrevFace", null)
+    fun setBand8NavPrevFace(c: Context, id: String?) = p(c).edit().putString("band8NavPrevFace", id).apply()
+
     /** Band 8 bildirim simgesi yüklemesi (deneysel, varsayılan kapalı). */
     fun band8Icons(c: Context): Boolean = p(c).getBoolean("band8Icons", false)
     fun setBand8Icons(c: Context, value: Boolean) = p(c).edit().putBoolean("band8Icons", value).apply()

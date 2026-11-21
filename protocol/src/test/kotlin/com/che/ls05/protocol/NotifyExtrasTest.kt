@@ -198,4 +198,16 @@ class NotifyExtrasTest {
         assertEquals(CallKind.ONGOING, CallClassifier.classify("com.whatsapp", "call", true, 0, false, chronometer = true))
         assertEquals(CallKind.ONGOING, CallClassifier.classify("com.google.android.dialer", "call", true, 0, false), "telefon uygulaması eskisi gibi")
     }
+
+    @Test
+    fun navigationPartsSplitDistanceManeuverStreet() {
+        val p = NavigationFilter().parts("300 m", "Sola dönün · Örnek Caddesi")
+        kotlin.test.assertEquals("300 m", p.distance)
+        kotlin.test.assertEquals("Sola dönün · Örnek Caddesi", p.maneuver)
+        val q = NavigationFilter().parts("Sağa dönün", "0,4 km · Deneme Sokak")
+        kotlin.test.assertEquals("0,4 km", q.distance)
+        kotlin.test.assertEquals("Sağa dönün", q.maneuver)
+        kotlin.test.assertEquals("Deneme Sokak", q.rest)
+        kotlin.test.assertEquals(NavManeuver.classify("Sağa dönün"), q.kind)
+    }
 }

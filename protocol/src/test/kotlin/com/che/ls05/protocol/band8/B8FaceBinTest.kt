@@ -182,11 +182,12 @@ class B8FacePrefixTest {
     fun prefixWarningUsesInstalledFaces() {
         val band = listOf(f("266110010", false), f("266150010", false), f("167210065", true))
         kotlin.test.assertEquals(setOf("167"), B8Watchface.installedPrefixes(band))
+        // 167 ve 266 bu bantta çalıştı: ikisine de uyarı yok.
         kotlin.test.assertFalse(B8Watchface.prefixDiffers("167299001", band))
-        kotlin.test.assertTrue(B8Watchface.prefixDiffers("266299001", band))
-        val builtIn = listOf(f("266110010", false))
-        kotlin.test.assertFalse(B8Watchface.prefixDiffers("266299001", builtIn))
-        kotlin.test.assertTrue(B8Watchface.prefixDiffers("167299001", builtIn))
+        kotlin.test.assertFalse(B8Watchface.prefixDiffers("266299001", band))
         kotlin.test.assertFalse(B8Watchface.prefixDiffers("167299001", emptyList()))
+        // Bilinmeyen önek: yüklü kadranlarda da yoksa not.
+        kotlin.test.assertTrue(B8Watchface.prefixDiffers("120917344", band))
+        kotlin.test.assertFalse(B8Watchface.prefixDiffers("120917344", band + f("120000001", true)))
     }
 }

@@ -232,6 +232,15 @@ object WatchHub {
      * servis ölüyse (ör. uygulama son uygulamalardan kaydırıldı) ön plan servisi olarak başlatılır,
      * yaşıyor ama yeniden bağlanmayı bekliyorsa bekleme öne alınır. Kuyruk bağlanınca boşaltılır.
      */
+    /** Navigasyon kadranı karesi (Band 8, deneysel). Saat hazır değilse atılır; sonraki manevra yeniden dener. */
+    fun navFrame(f: Band8NavFace.Frame) = onMain {
+        val s = service
+        if (s != null && s.isWatchReady()) s.bandNavFrame(f)
+    }
+
+    /** Navigasyon bildirimi kalktı. */
+    fun navEnd() = onMain { service?.bandNavEnd() }
+
     fun forward(context: Context, note: Note) = onMain {
         val s = service
         if (s != null && s.isWatchReady()) {

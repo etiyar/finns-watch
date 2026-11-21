@@ -10,7 +10,7 @@ Bu belge Band 8 kadran dosyasının yapısını ve bizim kadran üreticimizin (`
 
 Kaynaklar:
 
-1. Kullanıcının 5 kadran dosyası. İkisinin kimlik öneki 167 (bu öneki taşıyan bir kadran bu Band 8'e yüklendi ve çalıştı). Üçünün öneki 266 (Çince adlı; hangi model için yapıldığı doğrulanmadı).
+1. Kullanıcının 5 kadran dosyası. İkisinin kimlik öneki 167, üçünün 266. İki önekten de birer kadran bu Band 8'e yüklendi ve çalıştı (266 farklı model değil).
 2. Mi8WfBinTool (zhy8388608, GitHub): Band 8'i (`miwear.watch.m66`, araçta `mi8`) açıkça destekleyen paketleyici ve biçim notları. Lisans yok: yalnızca okundu, kod alınmadı. Yerelde yalnızca bağımsız ikinci okuyucu olarak çalıştırıldı (repoya girmez).
 3. Fprj_to_wfDef (Pzqqt, MIT): Band 8 dönemi veri kaynağı adları ve 192 x 490 ekran.
 4. Band 8 için yapılmış "Kite" kadran projesi (Chriz76, GitHub): öğe yerleşimi ve veri kaynakları.
@@ -133,9 +133,9 @@ Denetlenenler: imza, boy (en çok 8 MB), ekran sayısı 1-2, kimlik 9 rakam, ön
 
 Kullanıcının 5 dosyası denetimden sorunsuz geçti (yanlış alarm yok). Bizim deneme kadranımız da geçti. Ayrıca topluluk paketleyicisinin okuyucusu bizim dosyamızı doğru açtı (öğeler, kaynaklar, görüntüler).
 
-Kimlik öneki uyarısı: yüklenen kimliğin ilk 3 hanesi, banttaki sonradan yüklenmiş kadranların öneklerinden (yoksa bütün kadranlarınkinden) farklıysa onay penceresinde uyarı çıkar. Bu bantta yerleşikler 266, yüklenip çalışan kadran 167 önekli. Önekin anlamı (model, bölge, mağaza) tahmin.
+Kimlik öneki notu: 167 ve 266 önekli kadranlar bu bantta çalıştı (21.11.2026: Finn Dijital 167, juxtaposition 266). 266 farklı model değil. Onay penceresi yalnızca önek ne bu ikisi ne de banttaki yüklü kadranlardan biriyse kısa bir not gösterir. Önekin anlamı (bölge, mağaza) tahmin.
 
-## 8. Deneme kadranı "Finn Dijital"
+## 8. Deneme kadranı "Finn Dijital" (bantta doğrulandı, 21.11.2026: normal ve AOD)
 
 - Kimlik 167299001 (bizim aralığımız 1672990xx; mağaza kimlikleriyle çakışmaması için seçildi, tahmin).
 - Normal ekran: siyah arka plan (192 x 490, RGB565), saat 0811 ve dakika 1011 iki basamaklı sayı olarak (74 x 124 beyaz yedi parçalı rakam), altta ay 1012, nokta, gün 1812 (20 x 34 rakam).
@@ -143,9 +143,34 @@ Kimlik öneki uyarısı: yüklenen kimliğin ilk 3 hanesi, banttaki sonradan yü
 - Boyu yaklaşık 56 KB. Rakamlar yazı tipi olmadan çizilir.
 - Gelişmiş > Band 8 kadran > "Deneme kadranı: Finn Dijital" telefonda aynı dosyayı üretir.
 
-## 9. Bilinmeyenler
+## 9. Renk ve biçem seçenekleri ("ayar çarkı")
+
+Kaynak: kullanıcının 266250014 kimlikli dosyası (juxtaposition). Bu dosya bu Band 8'e yüklendi; bantta kadran üzerinde ayar çarkı çıkıyor ve dört renk seçeneği sunuyor (cihazda gözlendi, 21.11.2026). Yapı yalnızca bu dosyadan okundu; kendi kadranlarımıza eklemek sonraki sürüm.
+
+**Akış:** normal ekranın öğe listesinde tür 8 (düzenlenebilir) bir öğe var. O öğe seçenek sayısını ve her seçeneğin tür 9 grubunu verir. Her grup, kendi widget'larını kendi konumlarıyla listeler. Seçenek değişince yalnızca o grubun widget'ları çizilir (tahmin: bantta görülen davranışla uyumlu).
+
+| Parça | Yapı | Etiket |
+|---|---|---|
+| Ana başlık 0x1E | 6 (ayarsız 167 önekli dosyalarda 4). Seçenek sayısıyla ilişkili olabilir | doğrulandı (değer), anlam tahmin |
+| Öğe | `00 00 00 08`, konum 0,0: düzenlenebilir tanım 0 | doğrulandı |
+| Tür 8 özelliği (20 bayt) | 4 bayt seçenek sayısı (4), sonra seçenek başına 4 bayt: sıra (3 bayt) + tür 9 | doğrulandı |
+| Tür 9 özelliği (84 bayt) | 36 bayt ad alanı (bu dosyada boş), 0x24'te 4 bayt 0, 0x28'de 4 bayt girdi sayısı (5), 0x2C'den girdi başına 8 bayt: x (2), y (2), widget sırası (3), tür 7 | doğrulandı (yapı), alan adları güçlü kanıt (topluluk aracı aynı yerleşimi "hedef çiftleri" diye yazıyor) |
+| Grup içeriği | her seçenekte 5 widget: saatin onlar ve birler basamağı (0A11, 0911), dakikanın onlar ve birler basamağı (1211, 1111), adım (0821) | doğrulandı |
+| Renk farkı | her seçeneğin rakam listeleri farklı (126 x 156 büyük rakamlar; onlar basamağı 6, birler 10 görüntü). Renk bir parametre değil, ayrı görüntü kümesi | doğrulandı (yapı), "renk" anlamı cihazda gözlendi |
+| Ortak öğeler | arka plan, simgeler ve pil, nabız gibi widget'lar öğe listesinde doğrudan; seçeneklerden etkilenmez | doğrulandı |
+
+Diğer farklar: bu dosyada aynı içerikli görüntü listeleri tek konumda paylaşılıyor (167 önekli dosyalarda paylaşım yok) ve kadran başlığının ilk sözcüğü 0. İkisi de bantta sorun çıkarmadı.
+
+Kendi kadranımıza eklemek için gereken: bir tür 8 öğe, seçenek başına bir tür 9 grup, her grup için kendi widget ve liste tanımları. Üretici şu an bunu yazmıyor.
+
+## 10. Bilinmeyenler
 
 - 0x04, 0x14, 0x1E ve kadran başlığı 0x00 alanlarının anlamı. Gerçek dosyaların değerlerini yazıyoruz.
 - Bellenimin hangi alanları denetlediği. Redmi Watch 5 Active yalnızca imzayı denetliyordu; Band 8 için bilinmiyor.
 - AOD'siz kadranın kabul edilip edilmediği.
-- Önek 266 ile 167 arasındaki fark.
+- Önek 266 ile 167 arasındaki fark (ikisi de çalışıyor).
+
+## 11. Navigasyon kadranı (v0.17.0-alpha1, cihazda denenmedi)
+
+Kimlik 167299090, ad "Navigasyon". Normal ekran: siyah zemin, üstte küçük gri saat (0811, 1011), ortada ok (en çok 150 x 150), altında mesafe (kalın, 46 px) ve sokak (26 px, en çok 3 satır). AOD: ok ve mesafe. Metinler telefonda sistem yazı tipiyle görüntüye çizilir (Türkçe karakterler dahil). Ok, Maps bildiriminin büyük simgesidir. Dosya yaklaşık 20-40 KB; yükleme öncesi yapı denetiminden geçmezse gönderilmez. Akış `BAND8_PROTOKOL.md` 18.4'te.
+

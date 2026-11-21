@@ -86,6 +86,12 @@ class Band8Driver(
 
     private val icons = Band8Icons(appContext, { listener.onLog(it) }, { c, l -> ble.sendFeature(c, l) }, ble::startUpload)
     private val faces = Band8Faces(main, { listener.onLog(it) }, { c, l -> ble.sendFeature(c, l) }, ble::startUpload)
+    private val nav = Band8NavFace(appContext, main, faces) { listener.onLog(it) }
+
+    /** Navigasyon kadranı (deneysel). Kare bildirim dinleyiciden gelir; Gelişmiş'te deneme ve kaldırma. */
+    fun navFrame(f: Band8NavFace.Frame) { if (ble.isReady) nav.onFrame(f) }
+    fun navTest(): String? = if (!ble.isReady) "Band 8 hazır değil." else nav.test()
+    fun navEnd(): String? = if (!ble.isReady) "Band 8 hazır değil." else nav.end()
 
     /** Gelişmiş > Band 8 kadran (deneysel). Gönderildiyse null, değilse kısa neden. */
     fun faceRead(): String? = if (!ble.isReady) "Band 8 hazır değil." else faces.read()
@@ -569,6 +575,7 @@ class Band8Driver(
     override fun onDisconnected(userInitiated: Boolean, status: Int) {
         clearCallTest()
         faces.onDisconnected()
+        nav.onDisconnected()
         clearLiveProbe()
         alarmListFresh = false
         dndSettingPending = false

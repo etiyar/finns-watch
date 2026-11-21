@@ -15,6 +15,8 @@
 
 **v0.16.0-alpha1 (`feat/band8-upload`):** Band 8 veri yükleme kanalı, bildirim simgesi ve deneysel kadran yönetimi. Kapı: Gelişmiş anahtarıyla simge cihaz testi, sonra kadran listesi ve tek kadran yüklemesi. Cihazda kadran yükleme geçti (build 212/215). **v0.16.0-alpha2 (`feat/band8-face-builder`):** kendi kadran üreticimiz ve yükleme öncesi denetim; kapı: "Finn Dijital" deneme kadranının bantta doğru görünmesi. Sonraki adım: navigasyon oku (BAND8_PROTOKOL 18.4), Kadranlarım'da Band 8 kadranları ve kadran tasarım ekranı.
 
+**v0.17.0-alpha1 (`feat/v017-faces`):** Band 8 kadran galerisi ve navigasyon kadranı (deneysel). Kapı: "Örnek okla dene" ile yükleme süresi; Che onaylarsa otomatik akış açılır. Sonraki: kendi kadranlarımıza renk seçeneği (BAND8_KADRAN_BICIMI 9).
+
 Sıradaki somut adım ve güncel kabul listesi ilgili issue içindedir. CI ile fiziksel sonuç ayrı kaydedilir. Cihaz gözlemleri [TEST_RESULTS.md](TEST_RESULTS.md), sürüm geçmişi [CHANGELOG.md](../CHANGELOG.md), ajan düzeni [AGENTS.md](../AGENTS.md) içindedir.
 
 LS05 komutları ve kadran biçimi [LS05_PROTOKOL.md](LS05_PROTOKOL.md), eski planın eksiksiz hâli [PLAN_ARSIV.md](arsiv/PLAN_ARSIV.md) içindedir.

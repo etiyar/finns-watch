@@ -318,6 +318,9 @@ class WatchService : Service(), DriverListener {
     }
 
     /** Gelişmiş > Band 8 kadran (deneysel). Gönderildiyse null, değilse kısa neden. */
+    fun bandNavFrame(f: Band8NavFace.Frame) { (driver as? Band8Driver)?.navFrame(f) }
+    fun bandNavTest(): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.navTest() }
+    fun bandNavEnd(): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.navEnd() }
     fun bandFaceRead(): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.faceRead() }
     fun bandFaceSet(id: String): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.faceSet(id) }
     fun bandFaceDelete(id: String): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.faceDelete(id) }

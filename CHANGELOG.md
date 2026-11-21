@@ -4,6 +4,23 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.17.0-alpha1 | Geliştirme (cihazda doğrulanmadı)
+
+### Band 8 kadran galerisi
+
+- Gelişmiş > Band 8 kadran galerisi: eklenen her .bin uygulamada saklanır (kimlik, ad, önizleme). İki sütunlu önizleme ızgarası; dokununca banda yükle, etkin yap, banttan sil, galeriden kaldır.
+- Bantta olup galeride olmayan kadranlar (yerleşikler) adla, resimsiz listelenir.
+- Dosya seçince onay penceresinde kadranın önizlemesi görünür.
+- Kimlik öneki notu yumuşadı: 167 ve 266 bu bantta çalışıyor, uyarı çıkmaz.
+- Renk seçenekli kadranların ("ayar çarkı") dosya yapısı belgelendi (docs/BAND8_KADRAN_BICIMI.md bölüm 9).
+
+### Band 8 navigasyon kadranı (deneysel)
+
+- Maps yönergesi bantta kadran olur: büyük ok, mesafe, sokak, üstte saat. Her manevrada yüklenip etkin yapılır; navigasyon bitince önceki kadran geri gelir ve navigasyon kadranı silinir.
+- Yalnızca manevra değişince yüklenir; mesafe tek başına yükleme yapmaz.
+- Her manevrada bildirim de gider (bant kendiliğinden uyanmıyor): tam metin ya da yalnızca kısa manevra adı.
+- Gelişmiş: "Örnek okla dene" (yükleme süresi ve boy loga yazılır), "Kaldır, eskiye dön". Otomatik akış varsayılan kapalı.
+
 ## v0.16.0 | 21 Kasım 2026 (kararlı sürüm)
 
 - **Sleep as Android:** Band 8 canlı nabız ve bant ivmesiyle hareket verisi (gizli uyku antrenmanı), akıllı alarm bantta titreşimle, banttan kapat/ertele, rüya ve horlama ipuçları. Cihazda bir gece doğrulandı: hareket ve nabız grafikleri dolu, alarm çalıştı. Gece pil tüketimi yaklaşık %12.

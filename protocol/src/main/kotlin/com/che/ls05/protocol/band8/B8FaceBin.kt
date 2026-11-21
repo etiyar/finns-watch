@@ -307,6 +307,48 @@ object B8FaceBin {
         p.lists.forEachIndexed { i, b -> b.copyInto(out, l.lists[i]) }
     }
 
+    // ---------- Önizleme ----------
+
+    /**
+     * Dosyadaki önizlemeyi (ana başlık 0x20) ARGB görüntüye açar. İşaret 3 (RGB565) ve 0 (BGRA),
+     * sıkıştırılmış ya da ham. Okunamazsa null. Galeri ve onay penceresi için.
+     */
+    fun preview(b: ByteArray): Image? {
+        if (b.size < MAIN_HEADER) return null
+        for (k in 0 until 4) if (b[k] != MAGIC[k]) return null
+        val at = u32(b, 0x20)
+        if (at <= 0L || at + IMAGE_HEADER > b.size) return null
+        return decodeImage(b, at.toInt())
+    }
+
+    /** Tek görüntü bloğunu açar (liste değil). */
+    fun decodeImage(b: ByteArray, at: Int): Image? {
+        if (at < 0 || at + IMAGE_HEADER > b.size) return null
+        val sign = b[at].toInt() and 0xFF
+        val w = u16(b, at + 4); val h = u16(b, at + 6); val len = u32(b, at + 8).toInt()
+        if (w !in 1..WIDTH || h !in 1..HEIGHT || len <= 0 || at + IMAGE_HEADER + len > b.size) return null
+        val bpp = when (sign) { SIGN_BGRA -> 4; SIGN_RGB565 -> 2; else -> return null }
+        val pix: ByteArray = if (b[at + 1].toInt() == 4) {
+            val r = unpack(b, at + IMAGE_HEADER, len) ?: return null
+            if (r.second != bpp) return null
+            r.first
+        } else b.copyOfRange(at + IMAGE_HEADER, at + IMAGE_HEADER + len)
+        if (pix.size != w * h * bpp) return null
+        val argb = IntArray(w * h)
+        for (i in argb.indices) {
+            argb[i] = if (bpp == 4) {
+                val o = i * 4
+                ((pix[o + 3].toInt() and 0xFF) shl 24) or ((pix[o + 2].toInt() and 0xFF) shl 16) or
+                    ((pix[o + 1].toInt() and 0xFF) shl 8) or (pix[o].toInt() and 0xFF)
+            } else {
+                val v = (pix[i * 2].toInt() and 0xFF) or ((pix[i * 2 + 1].toInt() and 0xFF) shl 8)
+                val r = (v ushr 11) and 0x1F; val g = (v ushr 5) and 0x3F; val bl = v and 0x1F
+                (0xFF shl 24) or ((r shl 3 or (r ushr 2)) shl 16) or ((g shl 2 or (g ushr 4)) shl 8) or (bl shl 3 or (bl ushr 2))
+            }
+        }
+        return Image(w, h, argb)
+    }
+
     // ---------- Denetim ----------
 
     /**
