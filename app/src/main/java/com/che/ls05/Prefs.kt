@@ -116,15 +116,6 @@ object Prefs {
     fun band8Icons(c: Context): Boolean = p(c).getBoolean("band8Icons", false)
     fun setBand8Icons(c: Context, value: Boolean) = p(c).edit().putBoolean("band8Icons", value).apply()
 
-    /** Band 8 deneme alarmının son kurulan saati ("Test alarmlarını temizle" ve düzenle/sil için). */
-    fun band8TestAlarm(c: Context): Pair<Int, Int>? {
-        val v = p(c).getInt("band8TestAlarm", -1)
-        return if (v < 0) null else (v / 60) to (v % 60)
-    }
-
-    fun setBand8TestAlarm(c: Context, hour: Int, minute: Int) =
-        p(c).edit().putInt("band8TestAlarm", hour * 60 + minute).apply()
-
     /** Özel hatırlatıcılar (telefona ait). Biçim: [com.che.ls05.protocol.CustomReminders.encode]. */
     fun customReminders(c: Context): String? = p(c).getString("customReminders", null)
     fun setCustomReminders(c: Context, value: String) = p(c).edit().putString("customReminders", value).apply()

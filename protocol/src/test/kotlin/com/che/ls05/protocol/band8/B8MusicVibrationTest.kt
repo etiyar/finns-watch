@@ -19,8 +19,11 @@ class B8MusicVibrationTest {
     }
 
     @Test
-    fun testPatternIsShort() {
-        assertTrue(B8Vibration.TEST.sumOf { it.second } <= 3_000)
+    fun ruleCountEndsWithLongPulse() {
+        assertEquals(listOf(true to 800), B8Vibration.count(1))
+        assertEquals(listOf(true to 400, false to 200, true to 400, false to 200, true to 800), B8Vibration.count(3))
+        assertEquals(B8Vibration.count(5), B8Vibration.count(9), "en çok 5")
+        assertTrue(B8Vibration.count(5).sumOf { it.second } <= 3_500)
     }
 
     private fun musicFrom(sub: Int, body: PbWriter?) = cmd(

@@ -110,9 +110,10 @@ class Collapsible(
 }
 
 /**
- * Bütün ekranların kurulduğu ortak bileşenler (şartname bölüm 5). Renkler yalnızca kaynaklardan gelir.
- * Geometri: büyük kart 24 dp, kart 20 dp, düğme 16 dp köşe; kapsül tam yuvarlak; dokunma alanı en az 48 dp.
- * Nane yeşili yalnızca: seçili sekme, açık anahtar, ilerleme, "Saat onayladı", bağlı kapsülü, birincil düğme.
+ * Bütün ekranların kurulduğu ortak bileşenler (v0.17 tasarımı). Renkler yalnızca kaynaklardan gelir
+ * (values ve values-night; tasarım dosyalarındaki FW_THEMES ile birebir).
+ * Geometri: kart 20 dp köşe, 1 dp çerçeve, gölge yok; düğme 14 dp köşe; dokunma alanı en az 44 dp.
+ * Rakamlar eşit genişlikte (tnum). Yeşil: halka ve çubuklar accent, yazı ve dolu düğme accent_text/accent_fill.
  */
 class Ui(val c: Context) {
 
@@ -133,13 +134,17 @@ class Ui(val c: Context) {
 
     // ---------- Zeminler ----------
 
-    fun round(fill: Int, radiusDp: Int = 20): GradientDrawable {
+    fun round(fill: Int, radiusDp: Int = 20, strokeColor: Int? = null): GradientDrawable {
         val d = GradientDrawable()
         d.setShape(GradientDrawable.RECTANGLE)
         d.setCornerRadius(dp(radiusDp).toFloat())
         d.setColor(fill)
+        if (strokeColor != null) d.setStroke(dp(1), strokeColor)
         return d
     }
+
+    /** Kart zemini: yüzey rengi, 1 dp çerçeve, 20 dp köşe. */
+    fun cardShape(radiusDp: Int = 20): GradientDrawable = round(color(R.color.card), radiusDp, color(R.color.border))
 
     private fun rippleColor(): ColorStateList =
         ColorStateList.valueOf((color(R.color.text) and 0x00FFFFFF) or 0x1F000000)
@@ -212,14 +217,16 @@ class Ui(val c: Context) {
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)
         t.setTextColor(color(colorId))
         t.typeface = if (bold) medium else regular
+        // Rakamlar eşit genişlikte: değişen sayılar (adım, nabız, saat) yerinde titremez.
+        t.fontFeatureSettings = "tnum"
         return t
     }
 
     /** Açıklama: 13 sp, ikincil renk. */
     fun caption(s: CharSequence): TextView = text(s, 13f, R.color.text2)
 
-    /** Kart başlığı: 14 sp, ikincil renk. */
-    fun cardTitle(s: CharSequence): TextView = text(s, 14f, R.color.text2, bold = true)
+    /** Kart başlığı: 13 sp, ikincil renk. */
+    fun cardTitle(s: CharSequence): TextView = text(s, 13f, R.color.text2, bold = true)
 
     /** Büyük değer: 32 sp (alarm saati 28 sp). */
     fun big(s: CharSequence, sp: Float = 32f): TextView {
@@ -302,10 +309,10 @@ class Ui(val c: Context) {
 
     // ---------- Kart ----------
 
-    /** big: özet kartı (24 dp köşe). Diğerleri 20 dp. */
+    /** Kart: 20 dp köşe, 1 dp çerçeve, gölge yok. big eski çağrılar için; görünüm aynıdır. */
     fun card(onClick: (() -> Unit)? = null, big: Boolean = false, padDp: Int = 16, padVDp: Int = padDp): LinearLayout {
         val l = vertical()
-        val shape = round(color(R.color.card), if (big) 24 else 20)
+        val shape = cardShape()
         l.setPadding(dp(padDp), dp(padVDp), dp(padDp), dp(padVDp))
         if (onClick != null) {
             l.background = ripple(shape, null)
@@ -320,10 +327,69 @@ class Ui(val c: Context) {
 
     // ---------- Bölüm başlığı ----------
 
+    /** Bölüm etiketi: 13 sp, ikincil renk, kartın üstünde ("Saatlerim", "Hızlı işlemler"). */
     fun section(s: CharSequence): TextView {
-        val t = text(s, 15f, R.color.text, bold = true)
+        val t = text(s, 13f, R.color.text2, bold = true)
         t.setPadding(dp(4), 0, dp(4), 0)
         return t
+    }
+
+    /** Sayfa başlığı satırı: 22 sp kalın başlık, sağda isteğe bağlı öğe; 44 dp yükseklik. */
+    fun header(title: String, trailing: View? = null): LinearLayout {
+        val r = horizontal()
+        r.minimumHeight = dp(44)
+        val t = text(title, 22f, R.color.text, bold = true)
+        t.letterSpacing = -0.014f
+        t.includeFontPadding = false
+        add(r, t, width = 0, weight = 1f)
+        if (trailing != null) add(r, trailing, width = WRAP)
+        return r
+    }
+
+    /** 44 dp yuvarlak, çerçeveli ikon düğmesi (Ana > Şimdi eşitle). */
+    fun circleButton(resId: Int, description: String, onClick: () -> Unit): ImageView {
+        val v = ImageView(c)
+        v.setImageDrawable(drawable(resId))
+        v.imageTintList = ColorStateList.valueOf(color(R.color.text))
+        v.scaleType = ImageView.ScaleType.CENTER_INSIDE
+        v.setPadding(dp(12), dp(12), dp(12), dp(12))
+        v.contentDescription = description
+        v.background = ripple(round(color(R.color.card), 22, color(R.color.border)), null)
+        v.isClickable = true
+        v.isFocusable = true
+        v.layoutParams = LinearLayout.LayoutParams(dp(44), dp(44))
+        v.setOnClickListener { onClick() }
+        return v
+    }
+
+    /** Yatay kaydırılan seçim kapsülü (Saat > Kadranlar, Alarmlar...). */
+    fun chip(label: String, onClick: () -> Unit): TextView {
+        val t = text(label, 13f, R.color.text2, bold = true)
+        t.setGravity(Gravity.CENTER)
+        t.maxLines = 1
+        t.setPadding(dp(14), 0, dp(14), 0)
+        t.minHeight = dp(44)
+        t.isClickable = true
+        t.isFocusable = true
+        t.setOnClickListener { onClick() }
+        setChip(t, false)
+        return t
+    }
+
+    fun setChip(t: TextView, selected: Boolean) {
+        t.isSelected = selected
+        t.setTextColor(color(if (selected) R.color.accent_text else R.color.text2))
+        // Görünen kapsül 36 dp; dokunma alanı 44 dp (üst ve alt 4 dp saydam).
+        val shape = if (selected) round(color(R.color.accent_bg), 18) else round(android.graphics.Color.TRANSPARENT, 18, color(R.color.border))
+        val inset = android.graphics.drawable.InsetDrawable(shape, 0, dp(4), 0, dp(4))
+        t.background = ripple(inset, null)
+    }
+
+    /** İnce ilerleme çubuğu (pil): yol ve dolgu, 6 dp. */
+    fun meter(fraction: Float, fillId: Int = R.color.accent): View {
+        val v = MeterView(c, color(R.color.track), color(fillId))
+        v.fraction = fraction
+        return v
     }
 
     // ---------- Satır ----------
@@ -367,8 +433,8 @@ class Ui(val c: Context) {
         val v = text(value ?: "", 15f, R.color.text2)
         v.visibility = if (value == null) View.GONE else View.VISIBLE
         add(r, v, width = WRAP, leftDp = 12)
-        icon(R.drawable.ic_chevron, R.color.muted)?.let {
-            val lp = LinearLayout.LayoutParams(dp(20), dp(20))
+        icon(R.drawable.ic_chevron, R.color.text2)?.let {
+            val lp = LinearLayout.LayoutParams(dp(18), dp(18))
             lp.leftMargin = dp(4)
             r.addView(it, lp)
         }
@@ -392,7 +458,7 @@ class Ui(val c: Context) {
         val knob = GradientDrawable()
         knob.setShape(GradientDrawable.OVAL)
         knob.setSize(dp(24), dp(24))
-        knob.setColor(ColorStateList(checkedStates, intArrayOf(color(R.color.on_accent), color(R.color.switch_off_thumb))))
+        knob.setColor(ColorStateList(checkedStates, intArrayOf(color(R.color.knob), color(R.color.switch_off_thumb))))
         val thumb = LayerDrawable(arrayOf<Drawable>(knob))
         thumb.setLayerInset(0, 0, dp(4), 0, dp(4))
         thumb.setPadding(dp(2), 0, dp(2), 0)
@@ -401,7 +467,7 @@ class Ui(val c: Context) {
         path.setShape(GradientDrawable.RECTANGLE)
         path.setCornerRadius(dp(16).toFloat())
         path.setSize(dp(52), dp(32))
-        path.setColor(ColorStateList(checkedStates, intArrayOf(color(R.color.accent), color(R.color.switch_off_track))))
+        path.setColor(ColorStateList(checkedStates, intArrayOf(color(R.color.accent_fill), color(R.color.switch_off_track))))
         val track = LayerDrawable(arrayOf<Drawable>(path))
         track.setPadding(dp(6), 0, dp(6), 0)
 
@@ -485,7 +551,7 @@ class Ui(val c: Context) {
         val colorId = when (kind) {
             StatusKind.IDLE -> R.color.muted
             StatusKind.SENDING -> R.color.text2
-            StatusKind.CONFIRMED -> R.color.accent
+            StatusKind.CONFIRMED -> R.color.accent_text
             StatusKind.WAITING, StatusKind.NO_ACK, StatusKind.UNKNOWN -> R.color.warning
         }
         val iconRes = when (kind) {
@@ -524,7 +590,7 @@ class Ui(val c: Context) {
 
     fun setPill(t: TextView, label: String, tone: Tone) {
         val (bgId, fgId) = when (tone) {
-            Tone.OK -> R.color.accent_bg to R.color.accent
+            Tone.OK -> R.color.accent_bg to R.color.accent_text
             Tone.WARN -> R.color.warning_bg to R.color.warning
             Tone.NEUTRAL -> R.color.raised to R.color.text2
         }
@@ -570,23 +636,32 @@ class Ui(val c: Context) {
         return b
     }
 
-    private fun button(label: String, bgId: Int, fgId: Int, onClick: () -> Unit): Button {
+    private fun button(label: String, bgId: Int, fgId: Int, onClick: () -> Unit, outline: Boolean = false): Button {
         val b = baseButton(label, fgId)
-        b.background = ripple(round(color(bgId), 16), null)
+        val fill = if (bgId == 0) android.graphics.Color.TRANSPARENT else color(bgId)
+        b.background = ripple(round(fill, 14, if (outline) color(R.color.border) else null), round(android.graphics.Color.WHITE, 14))
         b.setOnClickListener { onClick() }
         return b
     }
 
-    /** Birincil (tonal): nane zeminli, nane yazılı. Ekran başına en çok bir tane. */
-    fun tonal(label: String, onClick: () -> Unit): Button = button(label, R.color.accent_bg, R.color.accent, onClick)
+    /** Birincil (tonal): yeşil saydam zemin, yeşil yazı. */
+    fun tonal(label: String, onClick: () -> Unit): Button = button(label, R.color.accent_bg, R.color.accent_text, onClick)
 
-    /** Dolu nane: yalnızca kritik onayda. */
-    fun filled(label: String, onClick: () -> Unit): Button = button(label, R.color.accent, R.color.on_accent, onClick)
+    /** Dolu yeşil: ekranın asıl işi (Bandı bul, Yedek oluştur). */
+    fun filled(label: String, onClick: () -> Unit): Button = button(label, R.color.accent_fill, R.color.on_accent, onClick)
 
-    fun secondary(label: String, onClick: () -> Unit): Button = button(label, R.color.raised, R.color.text, onClick)
+    /** İkincil: zeminsiz, 1 dp çerçeve. */
+    fun secondary(label: String, onClick: () -> Unit): Button = button(label, 0, R.color.text, onClick, outline = true)
 
     /** Tehlikeli (silme): yalnızca yazı rengi değişir. */
-    fun danger(label: String, onClick: () -> Unit): Button = button(label, R.color.raised, R.color.danger, onClick)
+    fun danger(label: String, onClick: () -> Unit): Button = button(label, 0, R.color.danger, onClick, outline = true)
+
+    /** Çerçeveli, yeşil yazılı küçük düğme ("Etkin yap", "Tümünü göster"). */
+    fun outlineAccent(label: String, onClick: () -> Unit): Button {
+        val b = button(label, 0, R.color.accent_text, onClick, outline = true)
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        return b
+    }
 
     /** Zeminsiz metin düğmesi. */
     fun textButton(label: String, onClick: () -> Unit): Button {
@@ -617,19 +692,19 @@ class Ui(val c: Context) {
 
     // ---------- Segment kontrol ----------
 
-    /** Yükseltilmiş dış yüzey; seçili parça kart renginde. Seçim TalkBack'e "seçili" olarak bildirilir. */
+    /** Zemin renginde çerçeveli dış yüzey; seçili parça yeşil saydam. Seçim TalkBack'e "seçili" olarak bildirilir. */
     fun segmented(labels: List<String>, selected: Int, onSelect: (Int) -> Unit): Segmented {
         val box = horizontal()
-        box.background = round(color(R.color.raised), 16)
+        box.background = round(color(R.color.bg), 14, color(R.color.border))
         box.setPadding(dp(4), dp(4), dp(4), dp(4))
         val items = ArrayList<TextView>()
         val paint: (Int) -> Unit = { sel ->
             items.forEachIndexed { k, t ->
                 val on = k == sel
                 t.isSelected = on
-                t.setTextColor(color(if (on) R.color.accent else R.color.text2))
-                t.typeface = if (on) medium else regular
-                t.background = if (on) ripple(round(color(R.color.accent_bg), 12), null) else pressable(12)
+                t.setTextColor(color(if (on) R.color.accent_text else R.color.text2))
+                t.typeface = medium
+                t.background = if (on) ripple(round(color(R.color.accent_bg), 10), null) else pressable(10)
             }
         }
         labels.forEachIndexed { i, s ->
@@ -656,7 +731,7 @@ class Ui(val c: Context) {
     fun collapsible(title: String, subtitle: String?, iconRes: Int?, open: Boolean, inCard: Boolean = true): Collapsible {
         val outer = vertical()
         if (inCard) {
-            outer.background = round(color(R.color.card), 20)
+            outer.background = cardShape()
             outer.setPadding(dp(16), dp(4), dp(16), dp(4))
         }
         val header = horizontal()
@@ -674,9 +749,9 @@ class Ui(val c: Context) {
         add(texts, t)
         add(texts, sub, topDp = 2)
         add(header, texts, width = 0, weight = 1f)
-        val chevron = icon(R.drawable.ic_chevron, R.color.muted)
+        val chevron = icon(R.drawable.ic_chevron, R.color.text2)
         if (chevron != null) {
-            val lp = LinearLayout.LayoutParams(dp(20), dp(20))
+            val lp = LinearLayout.LayoutParams(dp(18), dp(18))
             lp.leftMargin = dp(12)
             header.addView(chevron, lp)
         }
@@ -691,44 +766,48 @@ class Ui(val c: Context) {
 
     // ---------- Alt menü ----------
 
-    /** Tek yüzey, 24 dp köşe. Sekmeler ağırlıkla eşit bölünür. */
+    /** Alt menü: zemin renginde, üstte 1 dp çizgi, 72 dp. Sekmeler ağırlıkla eşit bölünür. */
     fun tabBar(): LinearLayout {
         val bar = horizontal()
-        bar.background = round(color(R.color.card), 24)
-        bar.setPadding(dp(6), dp(6), dp(6), dp(6))
+        val line = GradientDrawable()
+        line.setColor(color(R.color.border))
+        val fill = GradientDrawable()
+        fill.setColor(color(R.color.bg))
+        val layers = LayerDrawable(arrayOf<Drawable>(line, fill))
+        layers.setLayerInset(1, 0, dp(1), 0, 0)
+        bar.background = layers
         return bar
     }
 
     fun tabItem(iconRes: Int, label: String, onClick: () -> Unit): TabItem {
         val v = vertical()
         v.setGravity(Gravity.CENTER)
-        v.minimumHeight = dp(56)
-        v.setPadding(dp(2), dp(6), dp(2), dp(6))
+        v.minimumHeight = dp(72)
+        v.setPadding(dp(2), dp(8), dp(2), dp(8))
         v.isClickable = true
         v.isFocusable = true
+        v.background = ripple(null, null)
         v.setOnClickListener { onClick() }
         val ic = icon(iconRes, R.color.text2)
-        if (ic != null) v.addView(ic, LinearLayout.LayoutParams(dp(24), dp(24)))
+        if (ic != null) v.addView(ic, LinearLayout.LayoutParams(dp(22), dp(22)))
         val t = text(label, 12f, R.color.text2, bold = true)
         // Dört sekme her yazı boyutunda sığsın: 12 sp, ama en çok 14 dp.
         t.setTextSize(TypedValue.COMPLEX_UNIT_PX, minOf(spPx(12f), dp(14).toFloat()))
         t.setGravity(Gravity.CENTER)
         t.maxLines = 1
         t.ellipsize = TextUtils.TruncateAt.END
-        add(v, t, topDp = 2, width = WRAP)
+        add(v, t, topDp = 4, width = WRAP)
         val item = TabItem(v, ic, t)
         setTab(item, false)
         return item
     }
 
-    /** Seçili sekme: nane zeminli kapsül, nane ikon ve yazı. */
+    /** Seçili sekme: yeşil ikon ve yazı (zemin değişmez). */
     fun setTab(item: TabItem, selected: Boolean) {
-        val fg = color(if (selected) R.color.accent else R.color.text2)
+        val fg = color(if (selected) R.color.accent_text else R.color.text2)
         item.label.setTextColor(fg)
         item.icon?.imageTintList = ColorStateList.valueOf(fg)
         item.view.isSelected = selected
-        item.view.background =
-            if (selected) ripple(round(color(R.color.accent_bg), 18), null) else pressable(18)
     }
 
     // ---------- Diğer denetimler ----------
@@ -739,7 +818,7 @@ class Ui(val c: Context) {
         e.setTextColor(color(R.color.text))
         e.setHintTextColor(color(R.color.muted))
         e.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-        e.background = round(color(R.color.raised), 16)
+        e.background = round(color(R.color.bg), 14, color(R.color.border))
         e.setPadding(dp(16), dp(12), dp(16), dp(12))
         e.minHeight = dp(48)
         e.setSingleLine(true)
@@ -752,7 +831,7 @@ class Ui(val c: Context) {
         b.isChecked = checked
         b.setTextColor(color(R.color.text))
         b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-        b.buttonTintList = ColorStateList(checkedStates, intArrayOf(color(R.color.accent), color(R.color.muted)))
+        b.buttonTintList = ColorStateList(checkedStates, intArrayOf(color(R.color.accent_fill), color(R.color.muted)))
         b.minHeight = dp(48)
         return b
     }
@@ -760,8 +839,42 @@ class Ui(val c: Context) {
     /** Açıklama noktası (uyku evresi rengi). */
     fun dot(colorId: Int): View {
         val v = View(c)
-        v.background = round(color(colorId), 3)
+        v.background = round(color(colorId), 4)
         return v
+    }
+
+    /** Ayırıcı çizgili satır grubu kartı: satırlar arası 1 dp çizgi, kenar boşluğu 16 dp. */
+    fun group(rows: List<View>, padVDp: Int = 0): LinearLayout {
+        val card = vertical()
+        card.background = cardShape()
+        card.setPadding(dp(16), dp(padVDp), dp(16), dp(padVDp))
+        rows.forEachIndexed { i, r ->
+            if (i > 0) add(card, divider(), height = dp(1))
+            add(card, r)
+        }
+        return card
+    }
+}
+
+/** İnce yatay ölçer (pil). */
+class MeterView(context: Context, private val trackColor: Int, private val fillColor: Int) : View(context) {
+    private val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    var fraction: Float = 0f
+        set(value) {
+            field = value.coerceIn(0f, 1f)
+            invalidate()
+        }
+
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        super.onDraw(canvas)
+        val h = height.toFloat()
+        val r = h / 2f
+        p.color = trackColor
+        canvas.drawRoundRect(0f, 0f, width.toFloat(), h, r, r, p)
+        if (fraction > 0f) {
+            p.color = fillColor
+            canvas.drawRoundRect(0f, 0f, maxOf(h, width * fraction), h, r, r, p)
+        }
     }
 }
 

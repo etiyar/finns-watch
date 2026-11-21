@@ -1,24 +1,34 @@
 <resources>
-    <!-- Açık tema. Tek kaynak: docs/V06_TASARIM_SARTNAMESI.md bölüm 2. Kodda hex yok. -->
-    <color name="bg">#F4F5F3</color>
+    <!-- Açık tema (v0.17). Tek kaynak: tasarım dosyalarındaki FW_THEMES.light. Kodda hex yok. -->
+    <color name="bg">#F4F6F5</color>
     <color name="card">#FFFFFF</color>
-    <color name="raised">#ECEEEB</color>
-    <color name="border">#DADDD9</color>
-    <color name="text">#15181C</color>
-    <color name="text2">#5B636C</color>
-    <color name="muted">#8A929A</color>
-    <color name="accent">#0E8A68</color>
-    <color name="accent_bg">#DDF3EB</color>
+    <color name="raised">#EEF2F0</color>
+    <color name="border">#DCE3E0</color>
+    <color name="track">#E3E9E6</color>
+    <color name="text">#0F1714</color>
+    <color name="text2">#4B5753</color>
+    <color name="muted">#7A8682</color>
+    <color name="accent">#059669</color>
+    <color name="accent_text">#047857</color>
+    <color name="accent_fill">#047857</color>
+    <color name="accent_bg">#1F059669</color>
     <color name="on_accent">#FFFFFF</color>
-    <color name="warning">#8A6200</color>
-    <color name="warning_bg">#FBEFD2</color>
-    <color name="danger">#B3333B</color>
-    <color name="sleep_deep">#4757B8</color>
-    <color name="sleep_light">#8FA0EE</color>
-    <color name="sleep_rem">#B4589E</color>
-    <color name="heart">#C9475A</color>
-    <color name="switch_off_track">#C9CED3</color>
+    <color name="warning">#B45309</color>
+    <color name="warning_bg">#FEF3C7</color>
+    <color name="danger">#BE123C</color>
+    <color name="heart">#E11D48</color>
+    <color name="sleep_deep">#4338CA</color>
+    <color name="sleep_light">#818CF8</color>
+    <color name="sleep_rem">#A855F7</color>
+    <color name="sleep_awake">#D97706</color>
+    <color name="switch_off_track">#C9D2CE</color>
     <color name="switch_off_thumb">#FFFFFF</color>
+
+    <!-- Temadan bağımsız: anahtar topu ve kadran önizleme kasası (saat ekranı hep siyah). -->
+    <color name="knob">#FFFFFF</color>
+    <color name="face_bg">#000000</color>
+    <color name="face_case">#2A302E</color>
+    <color name="face_digit">#FFFFFF</color>
 
     <!-- Uygulama simgesi: temadan bağımsız, her zaman koyu kasa. -->
     <color name="icon_bg">#0D0F12</color>

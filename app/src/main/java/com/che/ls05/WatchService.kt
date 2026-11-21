@@ -290,9 +290,11 @@ class WatchService : Service(), DriverListener {
     /** Anahtar girilince FE95 bağlantısını yeniden açmadan kimlik doğrulamayı sürdürür. */
     fun resumeBandAuth(): Boolean = (driver as? Band8Driver)?.resumeAuth() ?: false
 
-    fun testBandFind(start: Boolean): Boolean = (driver as? Band8Driver)?.testFindBand(start) ?: false
+    /** Band 8: rahatsız etmeyi hemen aç ya da kapat. Gönderildiyse null. */
+    fun bandDndNow(on: Boolean): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.dndNow(on) }
 
-    fun testBandCallScreen(start: Boolean): Boolean = (driver as? Band8Driver)?.testCallScreen(start) ?: false
+    /** Band 8: sağlık dosyalarını şimdi çek (aşağı çekip yenileme). Gönderildiyse null. */
+    fun bandFetchNow(): String? = (driver as? Band8Driver).let { if (it == null) "Band 8 etkin değil." else it.fetchNow() }
 
     /** Kullanıcı doğrulama anahtarını girmekten vazgeçtiğinde bağlantıyı sonlandır. */
     fun cancelBandSetup() { (driver as? Band8Driver)?.disconnect() }

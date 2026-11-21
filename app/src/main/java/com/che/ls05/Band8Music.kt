@@ -85,7 +85,7 @@ class Band8Music(
             B8Music.KEY_NEXT -> t?.skipToNext() ?: PhoneRemote.mediaKey(app, KeyEvent.KEYCODE_MEDIA_NEXT)
             B8Music.KEY_VOLUME -> {
                 val v = k.volume ?: run { log("Band 8 müzik sesi: alan1=${k.key}, alan2 yok, yok sayıldı"); return }
-                setVolume(k.key, v)
+                setVolume(v)
                 // Bandın ses çubuğu telefonla aynı kalsın: güncel düzey hemen geri gider.
                 sendInfo("ses")
                 return
@@ -101,9 +101,9 @@ class Band8Music(
 
     /**
      * Bantın ses olayı telefon müzik akışına uygulanır; sistem ses çubuğu gösterilmez.
-     * Ham alan değerleri (yalnızca sayılar) loga yazılır. Yorum: [MusicVolume.decide] (yakınsa yüzde, uzaksa bir çentik).
+     * Yorum: [MusicVolume.decide] (yakınsa yüzde, uzaksa bir çentik).
      */
-    private fun setVolume(field1: Int, raw: Int) {
+    private fun setVolume(raw: Int) {
         val a = audio ?: return
         val max = a.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val cur = a.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -115,7 +115,6 @@ class Band8Music(
             raw in 0..100 && kotlin.math.abs(raw - base) <= MusicVolume.PLAUSIBLE_DELTA -> "yüzde"
             else -> "çentik"
         }
-        log("Band 8 müzik sesi ham: alan1=$field1 alan2=$raw, bildirilen=%${reported ?: -1}, akış=$cur/$max")
         if (cur != step) a.setStreamVolume(AudioManager.STREAM_MUSIC, step, 0)
         log("Band 8 müzik sesi: adım $step/$max ($mode)")
     }
@@ -148,7 +147,7 @@ class Band8Music(
         lastSentAt = android.os.SystemClock.elapsedRealtime()
         val ok = send(bytes)
         if (ok) lastReportedPercent = volume
-        log("Band 8 müzik bilgisi ($reason): oturum=${c != null}, çalıyor=${state?.state == PlaybackState.STATE_PLAYING}, ses=%$volume, gönderildi=$ok")
+        if (!ok) log("Band 8 müzik bilgisi gönderilemedi ($reason): oturum=${c != null}")
     }
 
     private companion object {
