@@ -950,4 +950,6 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         }
         ui.add(lastSeenBox, ui.row(LastSeen.label(f), "${Fmt.dayMs(f.at)} · Haritada açmak için dokun", trailing = del) {
             if (!LastSeen.openMap(act, f)) act.toast("Harita uygulaması bulunamadı.")
+        })
+    }
 }
