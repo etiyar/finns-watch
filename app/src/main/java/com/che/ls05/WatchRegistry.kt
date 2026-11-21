@@ -123,6 +123,17 @@ object WatchRegistry {
 
     fun active(c: Context): WatchRecord? = list(c).active
 
+    /** Yedekten geri yükleme: listeyi iki kopyasıyla birlikte değiştirir. Yazılamazsa false. */
+    fun replaceAll(c: Context, l: WatchList): Boolean = synchronized(this) {
+        if (!persist(c, l)) return@synchronized false
+        cached = l
+        loadSource = RegistryRecovery.Source.PRIMARY
+        true
+    }
+
+    /** Diskten yeniden okunsun (geri yükleme sonrası). */
+    fun invalidate() = synchronized(this) { cached = null }
+
     fun needsRecovery(c: Context): Boolean {
         list(c)
         return loadSource == RegistryRecovery.Source.CORRUPT

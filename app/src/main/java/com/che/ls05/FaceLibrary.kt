@@ -113,6 +113,9 @@ object FaceLibrary {
         if (Prefs.currentFace(c) == id) Prefs.setCurrentFace(c, "")
     }
 
+    /** Geri yüklemeden sonra önizleme önbelleği boşaltılır. */
+    fun clearPreviews() = previews.clear()
+
     fun load(e: Entry): FaceFile? = FaceFile.parse(e.file.readBytes()).getOrNull()
 
     /** Dosyadaki önizleme resmi (240x240). Bir kez çözülür, sonra bellekten. */

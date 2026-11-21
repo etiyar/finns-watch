@@ -6,6 +6,10 @@ Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihaz
 
 ## v0.17.0-alpha1 | Geliştirme (cihazda doğrulanmadı)
 
+### Yedekle ve geri yükle, kimlik gösterimi
+
+- Ayarlar > Yedekle ve geri yükle: ayarlar, bildirim kuralları, hatırlatıcılar, alarm notları, Saatlerim ve kadranlar tek .fwb dosyasına yazılır. Sağlık verisi ve log girmez. "Kimlik anahtarlarını dahil et" açıksa yedek parolayla şifrelenir (PBKDF2 + AES-256-GCM). Geri yüklemede özet ve onay, önce otomatik kopya; yanlış parolada hiçbir şey değişmez. Saat kartında kimlik maskeli; göster onayla, kopyalanan değer 30 sn sonra panodan silinir.
+
 ### Band 8 kadran galerisi
 
 - Gelişmiş > Band 8 kadran galerisi: eklenen her .bin uygulamada saklanır (kimlik, ad, önizleme). İki sütunlu önizleme ızgarası; dokununca banda yükle, etkin yap, banttan sil, galeriden kaldır.
