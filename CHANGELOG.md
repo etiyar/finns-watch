@@ -4,6 +4,14 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.16.0-alpha2 | Geliştirme (cihazda doğrulanmadı)
+
+- Band 8 kadran üretici (deneysel): kendi kadranımızı yazı tipi gerektirmeden üretir. Yerleşim kullanıcının gerçek kadran dosyalarıyla aynı. Ayrıntı: docs/BAND8_KADRAN_BICIMI.md.
+- Gelişmiş > Band 8 kadran: "Deneme kadranı: Finn Dijital" (siyah zemin, büyük saat, küçük tarih; AOD'de gri saat).
+- Yüklemeden önce yapı denetimi: onay penceresinde sonuç görünür; kendi kadranımız denetimden geçmezse gönderilmez.
+- Kimlik öneki banttaki yüklü kadranlarınkinden farklıysa onay penceresinde önekler gösterilir.
+- Cihazda doğrulanan (build 212/215): internetten indirilen kadran yüklendi, listede göründü.
+
 ## v0.16.0-alpha1 | Geliştirme (cihazda doğrulanmadı)
 
 ### Sleep as Android
