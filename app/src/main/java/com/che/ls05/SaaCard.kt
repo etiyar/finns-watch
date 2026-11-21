@@ -26,6 +26,16 @@ class SaaCard(private val act: MainActivity, private val ui: Ui) {
         SleepAsAndroidBridge.settingsChanged(act)
         refresh()
     }
+    private val move: SwitchRow = ui.switchRow(
+        "Hareket gönder (deneysel)",
+        "Bantta gizli bir antrenman açılır, ivme verisi gider. Bantta antrenman ekranı görünür; durdurma. Pil daha hızlı biter.",
+        Prefs.saaMovement(act),
+        iconRes = R.drawable.ic_vibrate,
+    ) { on ->
+        Prefs.setSaaMovement(act, on)
+        SleepAsAndroidBridge.settingsChanged(act)
+        refresh()
+    }
     private val status: TextView = ui.caption("")
 
     val section: TextView = ui.section("Sleep as Android")
@@ -35,6 +45,8 @@ class SaaCard(private val act: MainActivity, private val ui: Ui) {
         ui.add(card, enabled.view)
         ui.add(card, ui.divider(), height = ui.dp(1))
         ui.add(card, heart.view)
+        ui.add(card, ui.divider(), height = ui.dp(1))
+        ui.add(card, move.view)
         ui.add(card, ui.divider(), height = ui.dp(1))
         ui.add(card, ui.caption(setupText()), topDp = 8)
         ui.add(card, status, topDp = 8)
@@ -47,7 +59,7 @@ class SaaCard(private val act: MainActivity, private val ui: Ui) {
         "2. Paket adı alanına ${act.packageName} yaz.",
         "3. Nabız için aynı bölümde nabız ölçümünü aç.",
         "4. \"Sensörleri test et\" ile dene. Band hazırsa bağlantı onaylanır.",
-        "Band 8 hareket verisi göndermez; yalnızca nabız gider. Alarmda bantta \"Alarm\" ekranı çıkar: reddet alarmı kapatır, sessize al erteler.",
+        "Sleep as Android uyku grafiği için hareket verisi ister. Hareket kapalıyken yalnızca nabız gider ve sensör testi boş kalabilir. Alarmda bantta \"Alarm\" ekranı çıkar: reddet alarmı kapatır, sessize al erteler.",
         "LS05 için bu özellik yok; Sleep as Android saatsiz çalışır.",
     ).joinToString("\n")
 
@@ -56,6 +68,9 @@ class SaaCard(private val act: MainActivity, private val ui: Ui) {
         heart.toggle.set(Prefs.saaHeartRate(act))
         ui.enable(heart.view, Prefs.saaEnabled(act))
         heart.toggle.sw.isEnabled = Prefs.saaEnabled(act)
+        move.toggle.set(Prefs.saaMovement(act))
+        ui.enable(move.view, Prefs.saaEnabled(act))
+        move.toggle.sw.isEnabled = Prefs.saaEnabled(act)
         status.text = "Durum: " + SleepAsAndroidBridge.statusText(act)
     }
 

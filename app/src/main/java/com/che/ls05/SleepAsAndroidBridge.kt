@@ -35,13 +35,17 @@ object SleepAsAndroidBridge {
 
     val tracking: Boolean get() = ctl.tracking
     val streaming: Boolean get() = ctl.streaming
+    val moving: Boolean get() = ctl.moving
+    private var lastConfirmLogAt = 0L
+    private var confirmCount = 0
 
     /** Ayarlar kartındaki kısa durum. */
     fun statusText(c: Context): String = when {
         !Prefs.saaEnabled(c) -> "Kapalı."
         WatchRegistry.active(c)?.type != WatchType.BAND8 -> "Etkin saat Band 8 değil. LS05 için Sleep as Android saatsiz çalışır."
         ctl.alarmActive -> "Alarm çalıyor."
-        ctl.tracking && ctl.streaming -> "Takip sürüyor, nabız gidiyor."
+        ctl.tracking && (ctl.streaming || ctl.moving) ->
+            "Takip sürüyor: nabız ${if (ctl.streaming) "gidiyor" else "gitmiyor"}, hareket ${if (ctl.moving) "gidiyor" else "gitmiyor"}."
         ctl.tracking -> "Takip sürüyor, nabız gitmiyor."
         else -> "Hazır. Takip başlayınca nabız akışı açılır."
     }
@@ -61,6 +65,7 @@ object SleepAsAndroidBridge {
         }
         val t = now()
         ctl.hrEnabled = Prefs.saaHeartRate(c)
+        ctl.moveEnabled = Prefs.saaMovement(c)
         // Servis bağlıysa band durumu güncel; değilse komut banda gidemez.
         if (ctl.bandReady != bandReady()) perform(ctl.onBandReady(bandReady(), t))
         if (action == SaaApi.CHECK_CONNECTED) {
@@ -118,7 +123,7 @@ object SleepAsAndroidBridge {
             perform(ctl.onStopAlarm())
             perform(ctl.onStopTracking(t))
         } else {
-            perform(ctl.onSettings(Prefs.saaHeartRate(c), t))
+            perform(ctl.onSettings(Prefs.saaHeartRate(c), t, Prefs.saaMovement(c)))
         }
         schedule()
     }
@@ -129,6 +134,9 @@ object SleepAsAndroidBridge {
         perform(outs)
         return ours
     }
+
+    /** Band 8 ivme örnekleri. Dönüş: hareket akışı bizim mi. */
+    fun onAccel(samples: List<com.che.ls05.protocol.band8.B8Workout.Accel>): Boolean = ctl.onAccel(samples, now())
 
     /** Bantta arama ekranında reddet/sessize al. Sleep as Android alarmı açıksa olay buraya aittir. */
     fun onBandCallAction(reject: Boolean): Boolean {
@@ -149,7 +157,8 @@ object SleepAsAndroidBridge {
 
     private fun summary(label: String) {
         lastSummaryAt = now()
-        WatchHub.log("Sleep as Android $label: olay ${ctl.events}, geçerli ${ctl.valid}, paket ${ctl.packets}, yeniden başlatma ${ctl.restarts}")
+        WatchHub.log("Sleep as Android $label: olay ${ctl.events}, geçerli ${ctl.valid}, paket ${ctl.packets}, yeniden başlatma ${ctl.restarts}; " +
+            "ivme örneği ${ctl.accelSamples}, pencere ${ctl.moveWindows}, hareket paketi ${ctl.movePackets}")
     }
 
     private fun schedule() {
@@ -166,7 +175,13 @@ object SleepAsAndroidBridge {
             SaaOut.ConfirmConnected -> send(Intent(SaaApi.CONFIRM_CONNECTED))
             SaaOut.HrStart -> band()?.realtimeHr(true)
             SaaOut.HrStop -> band()?.realtimeHr(false)
-            is SaaOut.SendHr -> send(Intent(SaaApi.HR_DATA_UPDATE).putExtra(SaaApi.EXTRA_DATA, o.bpm))
+            is SaaOut.SendHr -> send(Intent(SaaApi.HR_DATA_UPDATE).putExtra(SaaApi.EXTRA_DATA, o.bpm), o.bpm.size)
+            SaaOut.MoveStart -> band()?.workout(true)
+            SaaOut.MoveStop -> band()?.workout(false)
+            is SaaOut.SendMove -> send(
+                Intent(SaaApi.DATA_UPDATE).putExtra(SaaApi.EXTRA_MAX_DATA, o.max).putExtra(SaaApi.EXTRA_MAX_RAW_DATA, o.raw),
+                o.max.size,
+            )
             is SaaOut.Hint -> band()?.vibrate(B8SaaVibration.hint(o.repeat), "ipucu titreşimi 2/59")
             SaaOut.AlarmShow -> band()?.let {
                 it.alarmScreen(true)
@@ -179,8 +194,22 @@ object SleepAsAndroidBridge {
         }
     }
 
-    private fun send(i: Intent) {
+    /** Yayın adı ve değer sayısı loglanır; değerler yazılmaz. Onay dakikada bir özetlenir. */
+    private fun send(i: Intent, values: Int? = null) {
         val c = app ?: WatchHub.service ?: return
+        val name = SaaApi.shortName(i.action ?: "")
+        if (i.action == SaaApi.CONFIRM_CONNECTED) {
+            confirmCount++
+            val t = now()
+            if (t - lastConfirmLogAt >= 60_000L) {
+                lastConfirmLogAt = t
+                WatchHub.log("Sleep as Android'e gönderildi: ${i.action} (son dakikada $confirmCount kez)")
+                confirmCount = 0
+            }
+        } else {
+            WatchHub.log("Sleep as Android'e gönderildi: ${i.action}${if (values != null) " ($values değer)" else ""}")
+        }
+        if (name.isEmpty()) return
         try {
             c.sendBroadcast(i.setPackage(SaaApi.PACKAGE))
         } catch (e: Exception) {

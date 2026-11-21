@@ -6,6 +6,15 @@ Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihaz
 
 ## v0.16.0-alpha2 | Geliştirme (cihazda doğrulanmadı)
 
+### Sleep as Android
+
+- Sorun (build 212): Sleep as Android bağlandı ama sensör testi grafik göstermedi. Nabız gidiyordu, hareket verisi gitmiyordu. Sleep as Android uyku grafiği için hareket ister.
+- Yeni "Hareket gönder (deneysel)" anahtarı: bantta gizli bir uyku antrenmanı açılır, bandın ivme verisi 10 sn'lik pencerelerle Sleep as Android'e gider. Varsayılan kapalı.
+- Gelişmiş > Band 8 denemeleri: "Gizli antrenman 30 sn". Logda ivme komutu ve örnek sayısı, değer yazılmaz.
+- Log: Sleep as Android'e giden her yayının tam adı ve değer sayısı yazılır.
+
+### Band 8 kadran üretici
+
 - Band 8 kadran üretici (deneysel): kendi kadranımızı yazı tipi gerektirmeden üretir. Yerleşim kullanıcının gerçek kadran dosyalarıyla aynı. Ayrıntı: docs/BAND8_KADRAN_BICIMI.md.
 - Gelişmiş > Band 8 kadran: "Deneme kadranı: Finn Dijital" (siyah zemin, büyük saat, küçük tarih; AOD'de gri saat).
 - Yüklemeden önce yapı denetimi: onay penceresinde sonuç görünür; kendi kadranımız denetimden geçmezse gönderilmez.

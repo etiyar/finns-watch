@@ -1,5 +1,8 @@
 package com.che.ls05.protocol
 
+import com.che.ls05.protocol.band8.B8Workout
+import com.che.ls05.protocol.band8.SaaMovement
+
 /*
  * Sleep as Android saat eklentisi arayüzü (docs/SLEEP_AS_ANDROID.md).
  * Adlar Sleep as Android'in "Wearable integration API" belgesinden alındı (doğrulandı).
@@ -25,6 +28,7 @@ object SaaApi {
     // Saatten Sleep as Android'e
     const val CONFIRM_CONNECTED = W + "CONFIRM_CONNECTED"
     const val HR_DATA_UPDATE = W + "HR_DATA_UPDATE"
+    const val DATA_UPDATE = W + "DATA_UPDATE"
     const val SNOOZE_FROM_WATCH = W + "SNOOZE_FROM_WATCH"
     const val DISMISS_FROM_WATCH = W + "DISMISS_FROM_WATCH"
 
@@ -35,6 +39,8 @@ object SaaApi {
     const val EXTRA_DELAY = "DELAY"
     const val EXTRA_REPEAT = "REPEAT"
     const val EXTRA_DATA = "DATA"
+    const val EXTRA_MAX_DATA = "MAX_DATA"
+    const val EXTRA_MAX_RAW_DATA = "MAX_RAW_DATA"
 
     val INCOMING: List<String> = listOf(
         CHECK_CONNECTED, START_TRACKING, STOP_TRACKING, SET_PAUSE, SET_SUSPENDED, SET_BATCH_SIZE,
@@ -55,6 +61,12 @@ sealed class SaaOut {
     object HrStop : SaaOut()
     /** Sleep as Android'e nabız paketi (geliş sırasıyla). */
     class SendHr(val bpm: FloatArray) : SaaOut()
+    /** Banda gizli antrenman başlat (8/26, hareket için). */
+    object MoveStart : SaaOut()
+    /** Gizli antrenmanı bitir (8/26 duraklat, sonra bitir). */
+    object MoveStop : SaaOut()
+    /** Sleep as Android'e hareket paketi (DATA_UPDATE). */
+    class SendMove(val max: FloatArray, val raw: FloatArray) : SaaOut()
     /** Kısa titreşim, [repeat] kez. */
     class Hint(val repeat: Int) : SaaOut()
     /** Alarm ekranını aç ve titret. */
@@ -74,7 +86,7 @@ sealed class SaaOut {
  * Nabız akışı yalnızca takip sürerken, nabız ayarı açıkken, band hazırken ve duraklatma yokken açık kalır.
  * Nabız değerleri yalnızca pakete girer; sayaçlar log içindir.
  */
-class SaaController(var hrEnabled: Boolean = true) {
+class SaaController(var hrEnabled: Boolean = true, var moveEnabled: Boolean = false) {
     var tracking = false
         private set
     var streaming = false
@@ -83,6 +95,13 @@ class SaaController(var hrEnabled: Boolean = true) {
         private set
     var alarmActive = false
         private set
+    var moving = false
+        private set
+
+    private val movement = SaaMovement()
+    val accelSamples: Int get() = movement.samples
+    val moveWindows: Int get() = movement.windows
+    var movePackets = 0; private set
 
     private var suspended = false
     private var pausedUntil = 0L
@@ -115,6 +134,7 @@ class SaaController(var hrEnabled: Boolean = true) {
             pausedUntil = 0L
             buffer.clear()
             events = 0; valid = 0; packets = 0; restarts = 0
+            movePackets = 0
             lastFlushAt = now
         }
         val out = ArrayList<SaaOut>()
@@ -144,9 +164,17 @@ class SaaController(var hrEnabled: Boolean = true) {
         batchSize = size.coerceIn(1, 30)
     }
 
-    fun onSettings(hr: Boolean, now: Long): List<SaaOut> {
+    fun onSettings(hr: Boolean, now: Long, move: Boolean = moveEnabled): List<SaaOut> {
         hrEnabled = hr
+        moveEnabled = move
         return sync(now)
+    }
+
+    /** Banddan ivme örnekleri (mili-g). Hareket akışı bizim değilse false. */
+    fun onAccel(samples: List<B8Workout.Accel>, now: Long): Boolean {
+        if (!moving) return false
+        for (a in samples) movement.add(a, now)
+        return true
     }
 
     /** Band hazır oldu ya da koptu. Koptuysa banda komut gidemez; akış yeniden bağlanınca yeniden başlar. */
@@ -156,6 +184,10 @@ class SaaController(var hrEnabled: Boolean = true) {
         val out = ArrayList<SaaOut>()
         flushInto(out, now)
         streaming = false
+        if (moving) {
+            moveFlushInto(out)
+            moving = false
+        }
         if (alarmActive) {
             alarmActive = false
             alarmAt = null
@@ -218,6 +250,10 @@ class SaaController(var hrEnabled: Boolean = true) {
             }
             if (now - lastFlushAt >= periodMs) flushInto(out, now)
         }
+        if (moving) movement.tick(now, batchSize.toInt(), paused(now))?.let {
+            out += SaaOut.SendMove(it.max, it.raw)
+            movePackets++
+        }
         val at = alarmAt
         if (at != null && bandReady) {
             if (!alarmActive && now >= at) {
@@ -243,7 +279,7 @@ class SaaController(var hrEnabled: Boolean = true) {
         return when {
             alarmActive -> ALARM_REPEAT_MS
             at != null -> (at - now).coerceIn(500L, TICK_MS)
-            tracking -> TICK_MS
+            tracking || moving -> TICK_MS
             else -> null
         }
     }
@@ -262,7 +298,25 @@ class SaaController(var hrEnabled: Boolean = true) {
             streaming = false
             out += SaaOut.HrStop
         }
+        // Hareket duraklatmada da sürer: belge duraklatmada 0 değer ister.
+        val wantMove = tracking && moveEnabled && bandReady
+        if (wantMove && !moving) {
+            moving = true
+            movement.start(now)
+            out += SaaOut.MoveStart
+        } else if (!wantMove && moving) {
+            moveFlushInto(out)
+            moving = false
+            out += SaaOut.MoveStop
+        }
         return out
+    }
+
+    private fun moveFlushInto(out: MutableList<SaaOut>) {
+        movement.flush()?.let {
+            out += SaaOut.SendMove(it.max, it.raw)
+            movePackets++
+        }
     }
 
     private fun flushInto(out: MutableList<SaaOut>, now: Long) {
