@@ -79,4 +79,54 @@ class B8NavFaceTest {
         assertFalse(g.decide("sola", "250 m", 10_000))
         assertTrue(g.decide("sola", "200 m", 30_000))
     }
+
+    private fun face(id: String, active: Boolean = false, del: Boolean = true) = B8Watchface.Face(id, "", active, del)
+
+    @Test
+    fun targetAlternatesAndNeverPicksActive() {
+        val base = listOf(face("266110010", del = false), face("167299001", active = true))
+        assertEquals(B8NavFace.ID, B8NavFace.target(base))
+        val navA = listOf(face("266110010", del = false), face(B8NavFace.ID, active = true))
+        assertEquals(B8NavFace.ID_B, B8NavFace.target(navA))
+        val both = listOf(face(B8NavFace.ID, active = true), face(B8NavFace.ID_B))
+        assertEquals(B8NavFace.ID_B, B8NavFace.target(both))
+        assertNull(B8NavFace.target(both, blocked = setOf(B8NavFace.ID_B)))
+        val bothB = listOf(face(B8NavFace.ID), face(B8NavFace.ID_B, active = true))
+        assertEquals(B8NavFace.ID, B8NavFace.target(bothB))
+        // Bantta yoksa ve etkin değilse önce bantta olmayan seçilir.
+        val oneOld = listOf(face("167299001", active = true), face(B8NavFace.ID))
+        assertEquals(B8NavFace.ID_B, B8NavFace.target(oneOld))
+    }
+
+    @Test
+    fun restoreChoice() {
+        val list = listOf(face("266110010", del = false), face("167299001"), face(B8NavFace.ID, active = true))
+        assertEquals("167299001", B8NavFace.restoreTo("167299001", list))
+        assertEquals("266110010", B8NavFace.restoreTo(null, list))
+        assertEquals("266110010", B8NavFace.restoreTo(B8NavFace.ID_B, list))
+        assertEquals("266110010", B8NavFace.restoreTo("999999999", list))
+        assertNull(B8NavFace.restoreTo(null, listOf(face(B8NavFace.ID))))
+    }
+
+    @Test
+    fun guardTripsOnTwoDisconnectsAfterFaceOps() {
+        val g = B8NavGuard()
+        assertFalse(g.disconnected(1_000))          // kadran işlemi yok
+        g.faceOp(10_000)
+        assertFalse(g.disconnected(40_000))         // 30 sn sonra: sayılmaz
+        g.faceOp(50_000)
+        assertFalse(g.disconnected(56_000))         // 1. uyarı
+        assertEquals(1, g.strikeCount)
+        g.faceOp(90_000)
+        assertTrue(g.disconnected(100_000))         // 2. uyarı: tetik
+        g.reset()
+        assertEquals(0, g.strikeCount)
+    }
+
+    @Test
+    fun guardForgetsOldStrikes() {
+        val g = B8NavGuard(memoryMs = 60_000)
+        g.faceOp(0); assertFalse(g.disconnected(5_000))
+        g.faceOp(200_000); assertFalse(g.disconnected(205_000))
+    }
 }

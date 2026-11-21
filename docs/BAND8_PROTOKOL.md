@@ -898,15 +898,37 @@ Uygulama (Gelişmiş > "Band 8 kadran (deneysel)", her adım elle):
 
 Ayrıntılı dosya biçimi ve kendi kadran üreticimiz: `BAND8_KADRAN_BICIMI.md` (gerçek dosyalarla karşılaştırıldı).
 
+### 18.4a Build 238: otomatik navigasyon kadranında bant yeniden başladı (21.11.2026)
+
+**Gözlem (doğrulandı, maskeli log):** "Örnek okla dene" ilk seferde düzgün çalıştı. Otomatik akış açılınca her bağlantıda aynı döngü:
+
+1. 4/0 listesinde 9 kadran, 167299090 hâlâ bantta. 4/4 kimlik 167299090 → kurulum durumu 2 (zaten kurulu).
+2. Eski akış: 4/1 ile 167299001 etkin, yanıt gelir gelmez aynı milisaniyede 4/2 ile 167299090 silme ve 4/0 liste (liste 8 kadran gösterdi).
+3. Yaklaşık 3 sn sonra sağlık dosyası çekme başladı; silmeden yaklaşık 6 sn sonra bağlantı GATT durum 8 ile koptu, bant yeniden başladı.
+4. Yeniden bağlanınca liste yine 9: **silme kalıcı olmadı.** Döngü tekrar etti.
+5. Ayrıca her Maps bildiriminde kural titreşimi (2/59) gitti ve navigasyon bildirimleri saniyede birkaç kez kuyruğa girdi.
+
+**Hipotez (tahmin):** etkin kadran değişirken hemen silmek, ya da silme ile hemen ardından gelen sağlık çekme bant yazılımını çökertiyor. Silme bant yeniden başlamadan kalıcı hâle gelmediği için liste yine 9 gösterdi. Kanıt değil.
+
+**Yeni kurallar (v0.17.0-alpha3):**
+
+1. Navigasyon sürerken hiçbir kadran silinmez. İki sabit kimlik dönüşümlü: 167299090 ve 167299091. Yeni kare etkin olmayan kimliğe yüklenir ve etkin yapılır; eskisi navigasyon bitene kadar bantta kalır.
+2. Bitişte önceki kadran etkin yapılır, 4/0 ile etkin olduğu doğrulanır, 5 sn beklenir, navigasyon kadranları tek tek silinir; her silmeden sonra yanıt, 5 sn bekleme ve yeniden liste. Bağlanınca bantta kalıntı varsa aynı temizlik; ilk 20 sn içinde değil, son navigasyon karesinden 60 sn geçmeden değil.
+3. 4/4 durum 2: silme ya da yeniden yükleme yok; diğer kimlik denenir. O da uygun değilse kare atlanır.
+4. Kadran işleri (4/x, 0x0055) sürerken ve son kadran işinden sonra 10 sn sağlık dosyası çekme bekler. 4/1 ve 4/2 yanıtından sonraki liste okuması 3 sn sonra.
+5. Çökme koruması: bir kadran işinden sonraki 15 sn içinde (10 dk içinde) iki kopma olursa otomatik navigasyon kadranı kalıcı kapatılır ve telefonda "Navigasyon kadranı bandı yeniden başlattı, kapatıldı" bildirimi çıkar. Kopmadan sonra bekleyen iş yeniden başlatılmaz. Ayar elle açılınca koruma sıfırlanır.
+6. Navigasyon bildirimine kural titreşimi (2/59) uygulanmaz. Kadran açıkken yalnızca manevra değişince ve en sık 5 sn'de bir tek kısa bildirim gider. İki kadran yüklemesi arasında en az 15 sn; arada gelen manevralardan yalnızca sonuncusu bekler.
+7. Varsayılan kapalı.
+
 ### 18.4 Navigasyon kadranı (v0.17.0-alpha1, cihazda denenmedi)
 
 Notify yöntemi: yönerge bir kadran olarak çizilir ve banda yüklenir (17.8). Ayrıntı `BAND8_KADRAN_BICIMI.md` 11.
 
 1. Maps'in süren navigasyon bildiriminden manevra, mesafe ve sokak ayrılır (`NavigationFilter.parts`), ok bildirimin büyük simgesinden alınır.
 2. Yalnızca manevra değişince yüklenir. Mesafe tek başına değişince yüklenmez (`B8NavGate`; en sık 30 sn'de bir mesafe güncellemesi kodda hazır, yükleme süresi ölçülünce karar).
-3. İlk karede banttaki etkin kadran kaydedilir. Kadran sabit kimlikle (167299090) yüklenir (4/4, tür 16), sonra etkin yapılır (4/1). Yükleme sürerken gelen manevralardan yalnızca sonuncusu bekler.
-4. Bant aynı kimliğin üzerine yazmayı reddederse (4/4 durum 2): önceki kadran etkin yapılır, navigasyon kadranı silinir (4/2), yeniden yüklenir. Bir kez denenir (tahmin: Notify sabit kimliğin üzerine yazıyor).
-5. Bildirim kalkınca önceki kadran etkin yapılır, navigasyon kadranı silinir.
+3. İlk karede banttaki etkin kadran kaydedilir. Kadran yüklenir (4/4, tür 16), sonra etkin yapılır (4/1). Kimlikler ve silme kuralları 18.4a'da (alpha1'deki tek kimlik ve "sil, yeniden yükle" yolu build 238'de bandı yeniden başlattı, kaldırıldı).
+4. Bant aynı kimliğin üzerine yazmayı kabul etmiyor (4/4 durum 2, doğrulandı build 238).
+5. Bildirim kalkınca 18.4a'daki güvenli temizlik.
 6. Bant kendiliğinden uyanmadığı için her manevrada bildirim de gider: tam metin (varsayılan) ya da yalnızca kısa manevra adı.
 7. Her adım için 60 sn zaman aşımı. Log: kimlik, boy, süre, adım ve durum; sokak ve yönerge metni yazılmaz.
 

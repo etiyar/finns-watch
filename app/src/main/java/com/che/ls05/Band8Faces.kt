@@ -112,12 +112,13 @@ class Band8Faces(
             B8Watchface.SUB_SET -> {
                 log("Band 8 kadran etkin yapma yanıtı: durum=${c.status ?: "yok"}, alanlar=${fields(c)}")
                 listener?.invoke(Event.SetReply(c.status))
-                read()
+                // Liste hemen değil, kısa bekleyişten sonra okunur (build 238: art arda 4/x komutları).
+                main.postDelayed({ read() }, RELIST_DELAY_MS)
             }
             B8Watchface.SUB_DELETE -> {
                 log("Band 8 kadran silme yanıtı: durum=${c.status ?: "yok"}, alanlar=${fields(c)}")
                 listener?.invoke(Event.DeleteReply(c.status))
-                read()
+                main.postDelayed({ read() }, RELIST_DELAY_MS)
             }
             B8Watchface.SUB_INSTALL -> onInstallReply(c)
             else -> log("Band 8 kadran olayı: altTür=${c.subtype}, alanlar=${fields(c)}")
@@ -181,6 +182,7 @@ class Band8Faces(
     companion object {
         const val INSTALL_REPLY_MS = 10_000L
         const val LIST_AFTER_UPLOAD_MS = 1_500L
+        const val RELIST_DELAY_MS = 3_000L
 
         /** Arayüzün okuduğu durum (süreç boyunca). */
         @Volatile var faces: List<B8Watchface.Face>? = null

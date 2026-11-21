@@ -4,6 +4,18 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.17.0-alpha3 | Geliştirme (cihazda doğrulanmadı)
+
+### Navigasyon kadranı: acil düzeltme (build 238)
+
+- Sorun: otomatik navigasyon kadranı açılınca bant tekrar tekrar yeniden başladı. Kadran değişir değişmez navigasyon kadranı siliniyor, hemen ardından sağlık verisi çekiliyordu.
+- Navigasyon sürerken artık hiçbir kadran silinmez. İki kimlik sırayla kullanılır: yeni kare boştaki kimliğe yüklenir ve etkin yapılır.
+- Navigasyon bitince önceki kadran etkin yapılır, doğrulanır ve navigasyon kadranları beklemelerle tek tek silinir. Bağlanınca kalıntı varsa 20 sn sonra aynı yavaş temizlik.
+- Kadran işleri sürerken ve sonraki 10 sn sağlık verisi çekilmez.
+- Çökme koruması: kadran işinden hemen sonra bağlantı iki kez koparsa navigasyon kadranı kendiliğinden kapanır ve telefonda uyarı çıkar.
+- Navigasyon bildirimlerine kural titreşimi uygulanmaz; kadran açıkken yalnızca manevra değişince tek kısa bildirim gider.
+- Varsayılan yine kapalı.
+
 ## v0.17.0-alpha2 | Geliştirme (cihazda doğrulanmadı)
 
 ### Yeni tasarım

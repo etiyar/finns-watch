@@ -35,6 +35,7 @@ class NotifyForwarder : NotificationListenerService() {
         /** Bütün bildirimler için saatte en çok tekrar sayısı. */
         const val MAX_REPEATS_PER_HOUR = 20
         const val NAV_VIBRATION = 1
+        const val NAV_NOTE_GAP_MS = 5_000L
     }
 
     private val recent = LinkedHashMap<String, Long>()
@@ -164,12 +165,23 @@ class NotifyForwarder : NotificationListenerService() {
         }
         // Manevra değişince hemen, yalnızca mesafe değişince en sık 30 sn'de bir.
         val out = navigation.decide(pkg, title, text, android.os.SystemClock.elapsedRealtime()) ?: return
+        if (face) {
+            // Kadran açıkken yalnızca manevra değişince ve en sık 5 sn'de bir tek kısa bildirim (build 238).
+            val key = navigation.parts(title, text).key
+            val t = android.os.SystemClock.elapsedRealtime()
+            if (key == lastNavNoteKey || t - lastNavNoteAt < NAV_NOTE_GAP_MS) return
+            lastNavNoteKey = key
+            lastNavNoteAt = t
+        }
         WatchHub.log("Navigasyon yönergesi iletime geçti: ${appLabel(pkg)}.")
         // Kadran açık ve tam metin kapalıysa yalnızca kısa manevra adı gider: bant uyanır ve titrer.
         val body = if (face && !Prefs.band8NavText(this)) "" else out.body
-        // Navigasyonun kendi anahtarı var; uygulama filtresine takılmaz. Kısa titreşim (LS05'te tek).
-        WatchHub.forward(this, note(sbn, pkg, appLabel(pkg), out.title, body, now, NAV_VIBRATION).copy(appFilter = false))
+        // Navigasyonun kendi anahtarı var; uygulama filtresine takılmaz. Kısa titreşim (LS05'te tek); Band 8'de 2/59 yok.
+        WatchHub.forward(this, note(sbn, pkg, appLabel(pkg), out.title, body, now, NAV_VIBRATION).copy(appFilter = false, nav = true))
     }
+
+    private var lastNavNoteKey: String? = null
+    private var lastNavNoteAt = 0L
 
     /** Navigasyon kadranının izlediği bildirim; kalkınca kadran geri alınır. */
     private var navKey: String? = null
@@ -236,6 +248,7 @@ class NotifyForwarder : NotificationListenerService() {
         sbn.packageName?.let { if (it in NavigationFilter.PACKAGES) navigation.reset(it) }
         if (navKey != null && navKey == key) {
             navKey = null
+            lastNavNoteKey = null
             WatchHub.log("Navigasyon bildirimi kalktı; Band 8 navigasyon kadranı geri alınıyor.")
             WatchHub.navEnd()
         }
