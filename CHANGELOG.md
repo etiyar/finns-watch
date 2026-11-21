@@ -4,6 +4,12 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.16.0 | 21 Kasım 2026 (kararlı sürüm)
+
+- **Sleep as Android:** Band 8 canlı nabız ve bant ivmesiyle hareket verisi (gizli uyku antrenmanı), akıllı alarm bantta titreşimle, banttan kapat/ertele, rüya ve horlama ipuçları. Cihazda bir gece doğrulandı: hareket ve nabız grafikleri dolu, alarm çalıştı. Gece pil tüketimi yaklaşık %12.
+- **Band 8 veri yükleme kanalı:** uygulama simgeleri (Gelişmiş'ten açılır, cihazda doğrulandı) ve deneysel kadran yükleme, etkin yapma, silme (resmi .bin dosyasıyla cihazda doğrulandı).
+- LS05 bu sürümde cihazda yeniden denenmedi; LS05 kodu değişmedi.
+
 ## v0.16.0-alpha2 | Geliştirme (cihazda doğrulanmadı)
 
 ### Sleep as Android
