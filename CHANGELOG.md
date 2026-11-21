@@ -4,6 +4,26 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.17.0-alpha2 | Geliştirme (cihazda doğrulanmadı)
+
+### Yeni tasarım
+
+- Dört sekme: Ana, Sağlık, Saat, Ayarlar. Alt menüde simgeler.
+- İki tema: koyu (gerçek siyah zemin) ve açık. Ayarlar > Görünüm > Tema: Sistem, Koyu, Açık. Pencereler ve sistem çubukları da temaya uyar.
+- Kartlar ince çerçeveli, gölgesiz. Sayılar eşit genişlikte yazılır.
+- Ana: etkin saat kartı (kadran önizlemesi, bağlantı, pil, son eşitleme). Karta dokununca saat seçilir. Altında adım, nabız, uyku ve kadran kutuları. Hızlı işlemler: Bandı bul ve Müzik. Aşağı çekince veriler yenilenir.
+- Sağlık: gün seçimi (30 güne kadar geri). Uyku evreleri satır satır zaman çizelgesinde, evre süreleri ve yatakta geçen süre. Nabız grafiği günün en düşük ve en yüksek değerine göre ölçeklenir. Saatlik adım çubukları ve hedef. Geçmiş (7 ve 30 gün) aynen kaldı.
+- Saat: Kadranlar, Alarmlar, Bildirimler, Hatırlatıcılar bölümleri. Kadranlar üç sütunlu galeri; ilk 6 kadran görünür, gerisi "Tümünü göster" ile. Band 8'de bantta yerleşik kadranlar katlanır listede. "Dosyadan ekle" sağ üstte. Navigasyon kadranı da burada.
+- Saat ayarları (Saat sekmesinin altında): rahatsız etme, bandı bul, hareketsizlik uyarısı, ekran ve profil, hava durumu, uzaklaşma uyarısı ve son görülen yer.
+- Ayarlar: Saatlerim (etkin, bağlı, pil, "Etkin yap", kimlik satırı, "Saat ekle"), bağlantı ve eşleştirme, Görünüm, Yedekleme, Bağlantılar ve veriler (Sleep as Android, sağlık verilerini dışa aktar, İzinler, Gelişmiş ve log). En altta sürüm satırı.
+
+### Temizlik
+
+- Gelişmiş ekranından doğrulanmış denemeler kaldırıldı: arama ekranı denemesi, emoji testi, canlı nabız ve gizli antrenman denemeleri, cevapsız arama denemesi, alarm denemeleri, rahatsız etme denemeleri, test şarkısı, sağlık dosyalarını çek. Bunların hepsi normal ekranlarda var.
+- Taşınanlar: Bandı bul Ana ve Saat ayarlarına. Band 8 titreşim deseni bildirim kuralına (kuraldaki titreşim sayısı Band 8'de de uygulanır, son titreşim uzun). Uygulama simgesi gönderme Saat > Bildirimler'e. Band 8 kadran galerisi Saat > Kadranlar'a.
+- Gelişmiş'te kalanlar katlanır gruplarda: saati elle eşitle (LS05), test alarmlarını temizle, hava durumu, hareketsizlik, otomatik nabız ölçümü, Band 8 ham verisi, log.
+- Gereksiz tanı logları kaldırıldı ya da yalnızca hata durumuna indirildi (alarm listesi biçimi, müzik olayı ve ses, simge biçimi, arama olayı).
+
 ## v0.17.0-alpha1 | Geliştirme (cihazda doğrulanmadı)
 
 ### Yedekle ve geri yükle, kimlik gösterimi

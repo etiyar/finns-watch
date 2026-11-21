@@ -511,16 +511,6 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         AlarmSheet(act, slot, isNew = true).show()
     }
 
-    /** Titret: sürekli titreşim (en çok 30 sn); Durdur: titreşimi keser. */
-    private fun toggleFind() {
-        val s = WatchHub.service
-        if (s != null && s.finding) {
-            s.stopFind("kullanıcı durdurdu")
-            return
-        }
-        val ready = act.readyService() ?: return
-        if (!ready.startFind()) act.toast("Saatte arama ekranı açık; şimdi titretilemez.")
-    }
 
     private fun alarm(slot: Int): AlarmSetting =
         AlarmSetting.decode(SettingsStore.entry(act, AlarmSetting.key(slot)).desired) ?: AlarmSetting.DEFAULT
@@ -541,7 +531,6 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
         return if (all.any { it.id == id }) id else ""
     }
 
-    private fun faceOnWatch(): String = currentFace(FaceLibrary.list(act))
     private fun openFace(e: FaceLibrary.Entry) {
         val f = FaceLibrary.load(e)
         val box = ui.vertical()
@@ -839,8 +828,6 @@ class WatchPage(act: MainActivity) : Page(act, "Saat") {
     }
 
     // ---------- Hava durumu ve son görülen yer ----------
-
-    }
 
     /** Şehir arama penceresi. */
     private fun pickCity() {
