@@ -51,9 +51,16 @@ class WatchesCard(private val act: MainActivity) {
         ui.add(list, content)
     }
 
+    private var lastKey: String? = null
+
     fun refresh() {
-        list.removeAllViews()
         val l = WatchRegistry.list(act)
+        // Liste yalnızca görünen bilgi değişince yeniden kurulur; açık kimlik satırı durum güncellemesiyle kapanmasın.
+        val key = listOf(l.watches.joinToString { "${it.id}:${it.name}:${needsSetup(it)}" }, l.activeId, WatchHub.ready,
+            WatchHub.battery, WatchManager.state, WatchRegistry.needsRecovery(act), WatchHub.bandForeignRecent()).toString()
+        if (key == lastKey) return
+        lastKey = key
+        list.removeAllViews()
         var first = true
         if (WatchRegistry.needsRecovery(act)) {
             addRow(pad(ui.row("Saat kayıtlarını kurtar", "Eski yerel kayıtlardan geri yükle") { confirmRecovery() }), first)
