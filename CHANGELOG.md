@@ -4,6 +4,40 @@ Bu dosya kullanıcıya görünen sürüm değişikliklerini kaydeder. Teknik ayr
 
 Durum tanımları: **Derlendi** = CI testi ve APK derlemesi başarılı. **Cihazda doğrulandı** = gerçek cihaz denemesi kullanıcı tarafından bildirildi. İkisi aynı şey değildir.
 
+## v0.16.0 | 21 Kasım 2026 (kararlı sürüm)
+
+- **Sleep as Android:** Band 8 canlı nabız ve bant ivmesiyle hareket verisi (gizli uyku antrenmanı), akıllı alarm bantta titreşimle, banttan kapat/ertele, rüya ve horlama ipuçları. Cihazda bir gece doğrulandı: hareket ve nabız grafikleri dolu, alarm çalıştı. Gece pil tüketimi yaklaşık %12.
+- **Band 8 veri yükleme kanalı:** uygulama simgeleri (Gelişmiş'ten açılır, cihazda doğrulandı) ve deneysel kadran yükleme, etkin yapma, silme (resmi .bin dosyasıyla cihazda doğrulandı).
+- LS05 bu sürümde cihazda yeniden denenmedi; LS05 kodu değişmedi.
+
+## v0.16.0-alpha2 | Geliştirme (cihazda doğrulanmadı)
+
+### Sleep as Android
+
+- Sorun (build 212): Sleep as Android bağlandı ama sensör testi grafik göstermedi. Nabız gidiyordu, hareket verisi gitmiyordu. Sleep as Android uyku grafiği için hareket ister.
+- Yeni "Hareket gönder (deneysel)" anahtarı: bantta gizli bir uyku antrenmanı açılır, bandın ivme verisi 10 sn'lik pencerelerle Sleep as Android'e gider. Varsayılan kapalı.
+- Gelişmiş > Band 8 denemeleri: "Gizli antrenman 30 sn". Logda ivme komutu ve örnek sayısı, değer yazılmaz.
+- Log: Sleep as Android'e giden her yayının tam adı ve değer sayısı yazılır.
+
+## v0.16.0-alpha1 | Geliştirme (cihazda doğrulanmadı)
+
+### Sleep as Android
+
+- Ayarlar > Sleep as Android kartı: aç/kapat, nabız gönder, kurulum adımları ve durum. Sleep as Android'de Wearables > DIY seçilir, paket adı yazılır.
+- Takip başlayınca Band 8 canlı nabzı (8/45) açılır, nabız paketler hâlinde Sleep as Android'e gider. Takip bitince, duraklatmada ya da ayar kapanınca akış durur (8/46).
+- Akıllı alarm: bantta "Alarm" ekranı ve 5 sn'de bir titreşim, en çok 5 dk. Bantta reddet alarmı kapatır, sessize al erteler.
+- Lüsid rüya ve horlama ipuçları kısa titreşim olarak banda gider.
+- Band 8 hareket verisi göndermez; yalnızca nabız gider. LS05 için özellik yok.
+- Gelişmiş > Band 8 denemeleri: "Canlı nabız 30 sn". Logda yalnızca olay sayısı, nabız değeri yazılmaz.
+- Ayrıntı: docs/SLEEP_AS_ANDROID.md.
+
+### Band 8 veri yükleme, simge ve kadran
+
+- Band 8 veri yükleme kanalı (0x0055): 22/0 isteği, MD5 ve CRC32, 4096 baytlık bölümler, yeniden gönderme ve ret. Yapı Notify kaydındaki üç simge yüklemesiyle birebir.
+- Band 8 bildirim simgesi (deneysel, Gelişmiş, varsayılan kapalı): band bir uygulamanın simgesini isteyince o uygulamanın simgesi istenen boyda gider.
+- Band 8 kadran (deneysel, Gelişmiş): kadran listesini oku, .bin kadran dosyası yükle, etkin yap, sil. Her adım elle; yüklenen kadran kendiliğinden seçilmez.
+- Kadran dosya biçimi ve kurulum komutu belgelendi (docs/BAND8_PROTOKOL.md bölüm 18). Navigasyon oku sonraki adım.
+
 ## v0.15.0 | 20 Kasım 2026 (kararlı sürüm)
 
 İlk Band 8 sürümü. v0.13.1–v0.15.0-rc2 arasındaki tüm değişiklikleri içerir.

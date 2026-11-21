@@ -29,6 +29,8 @@ import com.che.ls05.protocol.band8.B8Notification
 import com.che.ls05.protocol.band8.B8PhoneInfo
 import com.che.ls05.protocol.band8.B8Sub
 import com.che.ls05.protocol.band8.B8Type
+import com.che.ls05.protocol.band8.B8Upload
+import com.che.ls05.protocol.band8.B8UploadJob
 import com.che.ls05.protocol.band8.B8Write
 import java.util.Locale
 import java.util.UUID
@@ -54,6 +56,13 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
 
         /** Oturum hazırken gelen ve burada işlenmeyen şifreli komut (deneme yanıtları için). */
         fun onBandCommand(command: B8Command)
+    }
+
+    /** Veri yükleme sonucu. Ana iş parçacığında çağrılır. */
+    interface UploadCallback {
+        fun onProgress(done: Int, total: Int)
+        /** [reason] başarıda null. */
+        fun onFinished(reason: String?)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -89,6 +98,87 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     /** Son gelen bildirimin yalnızca çerçeve başlığı (yük değil); yabancı auth logu için. */
     private var lastHeader = ""
     private var fetcher: Band8HealthFetcher? = null
+
+    // ---------- Veri yükleme (0x0055) ----------
+    private var uploadJob: B8UploadJob? = null
+    private var uploadLabel = ""
+    private var uploadCallback: UploadCallback? = null
+    private var uploadStartedAt = 0L
+    private val uploadTimeout = Runnable {
+        if (uploadJob != null) finishUpload("zaman aşımı")
+    }
+
+    /** Bir yükleme (istek ya da bölümler) sürüyor mu. */
+    val isUploading: Boolean get() = uploadJob != null
+
+    /**
+     * 22/0 isteğini gönderir. Band onaylayınca bölümler 0x0055'ten gider. Aynı anda tek yükleme.
+     * Gönderildiyse null, değilse kısa neden. Logda yalnızca tür, boy ve bölüm sayısı.
+     */
+    fun startUpload(type: Int, data: ByteArray, label: String, cb: UploadCallback): String? {
+        if (type == B8Upload.TYPE_FIRMWARE) return "Yazılım yüklemesi desteklenmiyor."
+        if (!ready || released || gatt == null || channel.session == null) return "Band 8 hazır değil."
+        if (uploadJob != null || channel.uploading) return "Başka bir yükleme sürüyor."
+        if (channel.pending >= MAX_PENDING_COMMANDS) return "Komut kuyruğu dolu."
+        val job = B8UploadJob(type, data)
+        uploadJob = job
+        uploadLabel = label
+        uploadCallback = cb
+        uploadStartedAt = SystemClock.elapsedRealtime()
+        listener.onLog("Band 8 yükleme isteği: $label, tür=$type, boy=${data.size}")
+        sendAuthenticated(job.request())
+        armUploadTimeout()
+        return null
+    }
+
+    private fun armUploadTimeout() {
+        main.removeCallbacks(uploadTimeout)
+        if (uploadJob != null) main.postDelayed(uploadTimeout, UPLOAD_STEP_TIMEOUT_MS)
+    }
+
+    private fun onUploadAck(command: B8Command) {
+        val job = uploadJob ?: run {
+            listener.onLog("Band 8 beklenmeyen 22/0 yanıtı; yok sayıldı")
+            return
+        }
+        val ack = B8Upload.parseAck(command) ?: return finishUpload("22/0 yanıtı çözülemedi")
+        listener.onLog("Band 8 yükleme yanıtı: durum=${ack.status}, devam=${ack.resumeAt}, bölümBoyu=${ack.partSize ?: "yok"}, md5=${ack.md5?.let { if (it.contentEquals(job.md5)) "aynı" else "farklı" } ?: "yok"}")
+        when (val next = job.onAck(ack)) {
+            is B8UploadJob.Next.Fail -> finishUpload(next.reason)
+            is B8UploadJob.Next.Send -> {
+                listener.onLog("Band 8 yükleme başlıyor: $uploadLabel, bölüm=${next.total}, atlanan=${next.skipped}")
+                val r = channel.startUpload(next.parts, next.skipped, next.total)
+                enqueue(r.writes)
+                armUploadTimeout()
+                r.incoming.forEach { onUploadEvent(it) }
+            }
+        }
+    }
+
+    private fun onUploadEvent(event: B8Incoming) {
+        when (event) {
+            is B8Incoming.UploadProgress -> {
+                armUploadTimeout()
+                uploadCallback?.onProgress(event.done, event.total)
+            }
+            is B8Incoming.UploadDone -> finishUpload(null)
+            is B8Incoming.UploadFailed -> finishUpload(event.reason)
+            else -> {}
+        }
+    }
+
+    private fun finishUpload(reason: String?) {
+        if (uploadJob == null) return
+        main.removeCallbacks(uploadTimeout)
+        if (reason != null) channel.abortUpload()
+        val ms = SystemClock.elapsedRealtime() - uploadStartedAt
+        listener.onLog("Band 8 yükleme ${if (reason == null) "bitti" else "durdu: $reason"}: $uploadLabel, ${ms} ms")
+        val cb = uploadCallback
+        uploadJob = null
+        uploadCallback = null
+        cb?.onFinished(reason)
+        fetcher?.poll()
+    }
     private val commandTimeout = Runnable {
         if (ready && channel.pending > 0) {
             listener.onLog("Band 8 komut zaman aşımı: bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}, yazıyor=$writing; bağlantı yenileniyor")
@@ -212,6 +302,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
         if (gatt != null) listener.onLog("Band 8 bağlantı kapanıyor: kullanıcı=$byUser, durum=$status, hazır=$ready, bekleyen=${channel.pending}, yazımKuyruğu=${writes.size}")
         generation++
         main.removeCallbacks(commandTimeout)
+        finishUpload("bağlantı kapandı")
         val hadGatt = gatt != null
         val wasReady = ready
         ready = false
@@ -449,7 +540,8 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     fun fetchHealthNow(): Boolean = ready && fetcher?.startNow() == true
 
     private fun channelIdle(): Boolean =
-        ready && channel.session != null && channel.pending == 0 && !writing && writes.isEmpty()
+        ready && channel.session != null && channel.pending == 0 && !writing && writes.isEmpty() &&
+            uploadJob == null && !channel.uploading
 
     private fun foreign(reason: String, header: String) {
         foreignTraces++
@@ -556,6 +648,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
                 is B8Incoming.SendRejected -> listener.onLog("Band 8 isteği reddetti")
                 is B8Incoming.ActivityPart -> fetcher?.onActivityPart(event.plain)
                     ?: listener.onLog("Band 8 etkinlik bölümü oturum hazır olmadan geldi; atlandı")
+                is B8Incoming.UploadProgress, is B8Incoming.UploadDone, is B8Incoming.UploadFailed -> onUploadEvent(event)
             }
         }
     }
@@ -565,7 +658,10 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
             listener.onLog("Band 8 gelen komut çözümlenemedi; şifreli=$encrypted")
             return
         }
-        listener.onLog("Band 8 gelen komut: tür=${command.type}, altTür=${command.subtype}, durum=${command.status ?: "yok"}, şifreli=$encrypted")
+        // Canlı akış olayları (8/47) gece boyu sık gelir; sürücü yalnızca sayısını loglar.
+        if (!(command.type == B8Type.HEALTH && command.subtype == 47) && !com.che.ls05.protocol.band8.B8Workout.hasSensor(command)) {
+            listener.onLog("Band 8 gelen komut: tür=${command.type}, altTür=${command.subtype}, durum=${command.status ?: "yok"}, şifreli=$encrypted")
+        }
         // Android'de BLE bağlantısı uygulamalar arasında paylaşılır. Bizim başlatmadığımız 1/26 ya da 1/27
         // yanıtı başka bir istemcinin (Mi Fitness, Notify) auth'udur (#16). B8Auth'a verilmez; servis
         // uyarı gösterir ve en çok 5 dakikada bir tam yeniden bağlanır.
@@ -618,6 +714,7 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
                 deviceInfoConfirmed = true
                 finishHandshakeIfReady()
             }
+            ready && encrypted && command.matches(B8Type.DATA_UPLOAD, B8Upload.SUB_START) -> onUploadAck(command)
             ready && encrypted && command.matches(B8Type.SYSTEM, B8Sub.SYS_FIND_BAND) -> {
                 val state = command.body(B8Type.F_SYSTEM)?.int(5)
                 listener.onLog("Band 8 bulma yanıtı: durum=${state ?: "yok"}")
@@ -644,6 +741,8 @@ class Band8Ble(private val context: Context, private val listener: Listener, pri
     private companion object {
         const val MAX_PENDING_COMMANDS = 24
         const val COMMAND_TIMEOUT_MS = 8_000L
+        /** 22/0 yanıtı ya da bir bölümün onayı için en uzun bekleme. Kayıtta bölüm başına 0,1 s altında. */
+        const val UPLOAD_STEP_TIMEOUT_MS = 15_000L
         const val TEST_CALLER = "Test arama"
     }
 }

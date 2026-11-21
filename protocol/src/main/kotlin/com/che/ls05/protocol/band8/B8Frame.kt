@@ -32,10 +32,11 @@ object B8Frame {
      * "hazırım" dedikten sonra gönderilir.
      *
      * @param blob şifreli gönderimde: sayaç önü (varsa) + şifreli veri. Şifresizde: düz veri.
+     * @param forceChunked veri yüklemede (0x0055) bölüm her zaman parçalı gider (kayıttaki gibi).
      */
-    fun split(blob: ByteArray, encrypted: Boolean, mtu: Int): Split {
+    fun split(blob: ByteArray, encrypted: Boolean, mtu: Int, forceChunked: Boolean = false): Split {
         val max = maxWrite(mtu)
-        if (4 + blob.size <= max) {
+        if (!forceChunked && 4 + blob.size <= max) {
             val head = byteArrayOf(0, 0, 2, if (encrypted) 1 else 2)
             return Split(head + blob, emptyList())
         }

@@ -100,6 +100,10 @@ object Prefs {
     fun setProfileVerified(c: Context, value: Boolean) = p(c).edit().putBoolean(k(c, "profileVerified"), value).apply()
 
     /** Son başarılı adım geçmişi okuması (ms); 0 = hiç. */
+    /** Band 8 bildirim simgesi yüklemesi (deneysel, varsayılan kapalı). */
+    fun band8Icons(c: Context): Boolean = p(c).getBoolean("band8Icons", false)
+    fun setBand8Icons(c: Context, value: Boolean) = p(c).edit().putBoolean("band8Icons", value).apply()
+
     /** Band 8 deneme alarmının son kurulan saati ("Test alarmlarını temizle" ve düzenle/sil için). */
     fun band8TestAlarm(c: Context): Pair<Int, Int>? {
         val v = p(c).getInt("band8TestAlarm", -1)
@@ -178,6 +182,15 @@ object Prefs {
     fun weatherCityName(c: Context): String = p(c).getString("weatherCity", "") ?: ""
     fun weatherLat(c: Context): Double? = p(c).getString("weatherLat", null)?.toDoubleOrNull()
     fun weatherLon(c: Context): Double? = p(c).getString("weatherLon", null)?.toDoubleOrNull()
+
+    // Sleep as Android (yalnızca Band 8). Nabız değerleri saklanmaz.
+    fun saaEnabled(c: Context): Boolean = p(c).getBoolean("saaOn", false)
+    fun setSaaEnabled(c: Context, on: Boolean) = p(c).edit().putBoolean("saaOn", on).apply()
+    fun saaHeartRate(c: Context): Boolean = p(c).getBoolean("saaHr", true)
+    fun setSaaHeartRate(c: Context, on: Boolean) = p(c).edit().putBoolean("saaHr", on).apply()
+    /** Hareket: bantta gizli antrenman ve ivme akışı (deneysel, varsayılan kapalı). */
+    fun saaMovement(c: Context): Boolean = p(c).getBoolean("saaMove", false)
+    fun setSaaMovement(c: Context, on: Boolean) = p(c).edit().putBoolean("saaMove", on).apply()
     fun setWeatherCity(c: Context, name: String, lat: Double, lon: Double) = p(c).edit()
         .putString("weatherCity", name).putString("weatherLat", lat.toString()).putString("weatherLon", lon.toString())
         .remove("weatherCache").putLong("weatherAt", 0L).apply()

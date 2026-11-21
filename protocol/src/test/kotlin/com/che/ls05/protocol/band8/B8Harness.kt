@@ -10,6 +10,7 @@ internal class B8Harness(key: ByteArray, val band: FakeBand, random: (Int) -> By
     var authResult: B8Auth.Step? = null
     val inbox = ArrayList<B8Command>()
     val failures = ArrayList<B8Incoming>()
+    val uploadEvents = ArrayList<B8Incoming>()
     var fetch: B8Fetch? = null
     val fetchOut = ArrayList<B8Fetch.Out>()
     var now = 0L
@@ -61,6 +62,7 @@ internal class B8Harness(key: ByteArray, val band: FakeBand, random: (Int) -> By
                 fetch?.let { process(it.onActivityPart(inc.plain, now)) }
                 gate?.let { process(it.onActivityPart(inc.plain, now)) }
             }
+            is B8Incoming.UploadProgress, is B8Incoming.UploadDone, is B8Incoming.UploadFailed -> uploadEvents.add(inc)
             else -> failures.add(inc)
         }
     }
@@ -83,6 +85,19 @@ internal class B8Harness(key: ByteArray, val band: FakeBand, random: (Int) -> By
             if (outs.isEmpty()) return
             process(outs)
         }
+    }
+
+    /** Uygulamadaki sıralama: 22/0 gönder, yanıtı işle, bölümleri 0x0055'e gönder. */
+    fun upload(job: B8UploadJob): B8UploadJob.Next {
+        send(job.request())
+        val ack = inbox.lastOrNull { it.matches(22, 0) }?.let { B8Upload.parseAck(it) } ?: error("22/0 yanıtı yok")
+        val next = job.onAck(ack)
+        if (next is B8UploadJob.Next.Send) {
+            val r = ch.startUpload(next.parts, next.skipped, next.total)
+            r.incoming.forEach { handle(it) }
+            write(r.writes); run()
+        }
+        return next
     }
 
     fun authenticate() { write(ch.beginAuth(auth.start())); run() }

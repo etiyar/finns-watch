@@ -1510,6 +1510,9 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     private val bandFindTests = ui.vertical()
     private val bandCallTests = ui.vertical()
     private val bandProbes = ui.vertical()
+    /** Gelişmiş > Band 8 bildirim simgesi ve kadran (deneysel). MainActivity dosya seçici sonucunu buraya verir. */
+    val bandFaces = Band8FaceCard(act)
+    private val saaCard = SaaCard(act, ui)
     private val logView: TextView = ui.mono()
     private var setupOpened = false
 
@@ -1575,6 +1578,10 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(wx, wxBottom, topDp = 4)
         ui.add(body, wx, topDp = 8)
 
+        // Sleep as Android (SaaCard.kt)
+        ui.add(body, saaCard.section, topDp = 20)
+        ui.add(body, saaCard.card, topDp = 8)
+
         // Görünüm
         ui.add(body, ui.section("Görünüm"), topDp = 20)
         val themeCard = ui.card()
@@ -1610,6 +1617,8 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         buildBandProbes()
         bandProbes.visibility = View.GONE
         ui.add(adv.content, bandProbes, topDp = 12)
+        bandFaces.view.visibility = View.GONE
+        ui.add(adv.content, bandFaces.view, topDp = 20)
         ui.add(adv.content, ui.cardTitle("Log"), topDp = 20)
         val lr = ui.horizontal()
         ui.add(lr, ui.secondary("Logu kopyala") { copyLog() }, width = 0, weight = 1f)
@@ -1634,6 +1643,8 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
             if (WatchRegistry.active(act)?.type == WatchType.BAND8) View.VISIBLE else View.GONE
         bandCallTests.visibility = bandFindTests.visibility
         bandProbes.visibility = bandFindTests.visibility
+        bandFaces.view.visibility = bandFindTests.visibility
+        bandFaces.refresh()
         refreshSetup()
         refreshWatchInfo()
         theme.select(Prefs.themeMode(act))
@@ -1664,6 +1675,8 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         }
         group("Bildirim: emojiler kısa metne dönüyor mu (<3 (+1) :D :O :( (dua))", "Emoji testi" to Band8Probe.EMOJI_TEST)
         group("Titreşim: kısa-kısa-uzun desen (kurallarda henüz kullanılmaz)", "Titreşim deseni testi" to Band8Probe.VIBRATION_TEST)
+        group("Canlı nabız: 30 sn açılır, sonra durur. Logda yalnızca olay sayısı.", "Canlı nabız 30 sn" to Band8Probe.LIVE_HR_30S)
+        group("Gizli antrenman: 30 sn açılır, ivme verisi sayılır, sonra biter. Bantta antrenman ekranı görünebilir.", "Gizli antrenman 30 sn" to Band8Probe.WORKOUT_30S)
         group("Arama (gelen arama ve kapatma yukarıdaki denemede)", "Cevapsız arama" to Band8Probe.MISSED_CALL)
         group("Alarm: her değişiklikten önce listeyi oku. Test alarmı 2 dakika sonra çalar.",
             "Alarm listesini oku" to Band8Probe.ALARM_LIST, "Test alarmı kur" to Band8Probe.ALARM_CREATE,
@@ -1815,9 +1828,11 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
     }
 
     fun refreshWatchInfo() {
+        bandFaces.refresh()
         weatherSwitch.toggle.set(Prefs.weatherEnabled(act))
         cityRow.value.text = Prefs.weatherCityName(act).ifEmpty { "Seçilmedi" }
         weatherInfo.text = WeatherSync.summary(act)
+        saaCard.refresh()
         val band = WatchRegistry.active(act)?.type == WatchType.BAND8
         idRow.view.visibility = if (band) View.GONE else View.VISIBLE
         directConnectButtons.visibility = if (band) View.VISIBLE else View.GONE
