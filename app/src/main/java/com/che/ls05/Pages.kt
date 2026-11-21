@@ -1524,6 +1524,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(body, connectionHeading, topDp = 8)
         val w = ui.card(padDp = 16, padVDp = 6)
         ui.add(w, idRow.view)
+        WatchRegistry.active(act)?.let { ui.add(w, CredentialRow.build(act, ui, it), topDp = 4) } // geçici yer
         val btns = ui.horizontal()
         ui.add(btns, ui.secondary("Tara") { scan() }, width = 0, weight = 1f)
         ui.add(btns, ui.tonal("Bağlan") { connectSaved() }, width = 0, weight = 1f, leftDp = 8)
@@ -1589,6 +1590,7 @@ class SettingsPage(act: MainActivity) : Page(act, "Ayarlar") {
         ui.add(themeCard, theme.view, topDp = 12)
         ui.add(body, themeCard, topDp = 8)
 
+        ui.add(body, BackupSection.build(act, ui), topDp = 20) // geçici yer
         // Gelişmiş ve log: varsayılan kapalı.
         val adv = ui.collapsible("Gelişmiş ve log", "Saati eşitle, son satırlar", R.drawable.ic_code, open = false)
         val timeButton = ui.secondary("Saati eşitle") { withWatch { it.sendTime() } }
